@@ -15,7 +15,7 @@ const VIEW_TABS: { id: ViewType; label: string }[] = [
 ];
 
 export function Topbar() {
-  const { selectedDate, currentView, setView, toggleSidebar, openTaskModal, openEventModal, openSearch, user, syncStatus, signOut, theme, setTheme } = useAppStore();
+  const { selectedDate, currentView, setView, toggleSidebar, openTaskModal, openEventModal, openSearch, user, syncStatus, signOut, theme, setTheme, isDemoMode } = useAppStore();
   const date = parseISO(selectedDate);
   const dayOfWeek = DAY_NAMES_TR[(date.getDay() + 6) % 7]; // Monday-first
 
@@ -114,8 +114,8 @@ export function Topbar() {
           <Plus size={14} />
           <span className="hidden sm:inline">Yeni gorev</span>
         </button>
-        {/* Cikis yap — sadece giris yapilmissa */}
-        {user && (
+        {/* Cikis yap — sadece giris yapilmissa ve demo degilse */}
+        {user && !isDemoMode && (
           <button
             onClick={() => signOut()}
             className="p-1.5 rounded-lg hover:bg-cream-200 transition-colors"

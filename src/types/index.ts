@@ -86,6 +86,12 @@ export interface SearchResult {
 
 // ---- App State ----
 export interface AppState {
+  // Demo mode
+  isDemoMode: boolean;
+  setDemoMode: (value: boolean) => void;
+  demoToast: string | null;
+  showDemoToast: (message: string) => void;
+
   // View
   currentView: ViewType;
   selectedDate: string;

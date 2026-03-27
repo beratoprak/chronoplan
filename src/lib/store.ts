@@ -180,6 +180,15 @@ const DEMO_EVENTS: CalendarEvent[] = [
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      // Demo mode
+      isDemoMode: false,
+      setDemoMode: (value) => set({ isDemoMode: value }),
+      demoToast: null,
+      showDemoToast: (message) => {
+        set({ demoToast: message });
+        setTimeout(() => set({ demoToast: null }), 2500);
+      },
+
       // View state
       currentView: "daily",
       selectedDate: format(new Date(), "yyyy-MM-dd"),
@@ -193,23 +202,35 @@ export const useAppStore = create<AppState>()(
       // ── Task Modal State ──────────────────────────────────────
       isTaskModalOpen: false,
       editingTask: null,
-      openTaskModal: (task) => set({ isTaskModalOpen: true, editingTask: task ?? null }),
+      openTaskModal: (task) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev duzenlenemez"); return; }
+        set({ isTaskModalOpen: true, editingTask: task ?? null });
+      },
       closeTaskModal: () => set({ isTaskModalOpen: false, editingTask: null }),
 
       // ── Delete Confirm State ──────────────────────────────────
       deletingTaskId: null,
-      openDeleteConfirm: (id) => set({ deletingTaskId: id }),
+      openDeleteConfirm: (id) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda silme yapilamaz"); return; }
+        set({ deletingTaskId: id });
+      },
       closeDeleteConfirm: () => set({ deletingTaskId: null }),
 
       // ── Event Modal State ─────────────────────────────────────
       isEventModalOpen: false,
       editingEvent: null,
-      openEventModal: (event) => set({ isEventModalOpen: true, editingEvent: event ?? null }),
+      openEventModal: (event) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda etkinlik duzenlenemez"); return; }
+        set({ isEventModalOpen: true, editingEvent: event ?? null });
+      },
       closeEventModal: () => set({ isEventModalOpen: false, editingEvent: null }),
 
       // ── Event Delete Confirm State ────────────────────────────
       deletingEventId: null,
-      openDeleteEventConfirm: (id) => set({ deletingEventId: id }),
+      openDeleteEventConfirm: (id) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda silme yapilamaz"); return; }
+        set({ deletingEventId: id });
+      },
       closeDeleteEventConfirm: () => set({ deletingEventId: null }),
 
       // ── Auth State (Faz 5) ────────────────────────────────────
@@ -271,39 +292,102 @@ export const useAppStore = create<AppState>()(
         const data = await syncAllFromSupabase(user.id);
 
         if (data === null) {
-          // Ağ hatası / tablo yok
           set({ syncStatus: "error" });
           return;
         }
 
-        const hasRemoteData =
-          data.tasks.length > 0 || data.events.length > 0 || data.notes.length > 0;
+        const state = get();
 
-        if (!hasRemoteData) {
-          // İlk giriş: yerel veriyi Supabase'e push et
-          const state = get();
-          await Promise.all([
-            pushTags(state.tags, user.id),
-            ...state.tasks.map((t) => pushTask(t, user.id)),
-            ...state.events.map((e) => pushEvent(e, user.id)),
-            ...state.notes.map((n) => pushNote(n, user.id)),
-          ]);
-          set({ syncStatus: "idle" });
-        } else {
-          // Sonraki girişler: Supabase verisini yükle
-          set({
-            tasks: data.tasks,
-            notes: data.notes,
-            events: data.events,
-            tags: data.tags.length > 0 ? data.tags : DEFAULT_TAGS,
-            syncStatus: "idle",
-          });
-        }
+        // ── Tasks merge: updatedAt karşılaştır, local-only'leri push et ──
+        const remoteTaskMap = new Map(data.tasks.map((t) => [t.id, t]));
+        const localTaskMap = new Map(state.tasks.map((t) => [t.id, t]));
+        const mergedTasks: Task[] = [];
+        const tasksToPush: Task[] = [];
+
+        const allTaskIds = Array.from(new Set(Array.from(remoteTaskMap.keys()).concat(Array.from(localTaskMap.keys()))));
+        allTaskIds.forEach((id) => {
+          const remote = remoteTaskMap.get(id);
+          const local = localTaskMap.get(id);
+          if (remote && local) {
+            if (local.updatedAt >= remote.updatedAt) {
+              mergedTasks.push(local);
+              if (local.updatedAt > remote.updatedAt) tasksToPush.push(local);
+            } else {
+              mergedTasks.push(remote);
+            }
+          } else if (local) {
+            mergedTasks.push(local);
+            tasksToPush.push(local);
+          } else if (remote) {
+            mergedTasks.push(remote);
+          }
+        });
+
+        // ── Notes merge ───────────────────────────────────────────
+        const remoteNoteMap = new Map(data.notes.map((n) => [n.date, n]));
+        const localNoteMap = new Map(state.notes.map((n) => [n.date, n]));
+        const mergedNotes: DayNote[] = [];
+        const notesToPush: DayNote[] = [];
+
+        const allNoteDates = Array.from(new Set(Array.from(remoteNoteMap.keys()).concat(Array.from(localNoteMap.keys()))));
+        allNoteDates.forEach((date) => {
+          const remote = remoteNoteMap.get(date);
+          const local = localNoteMap.get(date);
+          if (remote && local) {
+            if (local.updatedAt >= remote.updatedAt) {
+              mergedNotes.push(local);
+              if (local.updatedAt > remote.updatedAt) notesToPush.push(local);
+            } else {
+              mergedNotes.push(remote);
+            }
+          } else if (local) {
+            mergedNotes.push(local);
+            notesToPush.push(local);
+          } else if (remote) {
+            mergedNotes.push(remote);
+          }
+        });
+
+        // ── Events merge ──────────────────────────────────────────
+        const remoteEventMap = new Map(data.events.map((e) => [e.id, e]));
+        const localEventMap = new Map(state.events.map((e) => [e.id, e]));
+        const mergedEvents: CalendarEvent[] = [];
+        const eventsToPush: CalendarEvent[] = [];
+
+        const allEventIds = Array.from(new Set(Array.from(remoteEventMap.keys()).concat(Array.from(localEventMap.keys()))));
+        allEventIds.forEach((id) => {
+          const remote = remoteEventMap.get(id);
+          const local = localEventMap.get(id);
+          if (remote && local) {
+            mergedEvents.push(remote);
+          } else if (local) {
+            mergedEvents.push(local);
+            eventsToPush.push(local);
+          } else if (remote) {
+            mergedEvents.push(remote);
+          }
+        });
+
+        // State güncelle
+        set({
+          tasks: mergedTasks,
+          notes: mergedNotes,
+          events: mergedEvents,
+          tags: data.tags.length > 0 ? data.tags : state.tags,
+          syncStatus: "idle",
+        });
+
+        // Local-only verileri arka planda Supabase'e push et
+        if (data.tags.length === 0) void pushTags(state.tags, user.id);
+        for (const t of tasksToPush) void pushTask(t, user.id);
+        for (const n of notesToPush) void pushNote(n, user.id);
+        for (const e of eventsToPush) void pushEvent(e, user.id);
       },
 
       // Tasks
       tasks: DEMO_TASKS,
       addTask: (taskData) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev eklenemez"); return; }
         const newTask: Task = {
           ...taskData,
           id: generateId(),
@@ -317,6 +401,7 @@ export const useAppStore = create<AppState>()(
         if (user && isSupabaseConfigured) void pushTask(newTask, user.id);
       },
       updateTask: (id, updates) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda duzenleme yapilamaz"); return; }
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
@@ -327,11 +412,13 @@ export const useAppStore = create<AppState>()(
         if (user && isSupabaseConfigured && updatedTask) void pushTask(updatedTask, user.id);
       },
       deleteTask: (id) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda silme yapilamaz"); return; }
         set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
         const { user } = get();
         if (user && isSupabaseConfigured) void deleteTaskFromSupabase(id);
       },
       moveTask: (id, status) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev tasinamaz"); return; }
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === id
@@ -349,6 +436,7 @@ export const useAppStore = create<AppState>()(
         if (user && isSupabaseConfigured && updatedTask) void pushTask(updatedTask, user.id);
       },
       reorderTask: (id, newOrder, newStatus) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev tasinamaz"); return; }
         set((s) => {
           const tasks = [...s.tasks];
           const taskIndex = tasks.findIndex((t) => t.id === id);
@@ -387,6 +475,7 @@ export const useAppStore = create<AppState>()(
       notes: [],
       getNote: (date) => get().notes.find((n) => n.date === date),
       saveNote: (date, content, plainText) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda not kaydedilemez"); return; }
         set((s) => {
           const existing = s.notes.find((n) => n.date === date);
           if (existing) {
@@ -420,12 +509,14 @@ export const useAppStore = create<AppState>()(
       // Events
       events: DEMO_EVENTS,
       addEvent: (eventData) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda etkinlik eklenemez"); return; }
         const newEvent = { ...eventData, id: generateId() };
         set((s) => ({ events: [...s.events, newEvent] }));
         const { user } = get();
         if (user && isSupabaseConfigured) void pushEvent(newEvent, user.id);
       },
       updateEvent: (id, updates) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda duzenleme yapilamaz"); return; }
         set((s) => ({
           events: s.events.map((e) => (e.id === id ? { ...e, ...updates } : e)),
         }));
@@ -434,6 +525,7 @@ export const useAppStore = create<AppState>()(
         if (user && isSupabaseConfigured && updatedEvent) void pushEvent(updatedEvent, user.id);
       },
       deleteEvent: (id) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda silme yapilamaz"); return; }
         set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
         const { user } = get();
         if (user && isSupabaseConfigured) void deleteEventFromSupabase(id);

@@ -28,7 +28,7 @@ const TAG_DOTS: { label: string; color: string }[] = [
 ];
 
 export function Sidebar() {
-  const { currentView, setView, sidebarOpen, openSettings, openWorkspaceModal } = useAppStore();
+  const { currentView, setView, sidebarOpen, openSettings, openWorkspaceModal, isDemoMode } = useAppStore();
 
   if (!sidebarOpen) return null;
 
@@ -111,17 +111,19 @@ export function Sidebar() {
         ))}
       </div>
 
-      {/* Workspace (Faz 8) */}
-      <div className="px-1">
-        <button
-          onClick={openWorkspaceModal}
-          className="cp-nav-item w-full"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          <Users size={15} />
-          <span className="text-xs">Workspace</span>
-        </button>
-      </div>
+      {/* Workspace (Faz 8) — demo modunda gizle */}
+      {!isDemoMode && (
+        <div className="px-1">
+          <button
+            onClick={openWorkspaceModal}
+            className="cp-nav-item w-full"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            <Users size={15} />
+            <span className="text-xs">Workspace</span>
+          </button>
+        </div>
+      )}
 
       {/* Settings (Faz 7) */}
       <div className="px-1 pb-1">

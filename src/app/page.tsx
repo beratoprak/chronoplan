@@ -45,10 +45,10 @@ export default function Home() {
     }
   }, [initAuth]);
 
-  // Giriş yapılmamışsa → landing page'e yönlendir
+  // Giriş yapılmamışsa → auth sayfasına yönlendir
   useEffect(() => {
     if (isSupabaseConfigured && !authLoading && !user) {
-      router.replace("/landing");
+      router.replace("/auth");
     }
   }, [user, authLoading, router]);
 
