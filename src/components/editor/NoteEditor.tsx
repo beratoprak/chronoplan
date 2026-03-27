@@ -1,122 +1,134 @@
 "use client";
 
-import { useEffect, useCallback, useRef, useState } from "react";
-import { useCreateBlockNote } from "@blocknote/react";
-import { BlockNoteView } from "@blocknote/mantine";
-import "@blocknote/mantine/style.css";
-import { useAppStore } from "@/lib/store";
+import { useRef, useState, useEffect, useCallback } from "react";
 import {
-  Plus,
-  Heading1,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  CheckSquare,
-  Quote,
-  Code,
-  Minus,
-  Type,
+  Plus, Heading1, Heading2, Heading3,
+  List, ListOrdered, CheckSquare, Quote, Code, Minus, Type,
 } from "lucide-react";
+import { useAppStore } from "@/lib/store";
 
 interface NoteEditorProps {
   date: string;
 }
 
-const BLOCK_TYPES = [
-  { label: "Metin", icon: Type,         insert: () => ({ type: "paragraph" as const, content: [] }) },
-  { label: "Başlık 1", icon: Heading1,   insert: () => ({ type: "heading" as const, props: { level: 1 as const }, content: [] }) },
-  { label: "Başlık 2", icon: Heading2,   insert: () => ({ type: "heading" as const, props: { level: 2 as const }, content: [] }) },
-  { label: "Başlık 3", icon: Heading3,   insert: () => ({ type: "heading" as const, props: { level: 3 as const }, content: [] }) },
-  { label: "Madde listesi", icon: List,  insert: () => ({ type: "bulletListItem" as const, content: [] }) },
-  { label: "Numaralı liste", icon: ListOrdered, insert: () => ({ type: "numberedListItem" as const, content: [] }) },
-  { label: "Yapılacaklar", icon: CheckSquare, insert: () => ({ type: "checkListItem" as const, props: { checked: false as const }, content: [] }) },
-  { label: "Alıntı", icon: Quote,        insert: () => ({ type: "quote" as const, content: [] }) },
-  { label: "Kod",    icon: Code,         insert: () => ({ type: "codeBlock" as const, props: { language: "plain text" as const } }) },
-  { label: "Ayraç", icon: Minus,         insert: () => ({ type: "paragraph" as const, content: [{ type: "text" as const, text: "---", styles: {} }] }) },
-] as const;
+const INSERTS = [
+  { label: "Metin",          icon: Type,         prefix: ""         },
+  { label: "Başlık 1",       icon: Heading1,      prefix: "# "       },
+  { label: "Başlık 2",       icon: Heading2,      prefix: "## "      },
+  { label: "Başlık 3",       icon: Heading3,      prefix: "### "     },
+  { label: "Madde listesi",  icon: List,          prefix: "• "       },
+  { label: "Numaralı liste", icon: ListOrdered,   prefix: "1. "      },
+  { label: "Yapılacaklar",   icon: CheckSquare,   prefix: "☐ "       },
+  { label: "Alıntı",         icon: Quote,         prefix: "> "       },
+  { label: "Kod",            icon: Code,          prefix: "```\n"    },
+  { label: "Ayraç",          icon: Minus,         prefix: "\n---\n"  },
+];
 
-export function NoteEditor({ date }: NoteEditorProps) {
-  const { notes, saveNote } = useAppStore();
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const existingNote = notes.find((n) => n.date === date);
-
-  const initialContent = (() => {
-    if (existingNote?.content) {
-      try { return JSON.parse(existingNote.content); }
-      catch { return undefined; }
-    }
-    return undefined;
-  })();
-
-  const editor = useCreateBlockNote({ initialContent });
-
-  // Mount'ta otomatik fokusla
-  useEffect(() => {
-    const t = setTimeout(() => { try { editor.focus(); } catch { /* */ } }, 80);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Gün değişince içeriği yükle + fokusla
-  useEffect(() => {
-    if (!editor) return;
-    const note = notes.find((n) => n.date === date);
-    const parsed = (() => {
-      if (note?.content) { try { return JSON.parse(note.content); } catch { /* */ } }
-      return [{ type: "paragraph", content: [] }];
-    })();
-    editor.replaceBlocks(editor.document, parsed);
-    setTimeout(() => { try { editor.focus(); } catch { /* */ } }, 80);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
-
-  // Auto-save 500ms debounce
-  const handleChange = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      const contentJSON = JSON.stringify(editor.document);
-      const plainText = editor.document
+function extractText(content: string): string {
+  // Eğer BlockNote JSON ise plainText çıkar, değilse direkt kullan
+  try {
+    const parsed = JSON.parse(content);
+    // JSON string kaydedilmişse (kendi formatımız)
+    if (typeof parsed === "string") return parsed;
+    // BlockNote block array ise
+    if (Array.isArray(parsed)) {
+      return parsed
         .map((b: Record<string, unknown>) => {
           const c = b.content;
           if (Array.isArray(c))
-            return c.map((i: Record<string, unknown>) =>
-              i.type === "text" && typeof i.text === "string" ? i.text : ""
-            ).join("");
+            return c
+              .map((i: Record<string, unknown>) =>
+                i.type === "text" && typeof i.text === "string" ? i.text : ""
+              )
+              .join("");
           return "";
         })
-        .join("\n")
-        .trim();
-      saveNote(date, contentJSON, plainText);
-    }, 500);
-  }, [date, editor, saveNote]);
+        .join("\n");
+    }
+  } catch { /* */ }
+  return content;
+}
+
+export function NoteEditor({ date }: NoteEditorProps) {
+  const { notes, saveNote } = useAppStore();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [value, setValue] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Gün değişince notu yükle + fokusla
+  useEffect(() => {
+    const note = notes.find((n) => n.date === date);
+    const text = note
+      ? (note.plainText || extractText(note.content))
+      : "";
+    setValue(text);
+    setTimeout(() => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }, 50);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  // Auto-resize
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.max(ta.scrollHeight, 320) + "px";
+  }, [value]);
+
+  // Değişince 500ms debounce ile kaydet
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const text = e.target.value;
+      setValue(text);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        saveNote(date, JSON.stringify(text), text);
+      }, 500);
+    },
+    [date, saveNote]
+  );
 
   // Dropdown dışına tıklayınca kapat
   useEffect(() => {
-    function onOutsideClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+    if (!dropdownOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (!dropdownRef.current?.contains(e.target as Node))
         setDropdownOpen(false);
-      }
     }
-    if (dropdownOpen) document.addEventListener("mousedown", onOutsideClick);
-    return () => document.removeEventListener("mousedown", onOutsideClick);
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
   }, [dropdownOpen]);
 
-  // Blok ekle
-  function insertBlock(blockFn: () => Record<string, unknown>) {
+  // Cursor pozisyonuna metin ekle
+  function handleInsert(prefix: string) {
     setDropdownOpen(false);
-    const block = blockFn() as Parameters<typeof editor.insertBlocks>[0][0];
-    try {
-      const pos = editor.getTextCursorPosition();
-      editor.insertBlocks([block], pos.block, "after");
-    } catch {
-      const last = editor.document[editor.document.length - 1];
-      editor.insertBlocks([block], last, "after");
-    }
-    setTimeout(() => { try { editor.focus(); } catch { /* */ } }, 50);
+    const ta = textareaRef.current;
+    if (!ta) return;
+
+    const start = ta.selectionStart ?? value.length;
+    const before = value.slice(0, start);
+    const after = value.slice(ta.selectionEnd ?? start);
+    const needsNewline = before.length > 0 && !before.endsWith("\n");
+    const insertion = (needsNewline ? "\n" : "") + prefix;
+    const newValue = before + insertion + after;
+
+    setValue(newValue);
+    const newPos = start + insertion.length;
+
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(newPos, newPos);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        saveNote(date, JSON.stringify(newValue), newValue);
+      }, 500);
+    }, 0);
   }
 
   return (
@@ -143,7 +155,6 @@ export function NoteEditor({ date }: NoteEditorProps) {
               background: dropdownOpen ? "var(--surface-sunken)" : "transparent",
               color: "var(--text-secondary)",
             }}
-            title="Blok ekle"
           >
             <Plus size={13} />
             Ekle
@@ -159,12 +170,12 @@ export function NoteEditor({ date }: NoteEditorProps) {
                 minWidth: "180px",
               }}
             >
-              {BLOCK_TYPES.map(({ label, icon: Icon, insert }) => (
+              {INSERTS.map(({ label, icon: Icon, prefix }) => (
                 <button
                   key={label}
                   type="button"
-                  onMouseDown={(e) => { e.preventDefault(); insertBlock(insert); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-left transition-colors"
+                  onMouseDown={(e) => { e.preventDefault(); handleInsert(prefix); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-left"
                   style={{ color: "var(--text-secondary)", background: "transparent", border: "none", cursor: "pointer" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-sunken)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -176,23 +187,24 @@ export function NoteEditor({ date }: NoteEditorProps) {
             </div>
           )}
         </div>
-
-        <span className="ml-auto text-[11px]" style={{ color: "var(--text-muted)" }}>
-          / ile de ekleyebilirsin
-        </span>
       </div>
 
-      {/* Editör — tıklayınca fokuslanır */}
-      <div
-        className="flex-1 overflow-auto cursor-text"
-        onClick={() => { try { editor.focus(); } catch { /* */ } }}
-      >
-        <BlockNoteView
-          editor={editor}
-          onChange={handleChange}
-          theme="light"
-        />
-      </div>
+      {/* Serbest yazma alanı */}
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={handleChange}
+        placeholder="Bugün ne düşünüyorsun..."
+        className="flex-1 resize-none outline-none p-4 text-[14px] leading-relaxed"
+        style={{
+          background: "transparent",
+          color: "var(--text-primary)",
+          fontFamily: "'DM Sans', sans-serif",
+          border: "none",
+          minHeight: "320px",
+          caretColor: "var(--brand-gold)",
+        }}
+      />
     </div>
   );
 }
