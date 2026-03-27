@@ -1,0 +1,350 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@layer base {
+  :root {
+    /* Surface hierarchy */
+    --surface-base: #F5F0E8;
+    --surface-raised: #FDFBF7;
+    --surface-sunken: #EDE8DD;
+    --surface-overlay: rgba(74, 63, 47, 0.6);
+
+    /* Text hierarchy */
+    --text-primary: #2C2518;
+    --text-secondary: #6B5B3E;
+    --text-tertiary: #A09882;
+    --text-muted: #C4BBAA;
+    --text-inverse: #FDFBF7;
+
+    /* Brand */
+    --brand-gold: #A0825C;
+    --brand-gold-hover: #8A6D48;
+    --brand-gold-light: #FAEEDA;
+    --brand-gold-subtle: #F5F0E8;
+
+    /* Borders */
+    --border-default: #E5DFD1;
+    --border-subtle: #EDE8DD;
+    --border-strong: #D6CEBC;
+    --border-accent: #A0825C;
+
+    /* Priority colors */
+    --priority-urgent: #E24B4A;
+    --priority-urgent-bg: #FCEBEB;
+    --priority-urgent-text: #791F1F;
+    --priority-high: #D85A30;
+    --priority-high-bg: #FAECE7;
+    --priority-high-text: #712B13;
+    --priority-medium: #BA7517;
+    --priority-medium-bg: #FAEEDA;
+    --priority-medium-text: #633806;
+    --priority-low: #1D9E75;
+    --priority-low-bg: #E1F5EE;
+    --priority-low-text: #085041;
+
+    /* Tag colors */
+    --tag-work: #E24B4A;
+    --tag-work-bg: #FCEBEB;
+    --tag-personal: #1D9E75;
+    --tag-personal-bg: #E1F5EE;
+    --tag-project: #7F77DD;
+    --tag-project-bg: #EEEDFE;
+    --tag-meeting: #BA7517;
+    --tag-meeting-bg: #FAEEDA;
+
+    /* Kanban status */
+    --status-planned-bg: #EEEDFE;
+    --status-planned-text: #534AB7;
+    --status-active-bg: #E6F1FB;
+    --status-active-text: #185FA5;
+    --status-done-bg: #E1F5EE;
+    --status-done-text: #0F6E56;
+
+    /* Layout */
+    --sidebar-width: 240px;
+    --topbar-height: 56px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.3s ease-out;
+  }
+
+  /* ── Dark Mode ──────────────────────────────────────────── */
+  [data-theme="dark"] {
+    --surface-base: #1A1714;
+    --surface-raised: #242019;
+    --surface-sunken: #13110E;
+    --surface-overlay: rgba(0, 0, 0, 0.7);
+
+    --text-primary: #EDE8DD;
+    --text-secondary: #A09882;
+    --text-tertiary: #6B5B3E;
+    --text-muted: #4A3F2F;
+    --text-inverse: #1A1714;
+
+    --brand-gold: #C4A060;
+    --brand-gold-hover: #D4B070;
+    --brand-gold-light: #2A2318;
+    --brand-gold-subtle: #1E1B15;
+
+    --border-default: #2E2A22;
+    --border-subtle: #252119;
+    --border-strong: #3A3428;
+    --border-accent: #C4A060;
+
+    --priority-urgent-bg: #2D1A1A;
+    --priority-urgent-text: #F5A0A0;
+    --priority-high-bg: #2D1E14;
+    --priority-high-text: #F0A882;
+    --priority-medium-bg: #2A2210;
+    --priority-medium-text: #E0B860;
+    --priority-low-bg: #142D24;
+    --priority-low-text: #70D4A8;
+
+    --tag-work-bg: #2D1A1A;
+    --tag-personal-bg: #142D24;
+    --tag-project-bg: #1E1A2D;
+    --tag-meeting-bg: #2A2210;
+
+    --status-planned-bg: #1E1A2D;
+    --status-planned-text: #A09BDD;
+    --status-active-bg: #141E2D;
+    --status-active-text: #82B8E0;
+    --status-done-bg: #142D24;
+    --status-done-text: #70D4A8;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: "DM Sans", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--surface-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background: var(--brand-gold);
+    color: var(--text-inverse);
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+  }
+}
+
+@layer components {
+  /* Card base */
+  .cp-card {
+    background: var(--surface-raised);
+    border: 0.5px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    transition: border-color var(--transition-fast),
+                box-shadow var(--transition-fast);
+  }
+
+  .cp-card:hover {
+    border-color: var(--border-accent);
+    box-shadow: 0 4px 12px rgba(107, 91, 62, 0.08);
+  }
+
+  /* Button variants */
+  .cp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: none;
+    outline: none;
+  }
+
+  .cp-btn-primary {
+    background: var(--brand-gold);
+    color: var(--text-inverse);
+  }
+
+  .cp-btn-primary:hover {
+    background: var(--brand-gold-hover);
+  }
+
+  .cp-btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 0.5px solid var(--border-default);
+  }
+
+  .cp-btn-ghost:hover {
+    background: var(--surface-sunken);
+    border-color: var(--border-strong);
+  }
+
+  /* Priority badges */
+  .cp-priority {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+  }
+
+  .cp-priority-urgent {
+    background: var(--priority-urgent-bg);
+    color: var(--priority-urgent-text);
+  }
+
+  .cp-priority-high {
+    background: var(--priority-high-bg);
+    color: var(--priority-high-text);
+  }
+
+  .cp-priority-medium {
+    background: var(--priority-medium-bg);
+    color: var(--priority-medium-text);
+  }
+
+  .cp-priority-low {
+    background: var(--priority-low-bg);
+    color: var(--priority-low-text);
+  }
+
+  /* Tag badges */
+  .cp-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Navigation item */
+  .cp-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    user-select: none;
+  }
+
+  .cp-nav-item:hover {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+  }
+
+  .cp-nav-item.active {
+    background: var(--surface-raised);
+    color: var(--brand-gold);
+    font-weight: 500;
+  }
+
+  /* View tab pill switcher */
+  .cp-view-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--surface-sunken);
+    border-radius: var(--radius-md);
+    padding: 3px;
+  }
+
+  .cp-view-tab {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 400;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+  }
+
+  .cp-view-tab:hover {
+    color: var(--text-primary);
+  }
+
+  .cp-view-tab.active {
+    background: var(--surface-raised);
+    color: var(--brand-gold);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+/* ============================================================
+   ChronoPlan Faz 3 — Modal Animations
+   globals.css dosyasının SONUNA ekleyin
+   ============================================================ */
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-modal-in {
+  animation: modal-in 0.2s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}

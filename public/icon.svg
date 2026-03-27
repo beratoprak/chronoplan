@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#F5F0E8"/>
+  <rect x="32" y="32" width="448" height="448" rx="72" fill="#FDFBF7" stroke="#E5DFD1" stroke-width="2"/>
+  <text x="256" y="200" text-anchor="middle" font-family="Georgia, serif" font-size="120" font-weight="600" fill="#6B5B3E">C</text>
+  <text x="256" y="200" text-anchor="middle" font-family="Georgia, serif" font-size="120" font-weight="600" fill="#A0825C" dx="60">P</text>
+  <rect x="120" y="260" width="272" height="4" rx="2" fill="#E5DFD1"/>
+  <rect x="120" y="290" width="80" height="60" rx="8" fill="#EEEDFE"/>
+  <rect x="216" y="290" width="80" height="60" rx="8" fill="#E6F1FB"/>
+  <rect x="312" y="290" width="80" height="60" rx="8" fill="#E1F5EE"/>
+  <circle cx="160" cy="390" r="8" fill="#A0825C"/>
+  <circle cx="210" cy="390" r="8" fill="#E24B4A"/>
+  <circle cx="260" cy="390" r="8" fill="#1D9E75"/>
+  <circle cx="310" cy="390" r="8" fill="#7F77DD"/>
+  <circle cx="360" cy="390" r="8" fill="#BA7517"/>
+</svg>
