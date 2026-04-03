@@ -105,6 +105,80 @@ export function NoteEditor({ date }: NoteEditorProps) {
     return () => document.removeEventListener("mousedown", onOutside);
   }, [dropdownOpen]);
 
+  // Enter'da liste devamı
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter") return;
+    const ta = textareaRef.current;
+    if (!ta) return;
+
+    const start = ta.selectionStart;
+    const before = value.slice(0, start);
+    const after = value.slice(ta.selectionEnd);
+
+    // Mevcut satırı bul
+    const lastNewline = before.lastIndexOf("\n");
+    const currentLine = before.slice(lastNewline + 1);
+
+    // Liste pattern'lerini kontrol et
+    let prefix = "";
+    const trimmed = currentLine.trimStart();
+
+    // Boş liste satırı → listeyi bitir (prefix'i sil)
+    const emptyChecklist = /^☐\s*$/.test(trimmed) || /^☑\s*$/.test(trimmed);
+    const emptyBullet = /^•\s*$/.test(trimmed);
+    const emptyNumbered = /^\d+\.\s*$/.test(trimmed);
+    const emptyQuote = /^>\s*$/.test(trimmed);
+
+    if (emptyChecklist || emptyBullet || emptyNumbered || emptyQuote) {
+      e.preventDefault();
+      // Satırı sil ve sadece newline bırak
+      const lineStart = lastNewline + 1;
+      const newValue = value.slice(0, lineStart) + after;
+      setValue(newValue);
+      const newPos = lineStart;
+      setTimeout(() => {
+        ta.focus();
+        ta.setSelectionRange(newPos, newPos);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => {
+          saveNote(date, JSON.stringify(newValue), newValue);
+        }, 500);
+      }, 0);
+      return;
+    }
+
+    // Checklist
+    if (/^☐\s/.test(trimmed)) prefix = "☐ ";
+    else if (/^☑\s/.test(trimmed)) prefix = "☐ ";
+    // Madde listesi
+    else if (/^•\s/.test(trimmed)) prefix = "• ";
+    // Numaralı liste
+    else if (/^(\d+)\.\s/.test(trimmed)) {
+      const match = trimmed.match(/^(\d+)\.\s/);
+      if (match) prefix = `${parseInt(match[1]) + 1}. `;
+    }
+    // Alıntı
+    else if (/^>\s/.test(trimmed)) prefix = "> ";
+
+    if (!prefix) return;
+
+    e.preventDefault();
+    const indent = currentLine.match(/^(\s*)/)?.[1] || "";
+    const insertion = "\n" + indent + prefix;
+    const newValue = before + insertion + after;
+    setValue(newValue);
+    const newPos = start + insertion.length;
+
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(newPos, newPos);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        saveNote(date, JSON.stringify(newValue), newValue);
+      }, 500);
+    }, 0);
+  }
+
   // Cursor pozisyonuna metin ekle
   function handleInsert(prefix: string) {
     setDropdownOpen(false);
@@ -194,6 +268,7 @@ export function NoteEditor({ date }: NoteEditorProps) {
         ref={textareaRef}
         value={value}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         placeholder="Bugün ne düşünüyorsun..."
         className="flex-1 resize-none outline-none p-4 text-[14px] leading-relaxed"
         style={{

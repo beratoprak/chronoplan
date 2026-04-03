@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChronoPlan Widget</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: rgba(245, 240, 232, 0.92);
+    --surface: rgba(255, 255, 255, 0.7);
+    --border: rgba(44, 37, 24, 0.08);
+    --text: #1A1714;
+    --text-secondary: #6B6152;
+    --text-muted: #A89E8C;
+    --gold: #C8A951;
+    --tag-work: #3B82F6;
+    --tag-personal: #8B5CF6;
+    --tag-project: #10B981;
+    --tag-meeting: #F59E0B;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: rgba(26, 23, 20, 0.92);
+      --surface: rgba(44, 37, 24, 0.5);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #F5F0E8;
+      --text-secondary: #A89E8C;
+      --text-muted: #6B6152;
+    }
+  }
+
+  body {
+    font-family: -apple-system, 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 14px;
+    overflow: hidden;
+    -webkit-app-region: drag;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 0.5px solid var(--border);
+  }
+
+  .header {
+    padding: 14px 16px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .header h1 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold);
+    letter-spacing: -0.2px;
+  }
+
+  .header .date {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .section {
+    padding: 4px 12px 8px;
+  }
+
+  .section-title {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    padding: 0 4px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+  }
+
+  .card .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .card .info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card .title {
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card .meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 16px 0;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 16px;
+  }
+
+  .task-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+  }
+
+  .task-card .checkbox {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 1.5px solid var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .task-card .title {
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .task-card .task-date {
+    font-size: 9px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>ChronoPlan</h1>
+  <span class="date" id="today-date"></span>
+</div>
+
+<div class="section">
+  <div class="section-title">Bugünün Etkinlikleri</div>
+  <div id="events-container">
+    <div class="empty">Yükleniyor...</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <div class="section-title">Yaklaşan Görevler</div>
+  <div id="tasks-container">
+    <div class="empty">Yükleniyor...</div>
+  </div>
+</div>
+
+<script>
+  const TAG_COLORS = {
+    work: "#3B82F6",
+    personal: "#8B5CF6",
+    project: "#10B981",
+    meeting: "#F59E0B",
+  };
+
+  const MONTHS_TR = ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
+  const DAYS_TR = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+
+  function getToday() {
+    const d = new Date();
+    return d.toISOString().split("T")[0];
+  }
+
+  function formatDateShort(dateStr) {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.getDate() + " " + MONTHS_TR[d.getMonth()];
+  }
+
+  // Başlık tarih
+  const now = new Date();
+  document.getElementById("today-date").textContent =
+    DAYS_TR[now.getDay()] + ", " + now.getDate() + " " + MONTHS_TR[now.getMonth()];
+
+  function renderEvents(events) {
+    const container = document.getElementById("events-container");
+    const today = getToday();
+    const todayEvents = events
+      .filter(e => e.date === today && (e.recurrence === "none" || !e.recurrence))
+      .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+
+    if (todayEvents.length === 0) {
+      container.innerHTML = '<div class="empty">Bugün etkinlik yok</div>';
+      return;
+    }
+
+    container.innerHTML = todayEvents.slice(0, 5).map(e => `
+      <div class="card">
+        <div class="dot" style="background: ${TAG_COLORS[e.tagColor] || TAG_COLORS.work}"></div>
+        <div class="info">
+          <div class="title">${esc(e.title)}</div>
+          <div class="meta">${e.isAllDay ? "Tüm gün" : ((e.startTime || "") + (e.endTime ? " - " + e.endTime : ""))}</div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function renderTasks(tasks) {
+    const container = document.getElementById("tasks-container");
+    const today = getToday();
+    const upcoming = tasks
+      .filter(t => t.status !== "done" && t.date >= today)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 5);
+
+    if (upcoming.length === 0) {
+      container.innerHTML = '<div class="empty">Yaklaşan görev yok</div>';
+      return;
+    }
+
+    container.innerHTML = upcoming.map(t => `
+      <div class="task-card">
+        <div class="checkbox"></div>
+        <div class="title">${esc(t.title)}</div>
+        <span class="task-date">${t.date === today ? "Bugün" : formatDateShort(t.date)}</span>
+      </div>
+    `).join("");
+  }
+
+  function esc(str) {
+    const d = document.createElement("div");
+    d.textContent = str || "";
+    return d.innerHTML;
+  }
+
+  // IPC ile veri al
+  if (window.widgetAPI) {
+    window.widgetAPI.onData((raw) => {
+      try {
+        const data = JSON.parse(raw);
+        renderEvents(data.events || []);
+        renderTasks(data.tasks || []);
+      } catch (e) {}
+    });
+  }
+</script>
+</body>
+</html>

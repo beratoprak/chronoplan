@@ -1,0 +1,43 @@
+{
+  "name": "chronoplan",
+  "version": "0.8.0",
+  "description": "ChronoPlan — Profesyonel takvim ve planlama uygulaması",
+  "main": "main.js",
+  "author": "Bera Toprak <bera@beratoprak.com>",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac",
+    "build:dmg": "electron-builder --mac dmg",
+    "build:dir": "electron-builder --mac dir"
+  },
+  "build": {
+    "appId": "com.beratoprak.chronoplan",
+    "productName": "ChronoPlan",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64", "x64"]
+        }
+      ],
+      "darkModeSupport": true
+    },
+    "dmg": {
+      "title": "ChronoPlan",
+      "backgroundColor": "#F5F0E8"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "widget-preload.js",
+      "widget.html",
+      "icon.icns"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

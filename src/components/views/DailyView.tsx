@@ -16,7 +16,7 @@ const NoteEditor = dynamic(
   }
 );
 import { useMemo } from "react";
-import { parseISO } from "date-fns";
+import { parseISO, addDays, format } from "date-fns";
 import { useAppStore } from "@/lib/store";
 import { formatDate } from "@/lib/dates";
 import { EventCard } from "@/components/shared/EventCard";
@@ -38,6 +38,14 @@ export function DailyView() {
     () => tasks.filter((t) => t.date === selectedDate && t.status !== "done"),
     [tasks, selectedDate]
   );
+
+  const upcomingEvents = useMemo(() => {
+    const nextWeek = format(addDays(parseISO(selectedDate), 7), "yyyy-MM-dd");
+    const tomorrow = format(addDays(parseISO(selectedDate), 1), "yyyy-MM-dd");
+    return getExpandedEvents(tomorrow, nextWeek)
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || ""))
+      .slice(0, 5);
+  }, [events, selectedDate, getExpandedEvents]);
 
   const upcomingTasks = useMemo(
     () =>
@@ -92,6 +100,34 @@ export function DailyView() {
             )}
           </div>
         </div>
+
+        {/* Upcoming events */}
+        {upcomingEvents.length > 0 && (
+          <div>
+            <h4
+              className="text-[11px] font-medium uppercase tracking-wider mb-2"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Yaklaşan etkinlikler
+            </h4>
+            <div className="flex flex-col gap-1.5">
+              {upcomingEvents.map((event) => (
+                <div key={event.id} className="relative">
+                  <span
+                    className="absolute top-1 right-1.5 text-[9px] px-1.5 py-0.5 rounded"
+                    style={{ color: "var(--text-muted)", background: "var(--surface-sunken)" }}
+                  >
+                    {formatDate(event.date, "d MMM")}
+                  </span>
+                  <EventCard
+                    event={event}
+                    onClick={() => openEventModal(event)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Upcoming tasks */}
         <div>
