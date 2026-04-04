@@ -1,14 +1,19 @@
-const { app, BrowserWindow, Menu, Tray, shell, globalShortcut, nativeTheme, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, Menu, shell, nativeTheme } = require("electron");
 const path = require("path");
+const fs = require("fs");
 
 // ── Config ─────────────────────────────────────────────────
 const APP_URL = "https://chronoplan-three.vercel.app";
 const LOCAL_URL = "http://localhost:3000";
 const IS_DEV = process.argv.includes("--dev");
 
+const DATA_PATH = path.join(
+  app.getPath("appData"),
+  "ChronoPlan",
+  "widget-data.json"
+);
+
 let mainWindow;
-let widgetWindow;
-let tray;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -29,33 +34,56 @@ function createWindow() {
     show: false,
   });
 
-  // Smooth show
-  mainWindow.once("ready-to-show", () => {
-    mainWindow.show();
-  });
+  mainWindow.once("ready-to-show", () => mainWindow.show());
 
-  // Load URL
-  const url = IS_DEV ? LOCAL_URL : APP_URL;
-  mainWindow.loadURL(url);
+  mainWindow.loadURL(IS_DEV ? LOCAL_URL : APP_URL);
 
-  // Open external links in browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http")) {
-      shell.openExternal(url);
-    }
+    if (url.startsWith("http")) shell.openExternal(url);
     return { action: "deny" };
   });
 
-  // Handle theme change
   nativeTheme.on("updated", () => {
-    mainWindow.setBackgroundColor(
-      nativeTheme.shouldUseDarkColors ? "#1A1714" : "#F5F0E8"
-    );
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.setBackgroundColor(nativeTheme.shouldUseDarkColors ? "#1A1714" : "#F5F0E8");
+    }
   });
 
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
+  mainWindow.on("closed", () => { mainWindow = null; });
+
+  // Widget için veri dosyasına yaz
+  startDataExport();
+}
+
+// ── Widget Data Export ────────────────────────────────────
+function exportWidgetData() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents
+    .executeJavaScript(`
+      (function() {
+        try {
+          var raw = localStorage.getItem("chronoplan-storage");
+          if (!raw) return JSON.stringify({ events: [], tasks: [] });
+          var state = JSON.parse(raw).state || {};
+          return JSON.stringify({ events: state.events || [], tasks: state.tasks || [] });
+        } catch(e) { return JSON.stringify({ events: [], tasks: [] }); }
+      })()
+    `)
+    .then((data) => {
+      try {
+        const dir = path.dirname(DATA_PATH);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(DATA_PATH, data);
+      } catch {}
+    })
+    .catch(() => {});
+}
+
+function startDataExport() {
+  // İlk export (sayfa yüklendikten sonra)
+  setTimeout(() => exportWidgetData(), 3000);
+  // Her 30 saniyede güncelle
+  setInterval(() => exportWidgetData(), 30000);
 }
 
 // ── Menu ───────────────────────────────────────────────────
@@ -98,32 +126,10 @@ function createMenu() {
     {
       label: "Gorunum",
       submenu: [
-        {
-          label: "Gunluk",
-          accelerator: "Cmd+1",
-          click: () => evalInWindow("__setView('daily')"),
-        },
-        {
-          label: "Haftalik",
-          accelerator: "Cmd+2",
-          click: () => evalInWindow("__setView('weekly')"),
-        },
-        {
-          label: "Aylik",
-          accelerator: "Cmd+3",
-          click: () => evalInWindow("__setView('monthly')"),
-        },
-        {
-          label: "Kanban",
-          accelerator: "Cmd+4",
-          click: () => evalInWindow("__setView('kanban')"),
-        },
-        { type: "separator" },
-        {
-          label: "Widget Göster/Gizle",
-          accelerator: "CmdOrCtrl+Shift+W",
-          click: () => toggleWidget(),
-        },
+        { label: "Gunluk", accelerator: "Cmd+1", click: () => evalInWindow("__setView('daily')") },
+        { label: "Haftalik", accelerator: "Cmd+2", click: () => evalInWindow("__setView('weekly')") },
+        { label: "Aylik", accelerator: "Cmd+3", click: () => evalInWindow("__setView('monthly')") },
+        { label: "Kanban", accelerator: "Cmd+4", click: () => evalInWindow("__setView('kanban')") },
         { type: "separator" },
         { label: "Tam Ekran", role: "togglefullscreen" },
         { type: "separator" },
@@ -143,7 +149,6 @@ function createMenu() {
     },
   ];
 
-  // Dev mode: add dev tools
   if (IS_DEV) {
     template.push({
       label: "Gelistirici",
@@ -162,103 +167,18 @@ function evalInWindow(code) {
   mainWindow?.webContents.executeJavaScript(code).catch(() => {});
 }
 
-// ── Widget ────────────────────────────────────────────────
-function createWidget() {
-  const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
-
-  widgetWindow = new BrowserWindow({
-    width: 300,
-    height: 420,
-    x: screenWidth - 320,
-    y: 40,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    hasShadow: true,
-    show: false,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, "widget-preload.js"),
-    },
-  });
-
-  widgetWindow.loadFile(path.join(__dirname, "widget.html"));
-
-  widgetWindow.once("ready-to-show", () => {
-    widgetWindow.showInactive();
-  });
-
-  widgetWindow.on("closed", () => {
-    widgetWindow = null;
-  });
-
-  // Veri akışı: ana pencereden widget'a
-  refreshWidgetData();
-}
-
-function refreshWidgetData() {
-  if (!widgetWindow || !mainWindow) return;
-  mainWindow.webContents
-    .executeJavaScript(`
-      (function() {
-        try {
-          var raw = localStorage.getItem("chronoplan-storage");
-          if (!raw) return JSON.stringify({ events: [], tasks: [] });
-          var state = JSON.parse(raw).state || {};
-          return JSON.stringify({ events: state.events || [], tasks: state.tasks || [] });
-        } catch(e) { return JSON.stringify({ events: [], tasks: [] }); }
-      })()
-    `)
-    .then((data) => {
-      if (widgetWindow && !widgetWindow.isDestroyed()) {
-        widgetWindow.webContents.send("widget-data", data);
-      }
-    })
-    .catch(() => {});
-}
-
-// Her 60 saniyede widget'ı güncelle
-setInterval(() => refreshWidgetData(), 60000);
-
-function toggleWidget() {
-  if (widgetWindow && !widgetWindow.isDestroyed()) {
-    if (widgetWindow.isVisible()) {
-      widgetWindow.hide();
-    } else {
-      widgetWindow.showInactive();
-      refreshWidgetData();
-    }
-  } else {
-    createWidget();
-  }
-}
-
 // ── App Lifecycle ──────────────────────────────────────────
 app.whenReady().then(() => {
   createWindow();
   createMenu();
 
-  // Widget: kısa süre sonra oluştur (ana pencere yüklensin)
-  setTimeout(() => createWidget(), 3000);
-
-  // Cmd+Shift+W ile widget toggle
-  globalShortcut.register("CommandOrControl+Shift+W", toggleWidget);
-
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  if (process.platform !== "darwin") app.quit();
 });
 
-// Set app name
 app.setName("ChronoPlan");

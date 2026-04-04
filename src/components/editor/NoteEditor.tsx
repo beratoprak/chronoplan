@@ -111,9 +111,12 @@ export function NoteEditor({ date }: NoteEditorProps) {
     const ta = textareaRef.current;
     if (!ta) return;
 
+    // DOM'dan oku — stale state sorununu önler
+    const currentValue = ta.value;
     const start = ta.selectionStart;
-    const before = value.slice(0, start);
-    const after = value.slice(ta.selectionEnd);
+    const end = ta.selectionEnd;
+    const before = currentValue.slice(0, start);
+    const after = currentValue.slice(end);
 
     // Mevcut satırı bul
     const lastNewline = before.lastIndexOf("\n");
@@ -124,26 +127,18 @@ export function NoteEditor({ date }: NoteEditorProps) {
     const trimmed = currentLine.trimStart();
 
     // Boş liste satırı → listeyi bitir (prefix'i sil)
-    const emptyChecklist = /^☐\s*$/.test(trimmed) || /^☑\s*$/.test(trimmed);
-    const emptyBullet = /^•\s*$/.test(trimmed);
-    const emptyNumbered = /^\d+\.\s*$/.test(trimmed);
-    const emptyQuote = /^>\s*$/.test(trimmed);
-
-    if (emptyChecklist || emptyBullet || emptyNumbered || emptyQuote) {
+    if (/^(☐\s*|☑\s*|•\s*|\d+\.\s*|>\s*)$/.test(trimmed)) {
       e.preventDefault();
-      // Satırı sil ve sadece newline bırak
       const lineStart = lastNewline + 1;
-      const newValue = value.slice(0, lineStart) + after;
+      const newValue = currentValue.slice(0, lineStart) + after;
       setValue(newValue);
-      const newPos = lineStart;
-      setTimeout(() => {
-        ta.focus();
-        ta.setSelectionRange(newPos, newPos);
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-          saveNote(date, JSON.stringify(newValue), newValue);
-        }, 500);
-      }, 0);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        saveNote(date, JSON.stringify(newValue), newValue);
+      }, 500);
+      requestAnimationFrame(() => {
+        ta.setSelectionRange(lineStart, lineStart);
+      });
       return;
     }
 
@@ -166,17 +161,15 @@ export function NoteEditor({ date }: NoteEditorProps) {
     const indent = currentLine.match(/^(\s*)/)?.[1] || "";
     const insertion = "\n" + indent + prefix;
     const newValue = before + insertion + after;
-    setValue(newValue);
     const newPos = start + insertion.length;
-
-    setTimeout(() => {
-      ta.focus();
+    setValue(newValue);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      saveNote(date, JSON.stringify(newValue), newValue);
+    }, 500);
+    requestAnimationFrame(() => {
       ta.setSelectionRange(newPos, newPos);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        saveNote(date, JSON.stringify(newValue), newValue);
-      }, 500);
-    }, 0);
+    });
   }
 
   // Cursor pozisyonuna metin ekle
