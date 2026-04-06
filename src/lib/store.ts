@@ -625,6 +625,24 @@ export const useAppStore = create<AppState>()(
       }),
       onRehydrateStorage: () => () => {
         useAppStore.setState({ selectedDate: format(new Date(), "yyyy-MM-dd") });
+
+        // Uygulama açık kalırken gün değişimini yakala
+        const checkDateChange = () => {
+          const today = format(new Date(), "yyyy-MM-dd");
+          const current = useAppStore.getState().selectedDate;
+          if (current !== today) {
+            useAppStore.setState({ selectedDate: today });
+          }
+        };
+
+        // Pencere odak aldığında kontrol et
+        window.addEventListener("focus", checkDateChange);
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) checkDateChange();
+        });
+
+        // Her dakika kontrol et (gece yarısı geçişi için)
+        setInterval(checkDateChange, 60000);
       },
     }
   )
