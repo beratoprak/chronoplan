@@ -621,9 +621,11 @@ export const useAppStore = create<AppState>()(
         events: state.events,
         tags: state.tags,
         currentView: state.currentView,
-        selectedDate: state.selectedDate,
         theme: state.theme,
       }),
+      onRehydrateStorage: () => () => {
+        useAppStore.setState({ selectedDate: format(new Date(), "yyyy-MM-dd") });
+      },
     }
   )
 );
