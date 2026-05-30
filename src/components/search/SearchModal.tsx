@@ -60,8 +60,8 @@ export function SearchModal() {
           type: "task",
           id: task.id,
           title: task.title,
-          subtitle: `${getPriorityLabel(task.priority)} · ${task.date}`,
-          date: task.date,
+          subtitle: `${getPriorityLabel(task.priority)} · ${task.date ?? "Tarifsiz"}`,
+          date: task.date ?? "",
         });
       }
     }

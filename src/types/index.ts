@@ -4,7 +4,7 @@
 
 import type { User } from "@supabase/supabase-js";
 
-export type ViewType = "daily" | "weekly" | "monthly" | "kanban";
+export type ViewType = "daily" | "weekly" | "monthly" | "kanban" | "notes" | "media" | "references" | "research" | "pomodoro";
 
 export type Priority = "urgent" | "high" | "medium" | "low";
 
@@ -35,11 +35,114 @@ export interface Task {
   tags: Tag[];
   estimatedMinutes?: number;
   checklist: ChecklistItem[];
-  date: string; // ISO date string YYYY-MM-DD
+  date?: string; // ISO date string YYYY-MM-DD — optional (dateless tasks)
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
   order: number; // for kanban drag ordering
+}
+
+// ---- Rich Note ----
+export interface RichNote {
+  id: string;
+  title: string;
+  content: string; // plain text / markdown
+  tags: string[]; // free-form tag strings
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Media (Books & Movies) ----
+export type MediaType = "book" | "movie" | "paper";
+export type MediaStatus = "want" | "in_progress" | "done";
+
+export interface MediaItem {
+  id: string;
+  type: MediaType;
+  title: string;
+  author?: string; // for books & papers
+  director?: string; // for movies
+  journal?: string; // for papers
+  doi?: string; // for papers
+  abstract?: string; // for papers
+  year?: number;
+  rating?: number; // 1-5
+  notes?: string;
+  status: MediaStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Academic Reference ----
+export type ReferenceType = "article" | "book" | "chapter" | "thesis" | "conference" | "website" | "other";
+export type CitationStyle = "apa" | "chicago" | "ieee" | "mla";
+
+export interface Reference {
+  id: string;
+  type: ReferenceType;
+  title: string;
+  authors: string[]; // ["Soyadı, Ad", ...]
+  year?: number;
+  journal?: string;
+  volume?: string;
+  issue?: string;
+  pages?: string;
+  publisher?: string;
+  city?: string;
+  doi?: string;
+  url?: string;
+  isbn?: string;
+  abstract?: string;
+  notes?: string;
+  tags: string[];
+  projectId?: string; // linked research project
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Research Project ----
+export type ResearchStatus = "planning" | "active" | "writing" | "done";
+
+export interface FieldNote {
+  id: string;
+  content: string;
+  noteType: "observation" | "informative" | "reflection";
+  location?: string;
+  createdAt: string;
+}
+
+export interface ResearchProject {
+  id: string;
+  title: string;
+  question: string; // research question
+  hypothesis?: string;
+  description?: string;
+  status: ResearchStatus;
+  tags: string[];
+  fieldNotes: FieldNote[];
+  referenceIds: string[]; // linked references
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---- Pomodoro / Time Tracking ----
+export type PomodoroPhase = "work" | "short_break" | "long_break";
+
+export interface WorkSession {
+  id: string;
+  projectId?: string;
+  projectLabel: string; // free-form label
+  durationMinutes: number;
+  phase: PomodoroPhase;
+  completedAt: string;
+}
+
+export interface PomodoroSettings {
+  workMinutes: number;
+  shortBreakMinutes: number;
+  longBreakMinutes: number;
+  sessionsBeforeLongBreak: number;
 }
 
 // ---- Day Note (Block Editor) ----
@@ -183,6 +286,38 @@ export interface AppState {
   isWorkspaceModalOpen: boolean;
   openWorkspaceModal: () => void;
   closeWorkspaceModal: () => void;
+
+  // ── Rich Notes ───────────────────────────────────────────
+  richNotes: RichNote[];
+  addRichNote: (note: Omit<RichNote, "id" | "createdAt" | "updatedAt">) => void;
+  updateRichNote: (id: string, updates: Partial<RichNote>) => void;
+  deleteRichNote: (id: string) => void;
+
+  // ── Media (Books & Movies) ──────────────────────────────
+  mediaItems: MediaItem[];
+  addMediaItem: (item: Omit<MediaItem, "id" | "createdAt" | "updatedAt">) => void;
+  updateMediaItem: (id: string, updates: Partial<MediaItem>) => void;
+  deleteMediaItem: (id: string) => void;
+
+  // ── References ───────────────────────────────────────────
+  references: Reference[];
+  addReference: (ref: Omit<Reference, "id" | "createdAt" | "updatedAt">) => void;
+  updateReference: (id: string, updates: Partial<Reference>) => void;
+  deleteReference: (id: string) => void;
+
+  // ── Research Projects ────────────────────────────────────
+  researchProjects: ResearchProject[];
+  addResearchProject: (proj: Omit<ResearchProject, "id" | "createdAt" | "updatedAt">) => void;
+  updateResearchProject: (id: string, updates: Partial<ResearchProject>) => void;
+  deleteResearchProject: (id: string) => void;
+  addFieldNote: (projectId: string, note: Omit<FieldNote, "id" | "createdAt">) => void;
+  deleteFieldNote: (projectId: string, noteId: string) => void;
+
+  // ── Pomodoro / Time Tracking ─────────────────────────────
+  workSessions: WorkSession[];
+  pomodoroSettings: PomodoroSettings;
+  addWorkSession: (session: Omit<WorkSession, "id" | "completedAt">) => void;
+  setPomodoroSettings: (settings: Partial<PomodoroSettings>) => void;
 }
 
 // ---- Theme (Faz 7) ----

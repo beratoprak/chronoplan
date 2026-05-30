@@ -1,7 +1,7 @@
 {
-  "name": "chronoplan",
-  "version": "0.8.0",
-  "description": "ChronoPlan — Profesyonel takvim ve planlama uygulaması",
+  "name": "toprak",
+  "version": "0.9.0",
+  "description": "Toprak — Profesyonel takvim, planlama ve araştırma uygulaması",
   "main": "main.js",
   "author": "Bera Toprak <bera@beratoprak.com>",
   "scripts": {
@@ -11,21 +11,22 @@
     "build:dir": "electron-builder --mac dir"
   },
   "build": {
-    "appId": "com.beratoprak.chronoplan",
-    "productName": "ChronoPlan",
+    "appId": "com.beratoprak.toprak",
+    "productName": "Toprak",
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "icon.icns",
+      "identity": null,
       "target": [
         {
-          "target": "dmg",
+          "target": "dir",
           "arch": ["arm64"]
         }
       ],
       "darkModeSupport": true
     },
     "dmg": {
-      "title": "ChronoPlan",
+      "title": "Toprak",
       "backgroundColor": "#F5F0E8"
     },
     "files": [

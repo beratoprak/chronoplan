@@ -8,10 +8,15 @@ import { formatDate, MONTH_NAMES_TR, DAY_NAMES_TR } from "@/lib/dates";
 import type { ViewType } from "@/types";
 
 const VIEW_TABS: { id: ViewType; label: string }[] = [
-  { id: "daily", label: "Gunluk" },
-  { id: "weekly", label: "Haftalik" },
-  { id: "monthly", label: "Aylik" },
+  { id: "daily", label: "Günlük" },
+  { id: "weekly", label: "Haftalık" },
+  { id: "monthly", label: "Aylık" },
   { id: "kanban", label: "Kanban" },
+  { id: "notes", label: "Notlar" },
+  { id: "references", label: "Kaynakça" },
+  { id: "research", label: "Projeler" },
+  { id: "media", label: "Medya" },
+  { id: "pomodoro", label: "Pomodoro" },
 ];
 
 export function Topbar() {

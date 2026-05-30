@@ -18,7 +18,7 @@ interface TaskRow {
   tags: Tag[];
   estimated_minutes: number | null;
   checklist: { id: string; text: string; completed: boolean }[];
-  date: string;
+  date: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -68,7 +68,7 @@ function taskToRow(task: Task, userId: string): TaskRow {
     tags: task.tags,
     estimated_minutes: task.estimatedMinutes ?? null,
     checklist: task.checklist,
-    date: task.date,
+    date: task.date ?? null,
     created_at: task.createdAt,
     updated_at: task.updatedAt,
     completed_at: task.completedAt ?? null,
@@ -86,7 +86,7 @@ function rowToTask(row: TaskRow): Task {
     tags: row.tags ?? [],
     estimatedMinutes: row.estimated_minutes ?? undefined,
     checklist: row.checklist ?? [],
-    date: row.date,
+    date: row.date ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at ?? undefined,

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ChronoPlan — Profesyonel Takvim & Planlama",
+  title: "Toprak — Profesyonel Takvim & Planlama",
   description: "Günlük notlar, haftalık planlama, kanban board ve takvim — hepsi bir arada.",
   manifest: "/manifest.json",
 };

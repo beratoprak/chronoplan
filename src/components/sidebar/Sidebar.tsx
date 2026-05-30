@@ -7,17 +7,27 @@ import {
   Columns3,
   Settings,
   Users,
+  FileText,
+  BookOpen,
+  Library,
+  FlaskConical,
+  Timer,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MiniCalendar } from "./MiniCalendar";
 import type { ViewType } from "@/types";
 
-const VIEW_ITEMS: { id: ViewType; label: string; icon: React.ElementType }[] = [
-  { id: "daily", label: "Gunluk detay", icon: CalendarDays },
-  { id: "weekly", label: "Haftalik timeline", icon: CalendarRange },
-  { id: "monthly", label: "Aylik gorunum", icon: LayoutGrid },
-  { id: "kanban", label: "Kanban board", icon: Columns3 },
+const VIEW_ITEMS: { id: ViewType; label: string; icon: React.ElementType; group?: string }[] = [
+  { id: "daily", label: "Günlük detay", icon: CalendarDays, group: "Takvim" },
+  { id: "weekly", label: "Haftalık", icon: CalendarRange, group: "Takvim" },
+  { id: "monthly", label: "Aylık", icon: LayoutGrid, group: "Takvim" },
+  { id: "kanban", label: "Kanban", icon: Columns3, group: "Takvim" },
+  { id: "notes", label: "Notlar", icon: FileText, group: "Araştırma" },
+  { id: "references", label: "Kaynakça", icon: Library, group: "Araştırma" },
+  { id: "research", label: "Projeler", icon: FlaskConical, group: "Araştırma" },
+  { id: "media", label: "Kitap & Film", icon: BookOpen, group: "Araştırma" },
+  { id: "pomodoro", label: "Zamanlayıcı", icon: Timer, group: "Araştırma" },
 ];
 
 const TAG_DOTS: { label: string; color: string }[] = [
@@ -48,13 +58,13 @@ export function Sidebar() {
       }}
     >
       {/* Logo */}
-      <div className="px-1 pt-1">
+      <div className="px-1 pt-1 flex items-center gap-2">
+        <img src="/logo.svg" alt="Toprak logo" style={{ width: 28, height: 38 }} />
         <h1
           className="text-xl font-medium tracking-wide"
           style={{ fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)" }}
         >
-          <span style={{ color: "var(--text-secondary)" }}>Chrono</span>
-          <span style={{ color: "var(--brand-gold)" }}>Plan</span>
+          <span style={{ color: "var(--brand-gold)" }}>Toprak</span>
         </h1>
       </div>
 
@@ -63,29 +73,30 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-col gap-0.5">
-        <span
-          className="text-[10px] uppercase tracking-wider px-3 pb-1"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          Gorunumler
-        </span>
-        {VIEW_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setView(item.id)}
-              className={cn(
-                "cp-nav-item",
-                isActive && "active"
-              )}
+        {["Takvim", "Araştırma"].map((group) => (
+          <div key={group} className="flex flex-col gap-0.5">
+            <span
+              className="text-[10px] uppercase tracking-wider px-3 pb-0.5 pt-1"
+              style={{ color: "var(--text-tertiary)" }}
             >
-              <Icon size={15} style={{ color: "var(--brand-gold)" }} />
-              {item.label}
-            </button>
-          );
-        })}
+              {group}
+            </span>
+            {VIEW_ITEMS.filter((v) => v.group === group).map((item) => {
+              const Icon = item.icon;
+              const isActive = currentView === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setView(item.id)}
+                  className={cn("cp-nav-item", isActive && "active")}
+                >
+                  <Icon size={15} style={{ color: "var(--brand-gold)" }} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Tags */}

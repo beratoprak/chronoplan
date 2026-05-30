@@ -83,7 +83,7 @@ export function TaskModal() {
         setPriority(editingTask.priority);
         setStatus(editingTask.status);
         setSelectedTags(editingTask.tags);
-        setDate(editingTask.date);
+        setDate(editingTask.date ?? "");
         setEstimatedMinutes(editingTask.estimatedMinutes);
         setCustomMinutes(editingTask.estimatedMinutes?.toString() || "");
         setChecklist(editingTask.checklist.map((c) => ({ ...c })));
@@ -466,13 +466,23 @@ export function TaskModal() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="text-[12px] font-medium outline-none cursor-pointer"
+                className="text-[12px] font-medium outline-none cursor-pointer flex-1"
                 style={{
-                  color: "var(--text-primary)",
+                  color: date ? "var(--text-primary)" : "var(--text-muted)",
                   background: "transparent",
                   border: "none",
                 }}
               />
+              {date && (
+                <button
+                  type="button"
+                  onClick={() => setDate("")}
+                  className="text-[10px] px-2 py-0.5 rounded hover:opacity-70"
+                  style={{ color: "var(--text-muted)", background: "var(--surface-sunken)" }}
+                >
+                  Tarifsiz
+                </button>
+              )}
             </div>
 
             {/* Estimated Duration */}

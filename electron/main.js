@@ -9,7 +9,7 @@ const IS_DEV = process.argv.includes("--dev");
 
 const DATA_PATH = path.join(
   app.getPath("appData"),
-  "ChronoPlan",
+  "Toprak",
   "widget-data.json"
 );
 
@@ -21,7 +21,7 @@ function createWindow() {
     height: 820,
     minWidth: 800,
     minHeight: 600,
-    title: "ChronoPlan",
+    title: "Toprak",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1A1714" : "#F5F0E8",
@@ -65,7 +65,8 @@ function exportWidgetData() {
           var raw = localStorage.getItem("chronoplan-storage");
           if (!raw) return JSON.stringify({ events: [], tasks: [] });
           var state = JSON.parse(raw).state || {};
-          return JSON.stringify({ events: state.events || [], tasks: state.tasks || [] });
+          var tasks = (state.tasks || []).filter(function(t) { return t.priority !== 'low'; });
+          return JSON.stringify({ events: state.events || [], tasks: tasks });
         } catch(e) { return JSON.stringify({ events: [], tasks: [] }); }
       })()
     `)
@@ -90,9 +91,9 @@ function startDataExport() {
 function createMenu() {
   const template = [
     {
-      label: "ChronoPlan",
+      label: "Toprak",
       submenu: [
-        { label: "ChronoPlan Hakkinda", role: "about" },
+        { label: "Toprak Hakkinda", role: "about" },
         { type: "separator" },
         {
           label: "Ayarlar",
@@ -104,7 +105,7 @@ function createMenu() {
           },
         },
         { type: "separator" },
-        { label: "ChronoPlan Gizle", role: "hide" },
+        { label: "Toprak Gizle", role: "hide" },
         { label: "Digerlerini Gizle", role: "hideOthers" },
         { label: "Tumunu Goster", role: "unhide" },
         { type: "separator" },
@@ -181,4 +182,4 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.setName("ChronoPlan");
+app.setName("Toprak");

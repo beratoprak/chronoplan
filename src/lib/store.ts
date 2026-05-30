@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { format, parseISO, addDays, addWeeks, addMonths, isBefore, isEqual } from "date-fns";
-import type { AppState, Task, TaskStatus, DayNote, CalendarEvent, Tag, RecurrenceType, KanbanFilter, ThemeMode, Workspace } from "@/types";
+import type { AppState, Task, TaskStatus, DayNote, CalendarEvent, Tag, RecurrenceType, KanbanFilter, ThemeMode, Workspace, RichNote, MediaItem, Reference, ResearchProject, FieldNote, WorkSession, PomodoroSettings } from "@/types";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "./supabase";
 import {
@@ -612,6 +612,104 @@ export const useAppStore = create<AppState>()(
       isWorkspaceModalOpen: false,
       openWorkspaceModal: () => set({ isWorkspaceModalOpen: true }),
       closeWorkspaceModal: () => set({ isWorkspaceModalOpen: false }),
+
+      // ── Rich Notes ────────────────────────────────────────
+      richNotes: [],
+      addRichNote: (note) => {
+        const newNote = {
+          ...note,
+          id: generateId(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        set((s) => ({ richNotes: [newNote, ...s.richNotes] }));
+      },
+      updateRichNote: (id, updates) =>
+        set((s) => ({
+          richNotes: s.richNotes.map((n) =>
+            n.id === id ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n
+          ),
+        })),
+      deleteRichNote: (id) =>
+        set((s) => ({ richNotes: s.richNotes.filter((n) => n.id !== id) })),
+
+      // ── Media ────────────────────────────────────────────
+      mediaItems: [],
+      addMediaItem: (item) => {
+        const newItem = {
+          ...item,
+          id: generateId(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        set((s) => ({ mediaItems: [newItem, ...s.mediaItems] }));
+      },
+      updateMediaItem: (id, updates) =>
+        set((s) => ({
+          mediaItems: s.mediaItems.map((m) =>
+            m.id === id ? { ...m, ...updates, updatedAt: new Date().toISOString() } : m
+          ),
+        })),
+      deleteMediaItem: (id) =>
+        set((s) => ({ mediaItems: s.mediaItems.filter((m) => m.id !== id) })),
+
+      // ── References ────────────────────────────────────────
+      references: [],
+      addReference: (ref) => {
+        const newRef = { ...ref, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        set((s) => ({ references: [newRef, ...s.references] }));
+      },
+      updateReference: (id, updates) =>
+        set((s) => ({
+          references: s.references.map((r) =>
+            r.id === id ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r
+          ),
+        })),
+      deleteReference: (id) =>
+        set((s) => ({ references: s.references.filter((r) => r.id !== id) })),
+
+      // ── Research Projects ─────────────────────────────────
+      researchProjects: [],
+      addResearchProject: (proj) => {
+        const newProj = { ...proj, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        set((s) => ({ researchProjects: [newProj, ...s.researchProjects] }));
+      },
+      updateResearchProject: (id, updates) =>
+        set((s) => ({
+          researchProjects: s.researchProjects.map((p) =>
+            p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+          ),
+        })),
+      deleteResearchProject: (id) =>
+        set((s) => ({ researchProjects: s.researchProjects.filter((p) => p.id !== id) })),
+      addFieldNote: (projectId, note) => {
+        const newNote: FieldNote = { ...note, id: generateId(), createdAt: new Date().toISOString() };
+        set((s) => ({
+          researchProjects: s.researchProjects.map((p) =>
+            p.id === projectId
+              ? { ...p, fieldNotes: [...p.fieldNotes, newNote], updatedAt: new Date().toISOString() }
+              : p
+          ),
+        }));
+      },
+      deleteFieldNote: (projectId, noteId) =>
+        set((s) => ({
+          researchProjects: s.researchProjects.map((p) =>
+            p.id === projectId
+              ? { ...p, fieldNotes: p.fieldNotes.filter((n) => n.id !== noteId), updatedAt: new Date().toISOString() }
+              : p
+          ),
+        })),
+
+      // ── Pomodoro / Time Tracking ──────────────────────────
+      workSessions: [],
+      pomodoroSettings: { workMinutes: 25, shortBreakMinutes: 5, longBreakMinutes: 15, sessionsBeforeLongBreak: 4 },
+      addWorkSession: (session) => {
+        const newSession: WorkSession = { ...session, id: generateId(), completedAt: new Date().toISOString() };
+        set((s) => ({ workSessions: [newSession, ...s.workSessions] }));
+      },
+      setPomodoroSettings: (settings) =>
+        set((s) => ({ pomodoroSettings: { ...s.pomodoroSettings, ...settings } })),
     }),
     {
       name: "chronoplan-storage",
@@ -622,6 +720,12 @@ export const useAppStore = create<AppState>()(
         tags: state.tags,
         currentView: state.currentView,
         theme: state.theme,
+        richNotes: state.richNotes,
+        mediaItems: state.mediaItems,
+        references: state.references,
+        researchProjects: state.researchProjects,
+        workSessions: state.workSessions,
+        pomodoroSettings: state.pomodoroSettings,
       }),
       onRehydrateStorage: () => () => {
         useAppStore.setState({ selectedDate: format(new Date(), "yyyy-MM-dd") });

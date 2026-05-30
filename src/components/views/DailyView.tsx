@@ -39,19 +39,25 @@ export function DailyView() {
     [tasks, selectedDate]
   );
 
+  // Tarifsiz görevler (düşük öncelik hariç)
+  const datelessTasks = useMemo(
+    () => tasks.filter((t) => !t.date && t.status !== "done" && t.priority !== "low"),
+    [tasks]
+  );
+
   const upcomingEvents = useMemo(() => {
-    const nextWeek = format(addDays(parseISO(selectedDate), 7), "yyyy-MM-dd");
+    const nextTwoWeeks = format(addDays(parseISO(selectedDate), 14), "yyyy-MM-dd");
     const tomorrow = format(addDays(parseISO(selectedDate), 1), "yyyy-MM-dd");
-    return getExpandedEvents(tomorrow, nextWeek)
+    return getExpandedEvents(tomorrow, nextTwoWeeks)
       .sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || ""))
-      .slice(0, 5);
+      .slice(0, 7);
   }, [events, selectedDate, getExpandedEvents]);
 
   const upcomingTasks = useMemo(
     () =>
       tasks
-        .filter((t) => t.date > selectedDate && t.status !== "done")
-        .sort((a, b) => a.date.localeCompare(b.date))
+        .filter((t) => t.date && t.date > selectedDate && t.status !== "done")
+        .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
         .slice(0, 4),
     [tasks, selectedDate]
   );
@@ -153,6 +159,23 @@ export function DailyView() {
             )}
           </div>
         </div>
+
+        {/* Dateless tasks */}
+        {datelessTasks.length > 0 && (
+          <div>
+            <h4
+              className="text-[11px] font-medium uppercase tracking-wider mb-2"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Tarifsiz görevler
+            </h4>
+            <div className="flex flex-col gap-1.5">
+              {datelessTasks.map((task) => (
+                <TaskCard key={task.id} task={task} compact />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick stats */}
         <div
