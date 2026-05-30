@@ -25,157 +25,6 @@ const DEFAULT_TAGS: Tag[] = [
   { id: "tag-meeting", name: "Toplantı", color: "meeting" },
 ];
 
-// Demo data for initial experience
-const DEMO_TASKS: Task[] = [
-  {
-    id: "demo-1",
-    title: "Müşteri teklifi güncelleme",
-    status: "active",
-    priority: "urgent",
-    tags: [DEFAULT_TAGS[0]],
-    estimatedMinutes: 60,
-    checklist: [
-      { id: "c1", text: "Fiyat listesini güncelle", completed: true },
-      { id: "c2", text: "PDF oluştur", completed: true },
-      { id: "c3", text: "Mail ile gönder", completed: true },
-      { id: "c4", text: "Onay bekle", completed: false },
-    ],
-    date: format(new Date(), "yyyy-MM-dd"),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    order: 0,
-  },
-  {
-    id: "demo-2",
-    title: "Katalog v2 tasarımı",
-    status: "planned",
-    priority: "high",
-    tags: [DEFAULT_TAGS[2]],
-    estimatedMinutes: 180,
-    checklist: [
-      { id: "c5", text: "Wireframe hazırla", completed: true },
-      { id: "c6", text: "Renk paleti belirle", completed: true },
-      { id: "c7", text: "Komponent tasarımları", completed: false },
-      { id: "c8", text: "Responsive kontrol", completed: false },
-      { id: "c9", text: "Final review", completed: false },
-    ],
-    date: format(new Date(), "yyyy-MM-dd"),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    order: 1,
-  },
-  {
-    id: "demo-3",
-    title: "ToprakExtension Phase 2",
-    status: "active",
-    priority: "high",
-    tags: [DEFAULT_TAGS[2]],
-    estimatedMinutes: 300,
-    checklist: [
-      { id: "c10", text: "eBay API entegrasyonu", completed: false },
-      { id: "c11", text: "Fiyat karşılaştırma", completed: false },
-    ],
-    date: format(new Date(), "yyyy-MM-dd"),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    order: 2,
-  },
-  {
-    id: "demo-4",
-    title: "Kargo takip kontrolü",
-    status: "done",
-    priority: "low",
-    tags: [DEFAULT_TAGS[0]],
-    checklist: [],
-    date: format(new Date(), "yyyy-MM-dd"),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    completedAt: new Date().toISOString(),
-    order: 0,
-  },
-  {
-    id: "demo-5",
-    title: "Haftalık rapor hazırla",
-    status: "active",
-    priority: "medium",
-    tags: [DEFAULT_TAGS[0]],
-    estimatedMinutes: 45,
-    checklist: [],
-    date: format(new Date(), "yyyy-MM-dd"),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    order: 3,
-  },
-  {
-    id: "demo-6",
-    title: "SEO optimizasyonu",
-    status: "planned",
-    priority: "medium",
-    tags: [DEFAULT_TAGS[0]],
-    estimatedMinutes: 120,
-    checklist: [],
-    date: format(new Date(), "yyyy-MM-dd"),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    order: 4,
-  },
-  {
-    id: "demo-7",
-    title: "Fatura ödeme takibi",
-    status: "planned",
-    priority: "medium",
-    tags: [DEFAULT_TAGS[0]],
-    estimatedMinutes: 30,
-    date: format(new Date(), "yyyy-MM-dd"),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    checklist: [],
-    order: 5,
-  },
-];
-
-const DEMO_EVENTS: CalendarEvent[] = [
-  {
-    id: "ev-1",
-    title: "Müşteri görüşmesi",
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "10:00",
-    endTime: "11:00",
-    tagColor: "work",
-    isAllDay: false,
-    recurrence: "none",
-  },
-  {
-    id: "ev-2",
-    title: "Takım toplantısı",
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "14:00",
-    endTime: "14:30",
-    tagColor: "meeting",
-    isAllDay: false,
-    recurrence: "weekly",
-  },
-  {
-    id: "ev-3",
-    title: "Stüdyo fotoğraflar teslim",
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "15:00",
-    endTime: undefined,
-    tagColor: "personal",
-    isAllDay: false,
-    recurrence: "none",
-  },
-  {
-    id: "ev-4",
-    title: "Sprint review",
-    date: format(new Date(), "yyyy-MM-dd"),
-    startTime: "17:00",
-    endTime: "17:30",
-    tagColor: "project",
-    isAllDay: false,
-    recurrence: "weekly",
-  },
-];
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -385,7 +234,7 @@ export const useAppStore = create<AppState>()(
       },
 
       // Tasks
-      tasks: DEMO_TASKS,
+      tasks: [],
       addTask: (taskData) => {
         if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev eklenemez"); return; }
         const newTask: Task = {
@@ -507,7 +356,7 @@ export const useAppStore = create<AppState>()(
       },
 
       // Events
-      events: DEMO_EVENTS,
+      events: [],
       addEvent: (eventData) => {
         if (get().isDemoMode) { get().showDemoToast("Demo modunda etkinlik eklenemez"); return; }
         const newEvent = { ...eventData, id: generateId() };
