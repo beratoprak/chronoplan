@@ -561,7 +561,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ pomodoroSettings: { ...s.pomodoroSettings, ...settings } })),
     }),
     {
-      name: "chronoplan-storage",
+      name: "toprak-storage",
       partialize: (state) => ({
         tasks: state.tasks,
         notes: state.notes,
