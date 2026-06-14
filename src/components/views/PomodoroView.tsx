@@ -58,6 +58,9 @@ export function PomodoroView() {
   const [editSessions, setEditSessions] = useState(pomodoroSettings.sessionsBeforeLongBreak.toString());
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Kronometrenin biteceği mutlak zaman (ms). Tık saymak yerine gerçek
+  // saati baz alır; arka planda setInterval kısılsa bile süre kaymaz.
+  const endTimeRef = useRef<number | null>(null);
 
   const totalSeconds = useMemo(() => {
     if (phase === "work") return pomodoroSettings.workMinutes * 60;
@@ -91,37 +94,55 @@ export function PomodoroView() {
   useEffect(() => {
     if (!running) {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      endTimeRef.current = null;
       return;
     }
-    intervalRef.current = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          // Session complete
-          clearInterval(intervalRef.current!);
-          setRunning(false);
 
-          // Log session
-          if (phase === "work") {
-            const newCount = sessionCount + 1;
-            setSessionCount(newCount);
-            addWorkSession({
-              projectLabel: label || "Genel",
-              durationMinutes: pomodoroSettings.workMinutes,
-              phase: "work",
-            });
-            // Next phase
-            const isLongBreak = newCount % pomodoroSettings.sessionsBeforeLongBreak === 0;
-            const nextPhase: PomodoroPhase = isLongBreak ? "long_break" : "short_break";
-            setTimeout(() => switchPhase(nextPhase), 500);
-          } else {
-            setTimeout(() => switchPhase("work"), 500);
-          }
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
+    // Çalışmaya başladığında, kalan süreden mutlak bitiş zamanını hesapla.
+    // Böylece her tıkta gerçek geçen süreyi ölçeriz (tarayıcı/Electron
+    // arka planda intervali kıssa bile saat doğru kalır).
+    if (endTimeRef.current == null) {
+      endTimeRef.current = Date.now() + timeLeft * 1000;
+    }
+
+    function handleComplete() {
+      clearInterval(intervalRef.current!);
+      endTimeRef.current = null;
+      setRunning(false);
+      setTimeLeft(0);
+
+      // Log session
+      if (phase === "work") {
+        const newCount = sessionCount + 1;
+        setSessionCount(newCount);
+        addWorkSession({
+          projectLabel: label || "Genel",
+          durationMinutes: pomodoroSettings.workMinutes,
+          phase: "work",
+        });
+        // Next phase
+        const isLongBreak = newCount % pomodoroSettings.sessionsBeforeLongBreak === 0;
+        const nextPhase: PomodoroPhase = isLongBreak ? "long_break" : "short_break";
+        setTimeout(() => switchPhase(nextPhase), 500);
+      } else {
+        setTimeout(() => switchPhase("work"), 500);
+      }
+    }
+
+    function tick() {
+      const remaining = Math.max(0, Math.round((endTimeRef.current! - Date.now()) / 1000));
+      if (remaining <= 0) {
+        handleComplete();
+        return;
+      }
+      setTimeLeft(remaining);
+    }
+
+    tick();
+    // 250ms ile sık güncelle; hesap Date.now() bazlı olduğu için kayma olmaz.
+    intervalRef.current = setInterval(tick, 250);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, phase]);
 
   function saveSettings() {
