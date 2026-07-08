@@ -9,7 +9,7 @@ const IS_DEV = process.argv.includes("--dev");
 
 const DATA_PATH = path.join(
   app.getPath("appData"),
-  "Toprak",
+  "Epoche",
   "widget-data.json"
 );
 
@@ -21,7 +21,7 @@ function createWindow() {
     height: 820,
     minWidth: 800,
     minHeight: 600,
-    title: "Toprak",
+    title: "Epoche",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#1A1714" : "#F5F0E8",
@@ -62,7 +62,7 @@ function exportWidgetData() {
     .executeJavaScript(`
       (function() {
         try {
-          var raw = localStorage.getItem("chronoplan-storage");
+          var raw = localStorage.getItem("epoche-storage");
           if (!raw) return JSON.stringify({ events: [], tasks: [] });
           var state = JSON.parse(raw).state || {};
           var tasks = (state.tasks || []).filter(function(t) { return t.priority !== 'low'; });
@@ -91,9 +91,9 @@ function startDataExport() {
 function createMenu() {
   const template = [
     {
-      label: "Toprak",
+      label: "Epoche",
       submenu: [
-        { label: "Toprak Hakkinda", role: "about" },
+        { label: "Epoche Hakkinda", role: "about" },
         { type: "separator" },
         {
           label: "Ayarlar",
@@ -105,7 +105,7 @@ function createMenu() {
           },
         },
         { type: "separator" },
-        { label: "Toprak Gizle", role: "hide" },
+        { label: "Epoche Gizle", role: "hide" },
         { label: "Digerlerini Gizle", role: "hideOthers" },
         { label: "Tumunu Goster", role: "unhide" },
         { type: "separator" },
@@ -182,4 +182,4 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.setName("Toprak");
+app.setName("Epoche");

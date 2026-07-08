@@ -138,6 +138,21 @@
     background: var(--surface-base);
     color: var(--text-primary);
     min-height: 100vh;
+    min-height: 100dvh; /* mobil adres çubuğu hesaba katılır */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none; /* PWA'da elastik kaydırma titremesini önle */
+    touch-action: manipulation; /* çift dokunma zoom gecikmesini kaldır */
+  }
+
+  /* Dokunmatik cihazlarda daha akıcı kaydırma */
+  @media (pointer: coarse) {
+    * {
+      -webkit-overflow-scrolling: touch;
+    }
+    /* Dokunma hedeflerini büyüt */
+    button {
+      min-height: 36px;
+    }
   }
 
   ::selection {
@@ -321,7 +336,7 @@
   }
 }
 /* ============================================================
-   ChronoPlan Faz 3 — Modal Animations
+   Epoche Faz 3 — Modal Animations
    globals.css dosyasının SONUNA ekleyin
    ============================================================ */
 

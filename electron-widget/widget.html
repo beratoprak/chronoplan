@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ChronoPlan Widget</title>
+<title>Epoche Widget</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -19,18 +19,11 @@
     --tag-personal: #8B5CF6;
     --tag-project: #10B981;
     --tag-meeting: #F59E0B;
+    /* Günün rengi — JS tarafından güncellenir */
+    --day-accent: #C8A951;
+    --day-accent-soft: rgba(200, 169, 81, 0.14);
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: rgba(26, 23, 20, 0.92);
-      --surface: rgba(44, 37, 24, 0.5);
-      --border: rgba(255, 255, 255, 0.08);
-      --text: #F5F0E8;
-      --text-secondary: #A89E8C;
-      --text-muted: #6B6152;
-    }
-  }
 
   body {
     font-family: -apple-system, 'DM Sans', sans-serif;
@@ -45,22 +38,71 @@
   }
 
   .header {
-    padding: 14px 16px 8px;
+    padding: 14px 16px 6px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+
+  .header:hover {
+    opacity: 0.8;
+  }
+
+  .header {
+    cursor: pointer;
+    -webkit-app-region: no-drag;
   }
 
   .header h1 {
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--gold);
+    color: var(--day-accent);
     letter-spacing: -0.2px;
+    transition: color 0.4s ease;
   }
 
-  .header .date {
+  .header .open-icon {
+    font-size: 10px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+
+  .header:hover .open-icon {
+    transform: translateX(2px);
+  }
+
+  .date-hero {
+    margin: 4px 12px 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--day-accent-soft);
+    border-left: 3px solid var(--day-accent);
+    -webkit-app-region: drag;
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+
+  .date-hero .day-number {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--day-accent);
+    line-height: 1;
+    letter-spacing: -1px;
+    transition: color 0.4s ease;
+  }
+
+  .date-hero .day-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 2px;
+  }
+
+  .date-hero .month-year {
     font-size: 11px;
     color: var(--text-muted);
+    margin-top: 1px;
   }
 
   .section {
@@ -166,9 +208,15 @@
 </head>
 <body>
 
-<div class="header">
-  <h1>ChronoPlan</h1>
-  <span class="date" id="today-date"></span>
+<div class="header" id="open-app">
+  <h1>Epoche</h1>
+  <span class="open-icon">&#x2197;</span>
+</div>
+
+<div class="date-hero">
+  <div class="day-number" id="day-number"></div>
+  <div class="day-name" id="day-name"></div>
+  <div class="month-year" id="month-year"></div>
 </div>
 
 <div class="section">
@@ -198,9 +246,39 @@
   const MONTHS_TR = ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
   const DAYS_TR = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
 
+  // Haftanın her günü için ayrı renk — index = Date.getDay() (0 = Pazar)
+  const DAY_COLORS = [
+    "#C8A951", // Pazar     — altın
+    "#E2725B", // Pazartesi — kiremit
+    "#E0A458", // Salı      — kehribar
+    "#6FA287", // Çarşamba  — adaçayı yeşili
+    "#5B8AA6", // Perşembe  — tozlu mavi
+    "#9B7EBD", // Cuma      — mor
+    "#C97B84", // Cumartesi — gül
+  ];
+
+  // hex -> rgba (yumuşak arka plan için)
+  function hexToSoft(hex, alpha) {
+    const h = hex.replace("#", "");
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function applyDayColor(dayIndex) {
+    const color = DAY_COLORS[dayIndex] || DAY_COLORS[0];
+    const root = document.documentElement.style;
+    root.setProperty("--day-accent", color);
+    root.setProperty("--day-accent-soft", hexToSoft(color, 0.14));
+  }
+
   function getToday() {
     const d = new Date();
-    return d.toISOString().split("T")[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
 
   function formatDateShort(dateStr) {
@@ -208,10 +286,23 @@
     return d.getDate() + " " + MONTHS_TR[d.getMonth()];
   }
 
-  // Başlık tarih
-  const now = new Date();
-  document.getElementById("today-date").textContent =
-    DAYS_TR[now.getDay()] + ", " + now.getDate() + " " + MONTHS_TR[now.getMonth()];
+  // Tarih hero — her veri güncellemesinde ve periyodik olarak güncelle
+  function updateDateHero() {
+    const now = new Date();
+    applyDayColor(now.getDay());
+    document.getElementById("day-number").textContent = now.getDate();
+    document.getElementById("day-name").textContent = DAYS_TR[now.getDay()];
+    document.getElementById("month-year").textContent = MONTHS_TR[now.getMonth()] + " " + now.getFullYear();
+  }
+  updateDateHero();
+  setInterval(updateDateHero, 60000);
+
+  // Widget'a tıklayınca uygulamayı aç
+  document.getElementById("open-app").addEventListener("click", () => {
+    if (window.widgetAPI && window.widgetAPI.openApp) {
+      window.widgetAPI.openApp();
+    }
+  });
 
   function renderEvents(events) {
     const container = document.getElementById("events-container");
@@ -263,6 +354,13 @@
     d.textContent = str || "";
     return d.innerHTML;
   }
+
+  // Header'a tıklayınca ana uygulamayı aç
+  document.getElementById("open-app").addEventListener("click", () => {
+    if (window.widgetAPI && window.widgetAPI.openApp) {
+      window.widgetAPI.openApp();
+    }
+  });
 
   // IPC ile veri al
   if (window.widgetAPI) {

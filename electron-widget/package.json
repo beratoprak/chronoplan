@@ -1,0 +1,30 @@
+{
+  "name": "epoche-widget",
+  "version": "0.8.0",
+  "description": "Epoche Desktop Widget",
+  "main": "main.js",
+  "author": "Bera Toprak <bera@beratoprak.com>",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac dir"
+  },
+  "build": {
+    "appId": "com.beratoprak.epoche-widget",
+    "productName": "Epoche Widget",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "target": [{ "target": "dir", "arch": ["arm64"] }],
+      "darkModeSupport": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "widget.html"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

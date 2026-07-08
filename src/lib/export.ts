@@ -3,8 +3,33 @@
  * CSV for tasks, Markdown for notes, ICS for events
  */
 
-import type { Task, DayNote, CalendarEvent } from "@/types";
+import type { Task, DayNote, CalendarEvent, BackupData } from "@/types";
 import { getPriorityLabel, getStatusLabel, getTagColorLabel } from "./utils";
+
+// ── Tam Yedekleme (JSON) ───────────────────────────────────
+// Uygulamadaki TÜM veriyi tek dosyada indirir. Bu dosya
+// "Yedekten Geri Yükle" ile eksiksiz geri alınabilir.
+
+export function exportFullBackup(data: Omit<BackupData, "app" | "version" | "exportedAt">): void {
+  const backup: BackupData = {
+    app: "epoche",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    ...data,
+  };
+  const date = new Date().toISOString().slice(0, 10);
+  downloadFile(JSON.stringify(backup, null, 2), `epoche-yedek-${date}.json`, "application/json;charset=utf-8;");
+}
+
+export function parseBackupFile(text: string): BackupData | null {
+  try {
+    const data = JSON.parse(text.replace(/^\uFEFF/, "")) as BackupData;
+    if (data.app !== "epoche" || typeof data.version !== "number") return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 // ── CSV Export ─────────────────────────────────────────────
 
@@ -44,7 +69,7 @@ export function exportTasksToCSV(tasks: Task[]): void {
 
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
 
-  downloadFile(csv, "chronoplan-gorevler.csv", "text/csv;charset=utf-8;");
+  downloadFile(csv, "epoche-gorevler.csv", "text/csv;charset=utf-8;");
 }
 
 // ── Markdown Export ────────────────────────────────────────
@@ -58,9 +83,9 @@ export function exportNotesToMarkdown(notes: DayNote[]): void {
     })
     .join("\n");
 
-  const content = `# ChronoPlan — Notlar\n\nExport tarihi: ${new Date().toLocaleDateString("tr-TR")}\n\n---\n\n${md}`;
+  const content = `# Epoche — Notlar\n\nExport tarihi: ${new Date().toLocaleDateString("tr-TR")}\n\n---\n\n${md}`;
 
-  downloadFile(content, "chronoplan-notlar.md", "text/markdown;charset=utf-8;");
+  downloadFile(content, "epoche-notlar.md", "text/markdown;charset=utf-8;");
 }
 
 // ── ICS (iCalendar) Export ─────────────────────────────────
@@ -69,7 +94,7 @@ export function exportEventsToICS(events: CalendarEvent[]): void {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//ChronoPlan//TR",
+    "PRODID:-//Epoche//TR",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
   ];
@@ -80,7 +105,7 @@ export function exportEventsToICS(events: CalendarEvent[]): void {
     const endTime = event.endTime?.replace(":", "") || startTime;
 
     lines.push("BEGIN:VEVENT");
-    lines.push(`UID:${event.id}@chronoplan`);
+    lines.push(`UID:${event.id}@epoche`);
     lines.push(`SUMMARY:${event.title}`);
 
     if (event.isAllDay) {
@@ -100,7 +125,7 @@ export function exportEventsToICS(events: CalendarEvent[]): void {
 
   lines.push("END:VCALENDAR");
 
-  downloadFile(lines.join("\r\n"), "chronoplan-etkinlikler.ics", "text/calendar;charset=utf-8;");
+  downloadFile(lines.join("\r\n"), "epoche-etkinlikler.ics", "text/calendar;charset=utf-8;");
 }
 
 // ── Download Helper ────────────────────────────────────────

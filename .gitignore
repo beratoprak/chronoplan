@@ -39,6 +39,16 @@ public/workbox-*.js
 public/workbox-*.js.map
 public/worker-*.js
 public/worker-*.js.map
+public/fallback-*.js
+
+# electron
+electron/node_modules/
+electron/dist/
+electron-widget/node_modules/
+electron-widget/dist/
+
+# supabase
+supabase/.temp/
 
 # claude
 .claude/
@@ -47,3 +57,4 @@ public/worker-*.js.map
 package 2.json
 package-lock 2.json
 
+.env*

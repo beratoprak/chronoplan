@@ -41,7 +41,7 @@ function groupSessionsByDate(sessions: WorkSession[]): { date: string; sessions:
 }
 
 export function PomodoroView() {
-  const { pomodoroSettings, setPomodoroSettings, workSessions, addWorkSession, researchProjects } = useAppStore();
+  const { pomodoroSettings, setPomodoroSettings, workSessions, addWorkSession } = useAppStore();
 
   // Timer state
   const [phase, setPhase] = useState<PomodoroPhase>("work");
@@ -175,7 +175,7 @@ export function PomodoroView() {
   const seconds = timeLeft % 60;
 
   return (
-    <div className="flex gap-6 h-full animate-fade-in">
+    <div className="flex flex-col lg:flex-row gap-6 h-full animate-fade-in">
       {/* Left: Timer */}
       <div className="flex flex-col items-center gap-6 flex-1">
         {/* Phase selector */}

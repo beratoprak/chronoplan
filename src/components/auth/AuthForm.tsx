@@ -66,7 +66,7 @@ export function AuthForm() {
             letterSpacing: "0.02em",
           }}
         >
-          ChronoPlan
+          Epoche
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-tertiary)" }}>
           Profesyonel takvim & planlama

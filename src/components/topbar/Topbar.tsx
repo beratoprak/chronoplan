@@ -13,8 +13,6 @@ const VIEW_TABS: { id: ViewType; label: string }[] = [
   { id: "monthly", label: "Aylık" },
   { id: "kanban", label: "Kanban" },
   { id: "notes", label: "Notlar" },
-  { id: "references", label: "Kaynakça" },
-  { id: "research", label: "Projeler" },
   { id: "media", label: "Medya" },
   { id: "pomodoro", label: "Pomodoro" },
 ];

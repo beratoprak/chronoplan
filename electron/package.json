@@ -1,7 +1,7 @@
 {
-  "name": "toprak",
+  "name": "epoche",
   "version": "0.9.0",
-  "description": "Toprak — Profesyonel takvim, planlama ve araştırma uygulaması",
+  "description": "Epoche — Profesyonel takvim, planlama ve araştırma uygulaması",
   "main": "main.js",
   "author": "Bera Toprak <bera@beratoprak.com>",
   "scripts": {
@@ -11,8 +11,8 @@
     "build:dir": "electron-builder --mac dir"
   },
   "build": {
-    "appId": "com.beratoprak.toprak",
-    "productName": "Toprak",
+    "appId": "com.beratoprak.epoche",
+    "productName": "Epoche",
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "icon.icns",
@@ -26,7 +26,7 @@
       "darkModeSupport": true
     },
     "dmg": {
-      "title": "Toprak",
+      "title": "Epoche",
       "backgroundColor": "#F5F0E8"
     },
     "files": [

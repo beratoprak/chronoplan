@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Topbar } from "@/components/topbar/Topbar";
 import { ViewSwitcher } from "@/components/views/ViewSwitcher";
+import { MobileNav } from "@/components/mobile/MobileNav";
 import { SearchModal } from "@/components/search/SearchModal";
 import { SettingsPanel } from "@/components/shared/SettingsPanel";
 import { useAppStore } from "@/lib/store";
@@ -89,6 +90,9 @@ export default function DemoPage() {
           </main>
         </div>
       </div>
+
+      {/* Mobil alt gezinme */}
+      <MobileNav />
 
       {/* Search & Settings work in demo too */}
       <SearchModal />

@@ -5,17 +5,20 @@
       <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
   </defs>
-  <!-- Horizontal bar of T -->
-  <rect x="10" y="22" width="100" height="10" rx="1" fill="#6B5B3E" filter="url(#texture)" opacity="0.9"/>
-  <!-- Left serif of T bar -->
-  <polygon points="10,22 10,32 16,32 16,22" fill="#5A4A30" opacity="0.85"/>
-  <!-- Right serif of T bar -->
-  <polygon points="104,22 104,32 110,32 110,22" fill="#5A4A30" opacity="0.85"/>
-  <!-- Vertical stem of T -->
-  <rect x="54" y="22" width="12" height="118" rx="1" fill="#6B5B3E" filter="url(#texture)" opacity="0.9"/>
-  <!-- Bottom serif -->
-  <rect x="48" y="132" width="24" height="6" rx="1" fill="#5A4A30" opacity="0.85"/>
+  <!-- Vertical stem of E -->
+  <rect x="22" y="22" width="12" height="118" rx="1" fill="#6B5B3E" filter="url(#texture)" opacity="0.9"/>
+  <!-- Top arm -->
+  <rect x="22" y="22" width="76" height="10" rx="1" fill="#6B5B3E" filter="url(#texture)" opacity="0.9"/>
+  <!-- Middle arm (slightly shorter) -->
+  <rect x="22" y="76" width="60" height="9" rx="1" fill="#6B5B3E" filter="url(#texture)" opacity="0.9"/>
+  <!-- Bottom arm -->
+  <rect x="22" y="130" width="76" height="10" rx="1" fill="#6B5B3E" filter="url(#texture)" opacity="0.9"/>
+  <!-- Serifs -->
+  <polygon points="92,22 92,32 98,32 98,22" fill="#5A4A30" opacity="0.85"/>
+  <polygon points="92,130 92,140 98,140 98,130" fill="#5A4A30" opacity="0.85"/>
+  <rect x="16" y="22" width="6" height="10" fill="#5A4A30" opacity="0.85"/>
+  <rect x="16" y="130" width="6" height="10" fill="#5A4A30" opacity="0.85"/>
   <!-- Shadow/depth lines -->
-  <line x1="56" y1="22" x2="56" y2="138" stroke="#8B7355" stroke-width="0.5" opacity="0.4"/>
-  <line x1="12" y1="24" x2="108" y2="24" stroke="#8B7355" stroke-width="0.5" opacity="0.4"/>
+  <line x1="24" y1="22" x2="24" y2="140" stroke="#8B7355" stroke-width="0.5" opacity="0.4"/>
+  <line x1="24" y1="24" x2="96" y2="24" stroke="#8B7355" stroke-width="0.5" opacity="0.4"/>
 </svg>

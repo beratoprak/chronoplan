@@ -1,8 +1,9 @@
 "use client";
 
-import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info } from "lucide-react";
+import { useRef, useState } from "react";
+import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info, DatabaseBackup, Upload } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { exportTasksToCSV, exportNotesToMarkdown, exportEventsToICS } from "@/lib/export";
+import { exportTasksToCSV, exportNotesToMarkdown, exportEventsToICS, exportFullBackup, parseBackupFile } from "@/lib/export";
 import type { ThemeMode } from "@/types";
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: React.ElementType }[] = [
@@ -22,9 +23,38 @@ const SHORTCUTS = [
 ];
 
 export function SettingsPanel() {
-  const { isSettingsOpen, closeSettings, theme, setTheme, tasks, notes, events } = useAppStore();
+  const { isSettingsOpen, closeSettings, theme, setTheme, tasks, notes, events, tags, richNotes, mediaItems, workSessions, pomodoroSettings, importBackup } = useAppStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
 
   if (!isSettingsOpen) return null;
+
+  const totalRecords = tasks.length + notes.length + events.length + richNotes.length + mediaItems.length + workSessions.length;
+
+  function handleBackupDownload() {
+    exportFullBackup({ tasks, notes, events, tags, richNotes, mediaItems, workSessions, pomodoroSettings });
+  }
+
+  function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = parseBackupFile(String(reader.result ?? ""));
+      if (!data) {
+        setRestoreMessage("Geçersiz yedek dosyası — Epoche yedeği değil.");
+        return;
+      }
+      const imported = importBackup(data);
+      setRestoreMessage(
+        imported > 0
+          ? `${imported} kayıt geri yüklendi. Mevcut daha yeni kayıtlara dokunulmadı.`
+          : "Yedekteki her şey zaten güncel — değişiklik gerekmedi."
+      );
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
 
   return (
     <div
@@ -91,6 +121,69 @@ export function SettingsPanel() {
                   <span className="text-xs font-medium">{label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* ── Tam Yedekleme ────────────────────── */}
+          <div>
+            <h3
+              className="text-[11px] font-medium uppercase tracking-wider mb-3"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              <DatabaseBackup size={12} className="inline mr-1" />
+              Tam Yedekleme
+            </h3>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleBackupDownload}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
+                style={{
+                  border: "0.5px solid var(--border-default)",
+                  background: "var(--surface-base)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                <Download size={16} style={{ color: "var(--brand-gold)" }} />
+                <div>
+                  <div className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
+                    Tüm Veriyi İndir (JSON)
+                  </div>
+                  <div className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                    {totalRecords} kayıt — görevler, notlar, etkinlikler, medya, pomodoro
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
+                style={{
+                  border: "0.5px solid var(--border-default)",
+                  background: "var(--surface-base)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                <Upload size={16} style={{ color: "var(--brand-gold)" }} />
+                <div>
+                  <div className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
+                    Yedekten Geri Yükle
+                  </div>
+                  <div className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                    Yedek dosyası mevcut veriyle güvenle birleştirilir, silme yapmaz
+                  </div>
+                </div>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={handleRestoreFile}
+              />
+              {restoreMessage && (
+                <p className="text-[11px] px-1" style={{ color: "var(--brand-gold)" }}>
+                  {restoreMessage}
+                </p>
+              )}
             </div>
           </div>
 
@@ -211,7 +304,7 @@ export function SettingsPanel() {
             <div className="flex items-center gap-2 mb-1">
               <Info size={13} style={{ color: "var(--text-tertiary)" }} />
               <span className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
-                ChronoPlan v0.8.0
+                Epoche v1.0.0
               </span>
             </div>
             <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>

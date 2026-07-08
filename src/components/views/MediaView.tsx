@@ -345,7 +345,7 @@ export function MediaView() {
   const papers = useMemo(() => mediaItems.filter((m) => m.type === "paper"), [mediaItems]);
 
   return (
-    <div className="flex gap-3 h-full animate-fade-in">
+    <div className="flex flex-col md:flex-row gap-3 md:h-full animate-fade-in">
       <MediaColumn type="book" items={books} onAdd={() => setAddingType("book")} />
       <MediaColumn type="movie" items={movies} onAdd={() => setAddingType("movie")} />
       <MediaColumn type="paper" items={papers} onAdd={() => setAddingType("paper")} />

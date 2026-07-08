@@ -1,5 +1,5 @@
 -- ============================================================
--- ChronoPlan — Supabase Veritabanı Şeması
+-- Epoche — Supabase Veritabanı Şeması
 -- Faz 5: Supabase Entegrasyonu
 -- ============================================================
 -- Bu dosyayı Supabase Dashboard > SQL Editor'de çalıştırın.

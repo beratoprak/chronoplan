@@ -147,13 +147,13 @@ export function NotesView() {
 
   return (
     <div
-      className="flex h-full gap-0 rounded-xl overflow-hidden animate-fade-in"
+      className="flex flex-col md:flex-row h-full gap-0 rounded-xl overflow-hidden animate-fade-in"
       style={{ border: "0.5px solid var(--border-default)", background: "var(--surface-base)" }}
     >
       {/* Left panel — note list */}
       <div
-        className="flex flex-col w-64 shrink-0 h-full"
-        style={{ borderRight: "0.5px solid var(--border-default)", background: "var(--surface-sunken)" }}
+        className="flex flex-col w-full md:w-64 shrink-0 h-48 md:h-full"
+        style={{ borderRight: "0.5px solid var(--border-default)", borderBottom: "0.5px solid var(--border-default)", background: "var(--surface-sunken)" }}
       >
         {/* Search + New */}
         <div className="p-3 flex flex-col gap-2">

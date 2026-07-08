@@ -1,10 +1,10 @@
 // ============================================================
-// ChronoPlan — Core Type Definitions
+// Epoche — Core Type Definitions
 // ============================================================
 
 import type { User } from "@supabase/supabase-js";
 
-export type ViewType = "daily" | "weekly" | "monthly" | "kanban" | "notes" | "media" | "references" | "research" | "pomodoro";
+export type ViewType = "daily" | "weekly" | "monthly" | "kanban" | "notes" | "media" | "pomodoro";
 
 export type Priority = "urgent" | "high" | "medium" | "low";
 
@@ -74,64 +74,11 @@ export interface MediaItem {
   updatedAt: string;
 }
 
-// ---- Academic Reference ----
-export type ReferenceType = "article" | "book" | "chapter" | "thesis" | "conference" | "website" | "other";
-export type CitationStyle = "apa" | "chicago" | "ieee" | "mla";
-
-export interface Reference {
-  id: string;
-  type: ReferenceType;
-  title: string;
-  authors: string[]; // ["Soyadı, Ad", ...]
-  year?: number;
-  journal?: string;
-  volume?: string;
-  issue?: string;
-  pages?: string;
-  publisher?: string;
-  city?: string;
-  doi?: string;
-  url?: string;
-  isbn?: string;
-  abstract?: string;
-  notes?: string;
-  tags: string[];
-  projectId?: string; // linked research project
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ---- Research Project ----
-export type ResearchStatus = "planning" | "active" | "writing" | "done";
-
-export interface FieldNote {
-  id: string;
-  content: string;
-  noteType: "observation" | "informative" | "reflection";
-  location?: string;
-  createdAt: string;
-}
-
-export interface ResearchProject {
-  id: string;
-  title: string;
-  question: string; // research question
-  hypothesis?: string;
-  description?: string;
-  status: ResearchStatus;
-  tags: string[];
-  fieldNotes: FieldNote[];
-  referenceIds: string[]; // linked references
-  createdAt: string;
-  updatedAt: string;
-}
-
 // ---- Pomodoro / Time Tracking ----
 export type PomodoroPhase = "work" | "short_break" | "long_break";
 
 export interface WorkSession {
   id: string;
-  projectId?: string;
   projectLabel: string; // free-form label
   durationMinutes: number;
   phase: PomodoroPhase;
@@ -168,6 +115,22 @@ export interface CalendarEvent {
   isAllDay: boolean;
   recurrence: RecurrenceType;
   recurrenceEndDate?: string; // YYYY-MM-DD — recurring events stop after this date
+  updatedAt?: string; // cihazlar arası çakışma çözümü (LWW) için
+}
+
+// ---- Tam Yedekleme ----
+export interface BackupData {
+  app: string; // "epoche"
+  version: number;
+  exportedAt: string;
+  tasks: Task[];
+  notes: DayNote[];
+  events: CalendarEvent[];
+  tags: Tag[];
+  richNotes: RichNote[];
+  mediaItems: MediaItem[];
+  workSessions: WorkSession[];
+  pomodoroSettings?: PomodoroSettings;
 }
 
 // ---- Kanban Filter (Faz 6) ----
@@ -261,6 +224,12 @@ export interface AppState {
   signOut: () => Promise<void>;
   syncFromSupabase: () => Promise<void>;
 
+  // ── Silme kayıtları (tombstone) — silinenlerin hortlamasını önler ──
+  tombstones: Record<string, string>; // "tablo:id" → deletedAt ISO
+
+  // ── Tam Yedekleme ────────────────────────────────────────
+  importBackup: (data: BackupData) => number; // içe aktarılan kayıt sayısı
+
   // ── Search (Faz 6) ────────────────────────────────────────
   isSearchOpen: boolean;
   openSearch: () => void;
@@ -298,20 +267,6 @@ export interface AppState {
   addMediaItem: (item: Omit<MediaItem, "id" | "createdAt" | "updatedAt">) => void;
   updateMediaItem: (id: string, updates: Partial<MediaItem>) => void;
   deleteMediaItem: (id: string) => void;
-
-  // ── References ───────────────────────────────────────────
-  references: Reference[];
-  addReference: (ref: Omit<Reference, "id" | "createdAt" | "updatedAt">) => void;
-  updateReference: (id: string, updates: Partial<Reference>) => void;
-  deleteReference: (id: string) => void;
-
-  // ── Research Projects ────────────────────────────────────
-  researchProjects: ResearchProject[];
-  addResearchProject: (proj: Omit<ResearchProject, "id" | "createdAt" | "updatedAt">) => void;
-  updateResearchProject: (id: string, updates: Partial<ResearchProject>) => void;
-  deleteResearchProject: (id: string) => void;
-  addFieldNote: (projectId: string, note: Omit<FieldNote, "id" | "createdAt">) => void;
-  deleteFieldNote: (projectId: string, noteId: string) => void;
 
   // ── Pomodoro / Time Tracking ─────────────────────────────
   workSessions: WorkSession[];

@@ -10,7 +10,7 @@ import { ShieldCheck } from "lucide-react";
 // Yeni kod eklemek icin bu diziye ekle
 const VALID_INVITE_CODES = [
   "berat2026",
-  "chronoplan-vip",
+  "epoche-vip",
 ];
 
 export default function JoinPage() {

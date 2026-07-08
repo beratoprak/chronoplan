@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Topbar } from "@/components/topbar/Topbar";
 import { ViewSwitcher } from "@/components/views/ViewSwitcher";
+import { MobileNav } from "@/components/mobile/MobileNav";
 import { TaskModal } from "@/components/shared/TaskModal";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { EventModal } from "@/components/shared/EventModal";
@@ -74,7 +75,7 @@ export default function Home() {
   if (isSupabaseConfigured && !user) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen supports-[height:100dvh]:h-[100dvh] overflow-hidden">
       {/* Sidebar — Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -92,6 +93,9 @@ export default function Home() {
         <Topbar />
         <ViewSwitcher />
       </main>
+
+      {/* Mobil alt gezinme */}
+      <MobileNav />
 
       {/* Faz 3 — Global Modal'lar */}
       <TaskModal />

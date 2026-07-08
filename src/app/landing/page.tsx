@@ -120,7 +120,7 @@ export default function LandingPage() {
           className="text-base md:text-lg mb-8 max-w-2xl mx-auto"
           style={{ color: "var(--text-secondary)" }}
         >
-          ChronoPlan, minimalist tasarimli kisisel planlama uygulamasi.
+          Epoche, minimalist tasarimli kisisel planlama uygulamasi.
           Gunluk notlar, haftalik planlama, kanban board ve takvim — hepsi bir arada.
         </p>
         <button
@@ -243,7 +243,7 @@ export default function LandingPage() {
         }}
       >
         <span className="text-xs">
-          &copy; 2026 ChronoPlan — beratoprak.com
+          &copy; 2026 Epoche — beratoprak.com
         </span>
         <span className="text-xs">Made with cream & gold</span>
       </footer>

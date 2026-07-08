@@ -9,8 +9,6 @@ import {
   Users,
   FileText,
   BookOpen,
-  Library,
-  FlaskConical,
   Timer,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
@@ -23,11 +21,9 @@ const VIEW_ITEMS: { id: ViewType; label: string; icon: React.ElementType; group?
   { id: "weekly", label: "Haftalık", icon: CalendarRange, group: "Takvim" },
   { id: "monthly", label: "Aylık", icon: LayoutGrid, group: "Takvim" },
   { id: "kanban", label: "Kanban", icon: Columns3, group: "Takvim" },
-  { id: "notes", label: "Notlar", icon: FileText, group: "Araştırma" },
-  { id: "references", label: "Kaynakça", icon: Library, group: "Araştırma" },
-  { id: "research", label: "Projeler", icon: FlaskConical, group: "Araştırma" },
-  { id: "media", label: "Kitap & Film", icon: BookOpen, group: "Araştırma" },
-  { id: "pomodoro", label: "Zamanlayıcı", icon: Timer, group: "Araştırma" },
+  { id: "notes", label: "Notlar", icon: FileText, group: "Çalışma" },
+  { id: "media", label: "Kitap & Film", icon: BookOpen, group: "Çalışma" },
+  { id: "pomodoro", label: "Zamanlayıcı", icon: Timer, group: "Çalışma" },
 ];
 
 const TAG_DOTS: { label: string; color: string }[] = [
@@ -45,7 +41,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "flex flex-col gap-4 p-3.5 h-screen overflow-y-auto shrink-0",
+        "flex flex-col gap-4 p-3.5 h-screen supports-[height:100dvh]:h-[100dvh] overflow-y-auto shrink-0",
         // Mobile: overlay, fixed, z-40
         "fixed lg:relative z-40 lg:z-auto",
         "transition-transform duration-200 ease-out",
@@ -59,12 +55,12 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="px-1 pt-1 flex items-center gap-2">
-        <img src="/logo.svg" alt="Toprak logo" style={{ width: 28, height: 38 }} />
+        <img src="/logo.svg" alt="Epoche logo" style={{ width: 28, height: 38 }} />
         <h1
           className="text-xl font-medium tracking-wide"
           style={{ fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)" }}
         >
-          <span style={{ color: "var(--brand-gold)" }}>Toprak</span>
+          <span style={{ color: "var(--brand-gold)" }}>Epoche</span>
         </h1>
       </div>
 
@@ -73,7 +69,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-col gap-0.5">
-        {["Takvim", "Araştırma"].map((group) => (
+        {["Takvim", "Çalışma"].map((group) => (
           <div key={group} className="flex flex-col gap-0.5">
             <span
               className="text-[10px] uppercase tracking-wider px-3 pb-0.5 pt-1"
@@ -87,7 +83,13 @@ export function Sidebar() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setView(item.id)}
+                  onClick={() => {
+                    setView(item.id);
+                    // Mobilde seçimden sonra sidebar'ı kapat
+                    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                      useAppStore.setState({ sidebarOpen: false });
+                    }
+                  }}
                   className={cn("cp-nav-item", isActive && "active")}
                 >
                   <Icon size={15} style={{ color: "var(--brand-gold)" }} />
