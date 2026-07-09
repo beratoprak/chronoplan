@@ -55,7 +55,7 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="px-1 pt-1 flex items-center gap-2">
-        <img src="/icon-192.png" alt="Epoche logo" className="rounded-full" style={{ width: 34, height: 34 }} />
+        <img src="/logo-espresso.png" alt="Epoche logo" style={{ width: 32, height: 32 }} />
         <h1
           className="text-xl font-medium tracking-wide"
           style={{ fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)" }}

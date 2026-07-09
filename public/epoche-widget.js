@@ -15,25 +15,24 @@
 const TOKEN = "BURAYA_TOKENINIZI_YAPISTIRIN";
 const BASE_URL = "https://chronoplan-three.vercel.app";
 
-// ── Epoche tasarım dili ───────────────────────────────────────
+// ── Epoche tasarım dili — Espresso ────────────────────────────
 const C = {
-  bg: Color.dynamic(new Color("#FDFBF7"), new Color("#1A1714")),
-  bgCard: Color.dynamic(new Color("#F5F0E8"), new Color("#242019")),
-  gold: Color.dynamic(new Color("#A0825C"), new Color("#C4A060")),
-  text: Color.dynamic(new Color("#2C2518"), new Color("#EDE8DD")),
-  text2: Color.dynamic(new Color("#6B5B3E"), new Color("#A09882")),
-  muted: Color.dynamic(new Color("#A09882"), new Color("#6B5B3E")),
+  bg: new Color("#3B2A20"), // espresso — uygulama ikonuyla aynı zemin
+  gold: new Color("#C4A060"),
+  text: new Color("#F3E7C8"), // krem — ikondaki saat çizgisi rengi
+  text2: new Color("#D8C6A4"),
+  muted: new Color("#F3E7C8", 0.45),
   tag: {
-    work: new Color("#E24B4A"),
-    personal: new Color("#1D9E75"),
-    project: new Color("#7F77DD"),
-    meeting: new Color("#BA7517"),
+    work: new Color("#F58B8A"),
+    personal: new Color("#5FCBA4"),
+    project: new Color("#ABA5F0"),
+    meeting: new Color("#E0AC55"),
   },
   priority: {
-    urgent: new Color("#E24B4A"),
-    high: new Color("#D85A30"),
-    medium: new Color("#BA7517"),
-    low: new Color("#1D9E75"),
+    urgent: new Color("#F58B8A"),
+    high: new Color("#F09A70"),
+    medium: new Color("#E0AC55"),
+    low: new Color("#5FCBA4"),
   },
 };
 
