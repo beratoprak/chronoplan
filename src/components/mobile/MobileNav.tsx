@@ -1,13 +1,14 @@
 "use client";
 
-import { CalendarDays, LayoutGrid, Columns3, FileText, Timer } from "lucide-react";
+import { CalendarDays, CalendarRange, LayoutGrid, Columns3, FileText, Timer } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { ViewType } from "@/types";
 
 const NAV_ITEMS: { id: ViewType; label: string; icon: React.ElementType }[] = [
-  { id: "daily", label: "Günlük", icon: CalendarDays },
-  { id: "monthly", label: "Aylık", icon: LayoutGrid },
+  { id: "daily", label: "Gün", icon: CalendarDays },
+  { id: "weekly", label: "Hafta", icon: CalendarRange },
+  { id: "monthly", label: "Ay", icon: LayoutGrid },
   { id: "kanban", label: "Kanban", icon: Columns3 },
   { id: "notes", label: "Notlar", icon: FileText },
   { id: "pomodoro", label: "Sayaç", icon: Timer },

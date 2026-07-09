@@ -72,14 +72,14 @@ export function SettingsPanel() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center animate-fade-in"
       style={{ background: "var(--surface-overlay)" }}
       onClick={(e) => {
         if (e.target === e.currentTarget) closeSettings();
       }}
     >
       <div
-        className="w-full max-w-lg rounded-xl overflow-hidden animate-modal-in"
+        className="w-full max-w-lg rounded-t-2xl sm:rounded-xl overflow-hidden animate-modal-in"
         style={{
           background: "var(--surface-raised)",
           border: "0.5px solid var(--border-default)",

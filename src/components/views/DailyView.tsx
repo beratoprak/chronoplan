@@ -64,8 +64,8 @@ export function DailyView() {
 
   return (
     <div className="grid gap-5 h-full animate-fade-in grid-cols-1 lg:grid-cols-[1fr_300px]">
-      {/* Left: Note editor area */}
-      <div className="flex flex-col gap-3 min-w-0">
+      {/* Left: Note editor area — mobilde program üstte olsun diye order-2 */}
+      <div className="flex flex-col gap-3 min-w-0 order-2 lg:order-1">
         <div className="flex items-center justify-between">
           <h3 className="text-[15px] font-medium" style={{ color: "var(--text-primary)" }}>
             Günün notları
@@ -78,8 +78,8 @@ export function DailyView() {
         <NoteEditor date={selectedDate} />
       </div>
 
-      {/* Right: Schedule + upcoming */}
-      <div className="flex flex-col gap-4">
+      {/* Right: Schedule + upcoming — mobilde en üstte */}
+      <div className="flex flex-col gap-4 order-1 lg:order-2">
         {/* Today's schedule */}
         <div>
           <h4

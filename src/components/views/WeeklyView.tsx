@@ -76,8 +76,93 @@ export function WeeklyView() {
     openEventModal(original ?? event);
   }
 
+  // ── Mobil: ajanda listesi (yatay kaydırma yok) ──────────────
+  const agenda = (
+    <div className="flex flex-col gap-2 md:hidden animate-fade-in">
+      {weekDays.map((day) => {
+        const dateStr = format(day, DATE_FORMAT);
+        const today = isTodayDate(day);
+        const dayEvents = (eventsByDate[dateStr] ?? [])
+          .slice()
+          .sort((a, b) => (a.isAllDay ? "" : a.startTime ?? "99").localeCompare(b.isAllDay ? "" : b.startTime ?? "99"));
+        const dayTasks = tasksByDate[dateStr] ?? [];
+        const isEmpty = dayEvents.length === 0 && dayTasks.length === 0;
+
+        return (
+          <div
+            key={`ag-${dateStr}`}
+            className="rounded-xl p-3"
+            style={{
+              background: today ? "var(--brand-gold-light)" : "var(--surface-base)",
+              border: `0.5px solid ${today ? "var(--brand-gold)" : "var(--border-default)"}`,
+            }}
+          >
+            <button
+              onClick={() => setSelectedDate(dateStr)}
+              className="flex items-baseline gap-2 w-full text-left mb-1"
+            >
+              <span
+                className="text-base font-semibold tabular-nums"
+                style={{ color: today ? "var(--brand-gold)" : "var(--text-primary)" }}
+              >
+                {day.getDate()}
+              </span>
+              <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                {WEEKDAY_LABELS_SHORT[(day.getDay() + 6) % 7]}
+                {today && " · Bugün"}
+              </span>
+            </button>
+
+            {isEmpty ? (
+              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                Boş
+              </p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {dayEvents.map((event) => (
+                  <button
+                    key={event.id}
+                    onClick={(e) => handleEventClick(e, event)}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left min-h-[36px]"
+                    style={{
+                      background: TAG_EVENT_STYLES[event.tagColor]?.bg || "var(--surface-sunken)",
+                      color: TAG_EVENT_STYLES[event.tagColor]?.color || "var(--text-primary)",
+                    }}
+                  >
+                    <span className="text-[11px] font-semibold tabular-nums shrink-0 w-12">
+                      {event.isAllDay || !event.startTime ? "Gün" : event.startTime}
+                    </span>
+                    <span className="text-[13px] font-medium truncate">{event.title}</span>
+                  </button>
+                ))}
+                {dayTasks.map((task) => (
+                  <button
+                    key={task.id}
+                    onClick={() => openTaskModal(task)}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left min-h-[36px]"
+                    style={{ background: "var(--surface-sunken)" }}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0 ml-1 mr-1"
+                      style={{ background: `var(--priority-${task.priority})` }}
+                    />
+                    <span className="text-[13px] truncate" style={{ color: "var(--text-secondary)" }}>
+                      {task.title}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="animate-fade-in overflow-x-auto min-w-0">
+    <>
+      {agenda}
+      <div className="animate-fade-in overflow-x-auto min-w-0 hidden md:block">
       {/* Week header */}
       <div className="grid gap-px mb-1" style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px" }}>
         <div />
@@ -224,7 +309,8 @@ export function WeeklyView() {
             })}
           </Fragment>
         ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

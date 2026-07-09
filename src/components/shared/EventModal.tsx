@@ -172,12 +172,12 @@ export function EventModal() {
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ background: "var(--surface-overlay)" }}
     >
       <div
         onKeyDown={handleFormKeyDown}
-        className="w-full max-w-[480px] rounded-2xl animate-modal-in"
+        className="w-full max-w-[480px] rounded-t-2xl sm:rounded-2xl animate-modal-in max-h-[92dvh] overflow-y-auto"
         style={{
           background: "var(--surface-raised)",
           border: "0.5px solid var(--border-default)",
