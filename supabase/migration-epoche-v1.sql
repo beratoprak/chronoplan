@@ -8,6 +8,7 @@
 ALTER TABLE tasks  ADD COLUMN IF NOT EXISTS deleted_at text;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS deleted_at text;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_at text NOT NULL DEFAULT '';
+ALTER TABLE events ADD COLUMN IF NOT EXISTS created_at text;
 ALTER TABLE notes  ADD COLUMN IF NOT EXISTS deleted_at text;
 
 -- Tarihsiz görevler push edilebilsin (uygulama tarihsiz göreve izin veriyor)

@@ -75,6 +75,37 @@ export function formatTimeRange(start?: string, end?: string): string {
   return `${start} — ${end}`;
 }
 
+/**
+ * Göreli zaman: "az önce", "5 dk önce", "3 saat önce", "dün 14:30", "5 Tem 14:30".
+ * Uygulamanın "ne zaman ne eklendi" bilinci için.
+ */
+export function formatRelativeTime(iso: string, now: Date = new Date()): string {
+  const then = parseISO(iso);
+  const diffMs = now.getTime() - then.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+
+  if (diffMin < 1) return "az önce";
+  if (diffMin < 60) return `${diffMin} dk önce`;
+
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24 && now.getDate() === then.getDate()) return `${diffHours} saat önce`;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (
+    then.getDate() === yesterday.getDate() &&
+    then.getMonth() === yesterday.getMonth() &&
+    then.getFullYear() === yesterday.getFullYear()
+  ) {
+    return `dün ${format(then, "HH:mm")}`;
+  }
+
+  if (then.getFullYear() === now.getFullYear()) {
+    return format(then, "d MMM HH:mm", { locale: tr });
+  }
+  return format(then, "d MMM yyyy", { locale: tr });
+}
+
 export function minutesToDisplay(minutes?: number): string {
   if (!minutes) return "";
   if (minutes < 60) return `${minutes}dk`;

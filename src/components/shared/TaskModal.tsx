@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn, getPriorityLabel } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/dates";
 import type { Priority, TaskStatus, TagColor, ChecklistItem, Tag as TagType } from "@/types";
 
 // ── Constants ────────────────────────────────────────────────
@@ -682,7 +683,16 @@ export function TaskModal() {
           }}
         >
           <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-            ⌘ Enter ile kaydet
+            {isEditing && editingTask ? (
+              <>
+                Eklendi: {formatRelativeTime(editingTask.createdAt)}
+                {editingTask.updatedAt !== editingTask.createdAt && (
+                  <> · Güncellendi: {formatRelativeTime(editingTask.updatedAt)}</>
+                )}
+              </>
+            ) : (
+              "⌘ Enter ile kaydet"
+            )}
           </span>
           <div className="flex items-center gap-2">
             <button

@@ -115,6 +115,7 @@ export interface CalendarEvent {
   isAllDay: boolean;
   recurrence: RecurrenceType;
   recurrenceEndDate?: string; // YYYY-MM-DD — recurring events stop after this date
+  createdAt?: string; // ne zaman eklendi
   updatedAt?: string; // cihazlar arası çakışma çözümü (LWW) için
 }
 
@@ -217,6 +218,7 @@ export interface AppState {
   user: User | null;
   authLoading: boolean;
   syncStatus: "idle" | "syncing" | "error";
+  hasSyncedOnce: boolean; // arka plan senkronizasyonları spinner göstermesin diye
   initAuth: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;

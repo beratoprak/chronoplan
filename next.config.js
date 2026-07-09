@@ -13,12 +13,13 @@ const withPWA = require("next-pwa")({
       },
     },
     {
+      // Anında yükleme: önce önbellekten sun, arka planda güncelle.
+      // (NetworkFirst + 10sn timeout "sürekli yükleniyor" hissinin nedeniydi.)
       urlPattern: /\.(?:js|css)$/i,
-      handler: "NetworkFirst",
+      handler: "StaleWhileRevalidate",
       options: {
         cacheName: "static-code",
-        networkTimeoutSeconds: 10,
-        expiration: { maxEntries: 100, maxAgeSeconds: 24 * 60 * 60 },
+        expiration: { maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 },
       },
     },
     {

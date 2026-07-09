@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { format, parseISO, addDays, addWeeks, addMonths, isBefore, isEqual } from "date-fns";
+import { format } from "date-fns";
+import { expandEvents, mergeEntities, pruneTombstones } from "./planner";
 import type { AppState, Task, TaskStatus, DayNote, CalendarEvent, Tag, RecurrenceType, KanbanFilter, ThemeMode, Workspace, RichNote, MediaItem, WorkSession, PomodoroSettings, BackupData } from "@/types";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "./supabase";
@@ -47,98 +48,6 @@ const DEFAULT_TAGS: Tag[] = [
   { id: "tag-project", name: "Proje", color: "project" },
   { id: "tag-meeting", name: "Toplantı", color: "meeting" },
 ];
-
-// ── Generic LWW (last-write-wins) birleştirme ─────────────────
-// Tombstone'lar sayesinde bir cihazda silinen kayıt, diğer
-// cihazın eski kopyasından geri hortlamaz.
-interface Syncable {
-  id: string;
-  updatedAt?: string;
-}
-
-interface MergeResult<T extends Syncable> {
-  merged: T[];
-  toPush: T[]; // yerel daha yeni → sunucuya gönder
-  toSoftDelete: { entity: T; deletedAt: string }[]; // sunucuda hâlâ canlı → sil işaretle
-  tombstonesOut: Record<string, string>; // bu tablo için güncel tombstone'lar
-}
-
-function mergeEntities<T extends Syncable>(
-  local: T[],
-  remote: T[],
-  remoteDeleted: Record<string, string>,
-  tombstones: Record<string, string>,
-  prefix: string
-): MergeResult<T> {
-  const localMap = new Map(local.map((i) => [i.id, i]));
-  const remoteMap = new Map(remote.map((i) => [i.id, i]));
-  const result: MergeResult<T> = { merged: [], toPush: [], toSoftDelete: [], tombstonesOut: {} };
-
-  const localTombs: Record<string, string> = {};
-  for (const [key, ts] of Object.entries(tombstones)) {
-    if (key.startsWith(`${prefix}:`)) localTombs[key.slice(prefix.length + 1)] = ts;
-  }
-
-  const allIds = new Set([
-    ...Array.from(localMap.keys()),
-    ...Array.from(remoteMap.keys()),
-    ...Object.keys(remoteDeleted),
-    ...Object.keys(localTombs),
-  ]);
-
-  allIds.forEach((id) => {
-    const loc = localMap.get(id);
-    const rem = remoteMap.get(id);
-    const remDel = remoteDeleted[id];
-    const tomb = localTombs[id];
-
-    if (tomb) {
-      // Yerelde silinmiş. Silme anından SONRA başka cihazda düzenlendiyse geri getir.
-      if (rem && (rem.updatedAt ?? "") > tomb) {
-        result.merged.push(rem);
-      } else {
-        result.tombstonesOut[id] = tomb;
-        if (rem) result.toSoftDelete.push({ entity: rem, deletedAt: tomb });
-      }
-      return;
-    }
-    if (remDel) {
-      // Sunucuda silinmiş. Silme anından SONRA yerelde düzenlendiyse geri getir.
-      if (loc && (loc.updatedAt ?? "") > remDel) {
-        result.merged.push(loc);
-        result.toPush.push(loc);
-      } else {
-        result.tombstonesOut[id] = remDel;
-      }
-      return;
-    }
-    if (loc && rem) {
-      if ((loc.updatedAt ?? "") >= (rem.updatedAt ?? "")) {
-        result.merged.push(loc);
-        if ((loc.updatedAt ?? "") > (rem.updatedAt ?? "")) result.toPush.push(loc);
-      } else {
-        result.merged.push(rem);
-      }
-    } else if (loc) {
-      result.merged.push(loc);
-      result.toPush.push(loc);
-    } else if (rem) {
-      result.merged.push(rem);
-    }
-  });
-
-  return result;
-}
-
-// 90 günden eski tombstone'ları temizle (sonsuz büyümesin)
-function pruneTombstones(tombstones: Record<string, string>): Record<string, string> {
-  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-  const pruned: Record<string, string> = {};
-  for (const [key, ts] of Object.entries(tombstones)) {
-    if (ts > cutoff) pruned[key] = ts;
-  }
-  return pruned;
-}
 
 // ── Otomatik senkronizasyon tetikleyicileri (bir kez kurulur) ──
 let syncListenersRegistered = false;
@@ -235,6 +144,7 @@ export const useAppStore = create<AppState>()(
       user: null,
       authLoading: true,
       syncStatus: "idle",
+      hasSyncedOnce: false,
       tombstones: {},
 
       // ── Tam Yedekten Geri Yükleme ─────────────────────────────
@@ -418,6 +328,7 @@ export const useAppStore = create<AppState>()(
           tags: data.tags.length > 0 ? data.tags : state.tags,
           tombstones: pruneTombstones(newTombstones),
           syncStatus: "idle",
+          hasSyncedOnce: true,
         });
 
         // Yerelde daha yeni olanları sunucuya gönder (outbox üzerinden)
@@ -572,7 +483,8 @@ export const useAppStore = create<AppState>()(
       events: [],
       addEvent: (eventData) => {
         if (get().isDemoMode) { get().showDemoToast("Demo modunda etkinlik eklenemez"); return; }
-        const newEvent = { ...eventData, id: generateId(), updatedAt: new Date().toISOString() };
+        const now = new Date().toISOString();
+        const newEvent = { ...eventData, id: generateId(), createdAt: now, updatedAt: now };
         set((s) => ({ events: [...s.events, newEvent] }));
         const { user } = get();
         if (user && isSupabaseConfigured) pushEvent(newEvent, user.id);
@@ -600,46 +512,8 @@ export const useAppStore = create<AppState>()(
         if (user && isSupabaseConfigured && event)
           pushSoftDelete("events", eventToRow(event, user.id) as unknown as Record<string, unknown>, deletedAt);
       },
-      getExpandedEvents: (startDate: string, endDate: string) => {
-        const events = get().events;
-        const result: CalendarEvent[] = [];
-        const start = parseISO(startDate);
-        const end = parseISO(endDate);
-
-        for (const event of events) {
-          if (event.recurrence === "none" || !event.recurrence) {
-            if (event.date >= startDate && event.date <= endDate) {
-              result.push(event);
-            }
-          } else {
-            const eventStart = parseISO(event.date);
-            const recEnd = event.recurrenceEndDate ? parseISO(event.recurrenceEndDate) : end;
-            const effectiveEnd = isBefore(recEnd, end) ? recEnd : end;
-            let current = eventStart;
-
-            while (isBefore(current, start) && (isBefore(current, effectiveEnd) || isEqual(current, effectiveEnd))) {
-              if (event.recurrence === "daily") current = addDays(current, 1);
-              else if (event.recurrence === "weekly") current = addWeeks(current, 1);
-              else if (event.recurrence === "monthly") current = addMonths(current, 1);
-            }
-
-            let safety = 0;
-            while ((isBefore(current, effectiveEnd) || isEqual(current, effectiveEnd)) && safety < 366) {
-              const dateStr = format(current, "yyyy-MM-dd");
-              result.push({
-                ...event,
-                id: `${event.id}-${dateStr}`,
-                date: dateStr,
-              });
-              if (event.recurrence === "daily") current = addDays(current, 1);
-              else if (event.recurrence === "weekly") current = addWeeks(current, 1);
-              else if (event.recurrence === "monthly") current = addMonths(current, 1);
-              safety++;
-            }
-          }
-        }
-        return result;
-      },
+      getExpandedEvents: (startDate: string, endDate: string) =>
+        expandEvents(get().events, startDate, endDate),
 
       // Tags
       tags: DEFAULT_TAGS,

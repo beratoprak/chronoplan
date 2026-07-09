@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn, getTagColorLabel, getRecurrenceLabel } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/dates";
 import type { TagColor, RecurrenceType } from "@/types";
 
 // ── Constants ────────────────────────────────────────────────
@@ -468,7 +469,11 @@ export function EventModal() {
           }}
         >
           <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-            ⌘ Enter ile kaydet
+            {isEditing && editingEvent?.createdAt ? (
+              <>Eklendi: {formatRelativeTime(editingEvent.createdAt)}</>
+            ) : (
+              "⌘ Enter ile kaydet"
+            )}
           </span>
           <div className="flex items-center gap-2">
             <button

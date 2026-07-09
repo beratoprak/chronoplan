@@ -41,12 +41,6 @@ public/worker-*.js
 public/worker-*.js.map
 public/fallback-*.js
 
-# electron
-electron/node_modules/
-electron/dist/
-electron-widget/node_modules/
-electron-widget/dist/
-
 # supabase
 supabase/.temp/
 

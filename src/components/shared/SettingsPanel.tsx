@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info, DatabaseBackup, Upload } from "lucide-react";
+import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info, DatabaseBackup, Upload, CalendarClock, Copy, Check } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { exportTasksToCSV, exportNotesToMarkdown, exportEventsToICS, exportFullBackup, parseBackupFile } from "@/lib/export";
 import type { ThemeMode } from "@/types";
@@ -23,9 +23,23 @@ const SHORTCUTS = [
 ];
 
 export function SettingsPanel() {
-  const { isSettingsOpen, closeSettings, theme, setTheme, tasks, notes, events, tags, richNotes, mediaItems, workSessions, pomodoroSettings, importBackup } = useAppStore();
+  const { isSettingsOpen, closeSettings, theme, setTheme, tasks, notes, events, tags, richNotes, mediaItems, workSessions, pomodoroSettings, importBackup, user, isDemoMode } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const icsUrl =
+    user && typeof window !== "undefined"
+      ? `${window.location.origin}/api/ics?token=${user.id}`
+      : null;
+
+  function copyIcsUrl() {
+    if (!icsUrl) return;
+    void navigator.clipboard.writeText(icsUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   if (!isSettingsOpen) return null;
 
@@ -256,6 +270,51 @@ export function SettingsPanel() {
               </button>
             </div>
           </div>
+
+          {/* ── Takvim Aboneliği (Widget) ─────────── */}
+          {icsUrl && !isDemoMode && (
+            <div>
+              <h3
+                className="text-[11px] font-medium uppercase tracking-wider mb-3"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                <CalendarClock size={12} className="inline mr-1" />
+                Takvim Aboneliği — iPhone & Mac Widget
+              </h3>
+              <div
+                className="rounded-lg p-3 flex flex-col gap-2"
+                style={{ background: "var(--surface-base)", border: "0.5px solid var(--border-default)" }}
+              >
+                <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                  Bu adrese abone olursanız Epoche etkinlikleriniz iPhone/Mac
+                  Takvim uygulamasında ve takvim widget&apos;larında görünür:
+                </p>
+                <div className="flex items-center gap-2">
+                  <code
+                    className="flex-1 text-[10px] px-2 py-1.5 rounded truncate"
+                    style={{ background: "var(--surface-sunken)", color: "var(--text-tertiary)" }}
+                  >
+                    {icsUrl}
+                  </code>
+                  <button
+                    onClick={copyIcsUrl}
+                    className="cp-btn cp-btn-ghost text-[11px] px-2 py-1.5 shrink-0 gap-1"
+                  >
+                    {copied ? <Check size={12} /> : <Copy size={12} />}
+                    {copied ? "Kopyalandı" : "Kopyala"}
+                  </button>
+                </div>
+                <p className="text-[10px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  <strong>iPhone:</strong> Ayarlar → Uygulamalar → Takvim → Hesaplar → Hesap Ekle →
+                  Diğer → Takvim Aboneliği Ekle → adresi yapıştır.
+                  <br />
+                  <strong>Mac:</strong> Takvim uygulaması → Dosya → Yeni Takvim Aboneliği.
+                  <br />
+                  <strong>Google Takvim:</strong> Diğer takvimler → + → URL ile ekle.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ── Kisayollar ───────────────────────── */}
           <div>

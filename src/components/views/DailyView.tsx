@@ -19,6 +19,7 @@ import { useMemo } from "react";
 import { parseISO, addDays, format } from "date-fns";
 import { useAppStore } from "@/lib/store";
 import { formatDate } from "@/lib/dates";
+import { getUpcomingTasks } from "@/lib/planner";
 import { EventCard } from "@/components/shared/EventCard";
 import { TaskCard } from "@/components/shared/TaskCard";
 
@@ -53,12 +54,9 @@ export function DailyView() {
       .slice(0, 7);
   }, [events, selectedDate, getExpandedEvents]);
 
+  // Yalnızca önümüzdeki 7 gün "yaklaşan" sayılır — uzak gelecek burada görünmez
   const upcomingTasks = useMemo(
-    () =>
-      tasks
-        .filter((t) => t.date && t.date > selectedDate && t.status !== "done")
-        .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
-        .slice(0, 4),
+    () => getUpcomingTasks(tasks, selectedDate, 7, 4),
     [tasks, selectedDate]
   );
 
@@ -150,7 +148,15 @@ export function DailyView() {
               ))
             ) : upcomingTasks.length > 0 ? (
               upcomingTasks.map((task) => (
-                <TaskCard key={task.id} task={task} compact />
+                <div key={task.id} className="relative">
+                  <span
+                    className="absolute top-1 right-1.5 z-10 text-[9px] px-1.5 py-0.5 rounded"
+                    style={{ color: "var(--text-muted)", background: "var(--surface-sunken)" }}
+                  >
+                    {task.date ? formatDate(task.date, "d MMM") : ""}
+                  </span>
+                  <TaskCard task={task} compact />
+                </div>
               ))
             ) : (
               <p className="text-xs py-4 text-center" style={{ color: "var(--text-muted)" }}>

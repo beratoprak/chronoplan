@@ -48,6 +48,7 @@ interface EventRow {
   is_all_day: boolean;
   recurrence: string;
   recurrence_end_date: string | null;
+  created_at?: string | null;
   updated_at?: string;
   deleted_at?: string | null;
 }
@@ -173,6 +174,7 @@ export function eventToRow(event: CalendarEvent, userId: string): EventRow {
     is_all_day: event.isAllDay,
     recurrence: event.recurrence,
     recurrence_end_date: event.recurrenceEndDate ?? null,
+    created_at: event.createdAt ?? null,
     updated_at: event.updatedAt ?? new Date().toISOString(),
     deleted_at: null,
   };
@@ -190,6 +192,7 @@ function rowToEvent(row: EventRow): CalendarEvent {
     isAllDay: row.is_all_day,
     recurrence: row.recurrence as RecurrenceType,
     recurrenceEndDate: row.recurrence_end_date ?? undefined,
+    createdAt: row.created_at ?? undefined,
     updatedAt: row.updated_at || undefined,
   };
 }
@@ -350,6 +353,7 @@ async function tryUpsert(op: OutboxOp): Promise<boolean> {
     const stripped = { ...op.row };
     delete stripped.deleted_at;
     delete stripped.updated_at;
+    if (op.table === "events") delete stripped.created_at;
     // deleted_at'lı bir soft-delete'i kolon yokken göndermek anlamsız — beklet
     if (op.row.deleted_at) return false;
     const { error: err2 } = await supabase.from(op.table).upsert(stripped, q);

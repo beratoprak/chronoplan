@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Topbar } from "@/components/topbar/Topbar";
@@ -15,6 +15,10 @@ import { Eye, ArrowLeft } from "lucide-react";
 export default function DemoPage() {
   const { theme, sidebarOpen, setDemoMode, demoToast } = useAppStore();
   const router = useRouter();
+  // İlk istemci render'ı sunucu HTML'i ile aynı (boş) olsun — hydration
+  // uyuşmazlığını önler; içerik mount'tan hemen sonra çizilir.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   useKeyboardShortcuts();
 
@@ -42,6 +46,8 @@ export default function DemoPage() {
       document.documentElement.setAttribute("data-theme", theme);
     }
   }, [theme]);
+
+  if (!mounted) return null;
 
   return (
     <>

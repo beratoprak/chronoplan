@@ -1,11 +1,48 @@
 "use client";
 
-import { parseISO } from "date-fns";
-import { Menu, Plus, Search, CalendarPlus, LogOut, Loader2, Sun, Moon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { parseISO, format } from "date-fns";
+import { Menu, Plus, Search, CalendarPlus, LogOut, Loader2, Sun, Moon, Clock } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { formatDate, MONTH_NAMES_TR, DAY_NAMES_TR } from "@/lib/dates";
+import { MONTH_NAMES_TR, DAY_NAMES_TR, DATE_FORMAT } from "@/lib/dates";
 import type { ViewType } from "@/types";
+
+/** Canlı saat — dakikada bir güncellenir. */
+function LiveClock() {
+  // İlk render'da null: sunucu ile istemci saati farklı olabileceğinden
+  // hydration uyuşmazlığını önler; saat mount'tan sonra görünür.
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    tick();
+    // Dakika sınırına hizala, sonra her dakika güncelle
+    const msToNextMinute = 60_000 - (Date.now() % 60_000);
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const timeout = setTimeout(() => {
+      tick();
+      interval = setInterval(tick, 60_000);
+    }, msToNextMinute);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, []);
+
+  if (!now) return null;
+
+  return (
+    <span
+      className="hidden sm:flex items-center gap-1 text-xs tabular-nums"
+      style={{ color: "var(--text-tertiary)" }}
+      title={format(now, "d MMMM yyyy HH:mm")}
+    >
+      <Clock size={12} />
+      {format(now, "HH:mm")}
+    </span>
+  );
+}
 
 const VIEW_TABS: { id: ViewType; label: string }[] = [
   { id: "daily", label: "Günlük" },
@@ -18,7 +55,7 @@ const VIEW_TABS: { id: ViewType; label: string }[] = [
 ];
 
 export function Topbar() {
-  const { selectedDate, currentView, setView, toggleSidebar, openTaskModal, openEventModal, openSearch, user, syncStatus, signOut, theme, setTheme, isDemoMode } = useAppStore();
+  const { selectedDate, setSelectedDate, currentView, setView, toggleSidebar, openTaskModal, openEventModal, openSearch, user, syncStatus, hasSyncedOnce, signOut, theme, setTheme, isDemoMode } = useAppStore();
   const date = parseISO(selectedDate);
   const dayOfWeek = DAY_NAMES_TR[(date.getDay() + 6) % 7]; // Monday-first
 
@@ -43,12 +80,18 @@ export function Topbar() {
           <Menu size={18} />
         </button>
         <div className="flex items-baseline gap-1 sm:gap-2 min-w-0">
-          <h2 className="text-sm sm:text-base font-medium truncate" style={{ color: "var(--text-primary)" }}>
+          <button
+            onClick={() => setSelectedDate(format(new Date(), DATE_FORMAT))}
+            className="text-sm sm:text-base font-medium truncate text-left hover:opacity-75 transition-opacity"
+            style={{ color: "var(--text-primary)" }}
+            title="Bugüne dön"
+          >
             {date.getDate()} {MONTH_NAMES_TR[date.getMonth()]} {date.getFullYear()}
-          </h2>
+          </button>
           <span className="text-xs sm:text-sm hidden sm:inline" style={{ color: "var(--text-tertiary)" }}>
             {dayOfWeek}
           </span>
+          <LiveClock />
         </div>
       </div>
 
@@ -67,8 +110,9 @@ export function Topbar() {
 
       {/* Right: actions */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-        {/* Sync gostergesi */}
-        {syncStatus === "syncing" && (
+        {/* Sync gostergesi — yalnızca İLK senkronizasyonda; arka plan
+            senkronizasyonları sessizdir ("sürekli yükleniyor" hissi olmasın) */}
+        {syncStatus === "syncing" && !hasSyncedOnce && (
           <Loader2
             size={15}
             className="animate-spin"

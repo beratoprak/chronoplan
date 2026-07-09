@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { parseISO, format } from "date-fns";
 import { useAppStore } from "@/lib/store";
 import { getWeekDays, isTodayDate, WEEKDAY_LABELS_SHORT, DATE_FORMAT } from "@/lib/dates";
+import { buildWeekHours, eventsInSlot, isAllDayOrTimeless, getTasksForDate } from "@/lib/planner";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "@/types";
-
-const HOURS = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
 
 const TAG_EVENT_STYLES: Record<string, { bg: string; color: string }> = {
   work: { bg: "#FCEBEB", color: "#791F1F" },
@@ -16,8 +15,10 @@ const TAG_EVENT_STYLES: Record<string, { bg: string; color: string }> = {
   meeting: { bg: "#FAEEDA", color: "#633806" },
 };
 
+const GRID_COLS = "56px repeat(7, minmax(100px, 1fr))";
+
 export function WeeklyView() {
-  const { selectedDate, events, setSelectedDate, openEventModal, getExpandedEvents } = useAppStore();
+  const { selectedDate, events, tasks, setSelectedDate, openEventModal, openTaskModal, getExpandedEvents } = useAppStore();
   const date = parseISO(selectedDate);
   const weekDays = useMemo(() => getWeekDays(date), [selectedDate]);
 
@@ -29,6 +30,9 @@ export function WeeklyView() {
     [events, weekStart, weekEnd, getExpandedEvents]
   );
 
+  // Saat aralığı etkinliklere göre otomatik genişler — hiçbir etkinlik kaybolmaz
+  const hours = useMemo(() => buildWeekHours(expandedEvents), [expandedEvents]);
+
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
     expandedEvents.forEach((e) => {
@@ -38,23 +42,44 @@ export function WeeklyView() {
     return map;
   }, [expandedEvents]);
 
-  function getEventForSlot(dateStr: string, hour: string) {
-    const dayEvents = eventsByDate[dateStr] || [];
-    return dayEvents.find((e) => e.startTime === hour);
-  }
+  const allDayByDate = useMemo(() => {
+    const map: Record<string, CalendarEvent[]> = {};
+    expandedEvents.filter(isAllDayOrTimeless).forEach((e) => {
+      if (!map[e.date]) map[e.date] = [];
+      map[e.date].push(e);
+    });
+    return map;
+  }, [expandedEvents]);
+
+  const tasksByDate = useMemo(() => {
+    const map: Record<string, ReturnType<typeof getTasksForDate>> = {};
+    weekDays.forEach((day) => {
+      const dateStr = format(day, DATE_FORMAT);
+      map[dateStr] = getTasksForDate(tasks, dateStr);
+    });
+    return map;
+  }, [tasks, weekDays]);
+
+  const hasAllDay = useMemo(
+    () => Object.values(allDayByDate).some((list) => list.length > 0),
+    [allDayByDate]
+  );
+  const hasTasks = useMemo(
+    () => Object.values(tasksByDate).some((list) => list.length > 0),
+    [tasksByDate]
+  );
 
   function handleEventClick(e: React.MouseEvent, event: CalendarEvent) {
     e.stopPropagation();
-    openEventModal(event);
+    // Tekrarlı oluşum id'si "orijinal-YYYY-MM-DD" — düzenleme orijinali açar
+    const original = events.find((ev) => ev.id === event.id) ?? events.find((ev) => event.id.startsWith(`${ev.id}-`));
+    openEventModal(original ?? event);
   }
 
   return (
     <div className="animate-fade-in overflow-x-auto min-w-0">
       {/* Week header */}
-      <div
-        className="grid gap-px mb-1"
-        style={{ gridTemplateColumns: "56px repeat(7, minmax(100px, 1fr))", minWidth: "756px" }}
-      >
+      <div className="grid gap-px mb-1" style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px" }}>
         <div />
         {weekDays.map((day) => {
           const dateStr = format(day, DATE_FORMAT);
@@ -79,51 +104,125 @@ export function WeeklyView() {
         })}
       </div>
 
+      {/* Tüm gün / saatsiz etkinlikler */}
+      {hasAllDay && (
+        <div className="grid gap-px mb-1" style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px" }}>
+          <div className="text-[10px] text-right pr-2 pt-1" style={{ color: "var(--text-tertiary)" }}>
+            Tüm gün
+          </div>
+          {weekDays.map((day) => {
+            const dateStr = format(day, DATE_FORMAT);
+            const list = allDayByDate[dateStr] ?? [];
+            return (
+              <div key={`ad-${dateStr}`} className="flex flex-col gap-0.5 min-h-[4px]">
+                {list.map((event) => (
+                  <button
+                    key={event.id}
+                    onClick={(e) => handleEventClick(e, event)}
+                    className="rounded px-1.5 py-0.5 text-[11px] font-medium truncate text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
+                    style={{
+                      background: TAG_EVENT_STYLES[event.tagColor]?.bg || "#F5F0E8",
+                      color: TAG_EVENT_STYLES[event.tagColor]?.color || "#4A3F2F",
+                    }}
+                  >
+                    {event.title}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Günün görevleri */}
+      {hasTasks && (
+        <div
+          className="grid gap-px mb-1 pb-1"
+          style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px", borderBottom: "0.5px solid var(--border-default)" }}
+        >
+          <div className="text-[10px] text-right pr-2 pt-1" style={{ color: "var(--text-tertiary)" }}>
+            Görevler
+          </div>
+          {weekDays.map((day) => {
+            const dateStr = format(day, DATE_FORMAT);
+            const list = tasksByDate[dateStr] ?? [];
+            return (
+              <div key={`tk-${dateStr}`} className="flex flex-col gap-0.5 min-h-[4px]">
+                {list.slice(0, 3).map((task) => (
+                  <button
+                    key={task.id}
+                    onClick={() => openTaskModal(task)}
+                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] truncate text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
+                    style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)" }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ background: `var(--priority-${task.priority})` }}
+                    />
+                    <span className="truncate">{task.title}</span>
+                  </button>
+                ))}
+                {list.length > 3 && (
+                  <button
+                    onClick={() => setSelectedDate(dateStr)}
+                    className="text-[10px] text-left px-1.5"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    +{list.length - 3} görev daha
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Time grid */}
-      <div
-        className="grid gap-px"
-        style={{ gridTemplateColumns: "56px repeat(7, minmax(100px, 1fr))", minWidth: "756px" }}
-      >
-        {HOURS.map((hour) => (
-          <>
+      <div className="grid gap-px" style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px" }}>
+        {hours.map((hour) => (
+          <Fragment key={hour}>
             <div
-              key={`t-${hour}`}
-              className="text-[11px] text-right pr-2 h-12 flex items-start"
+              className="text-[11px] text-right pr-2 min-h-12 flex items-start"
               style={{ color: "var(--text-tertiary)" }}
             >
               {hour}
             </div>
             {weekDays.map((day) => {
               const dateStr = format(day, DATE_FORMAT);
-              const event = getEventForSlot(dateStr, hour);
+              const slotEvents = eventsInSlot(eventsByDate[dateStr] ?? [], hour);
               const today = isTodayDate(day);
 
               return (
                 <div
                   key={`${dateStr}-${hour}`}
-                  className="h-12 relative"
+                  className="min-h-12 flex flex-col gap-0.5 p-0.5"
                   style={{
                     borderTop: "0.5px solid var(--border-default)",
                     background: today ? "rgba(160, 130, 92, 0.03)" : "transparent",
                   }}
                 >
-                  {event && (
+                  {slotEvents.map((event) => (
                     <button
+                      key={event.id}
                       onClick={(e) => handleEventClick(e, event)}
-                      className="absolute inset-x-0.5 top-0.5 rounded px-1.5 py-1 text-[11px] font-medium truncate text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
+                      className="flex-1 rounded px-1.5 py-1 text-[11px] font-medium text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)] min-h-[22px]"
                       style={{
-                        height: "calc(100% - 4px)",
                         background: TAG_EVENT_STYLES[event.tagColor]?.bg || "#F5F0E8",
                         color: TAG_EVENT_STYLES[event.tagColor]?.color || "#4A3F2F",
                       }}
                     >
-                      {event.title}
+                      <span className="block truncate">
+                        {event.startTime && event.startTime.slice(3, 5) !== "00" && (
+                          <span className="opacity-70 mr-1">{event.startTime}</span>
+                        )}
+                        {event.title}
+                      </span>
                     </button>
-                  )}
+                  ))}
                 </div>
               );
             })}
-          </>
+          </Fragment>
         ))}
       </div>
     </div>
