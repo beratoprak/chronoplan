@@ -15,6 +15,16 @@ import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
+interface TaskRow {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  date: string | null;
+  deleted_at?: string | null;
+}
+
 interface EventRow {
   id: string;
   title: string;
@@ -92,6 +102,29 @@ function eventToVevent(e: EventRow): string[] {
   return lines;
 }
 
+const PRIORITY_LABELS: Record<string, string> = {
+  urgent: "Acil",
+  high: "Yüksek",
+  medium: "Orta",
+  low: "Düşük",
+};
+
+// Tarihli görevler yerli takvimde tüm gün kaydı olarak görünür
+function taskToVevent(t: TaskRow): string[] {
+  const lines: string[] = ["BEGIN:VEVENT"];
+  lines.push(`UID:task-${t.id}@epoche`);
+  lines.push(`DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}Z`);
+  lines.push(`SUMMARY:${escapeIcs(`✓ Görev: ${t.title}`)}`);
+  lines.push(`DTSTART;VALUE=DATE:${icsDate(t.date!)}`);
+  lines.push(`DTEND;VALUE=DATE:${icsDate(addOneDay(t.date!))}`);
+  const detail = [PRIORITY_LABELS[t.priority] && `Öncelik: ${PRIORITY_LABELS[t.priority]}`, t.description]
+    .filter(Boolean)
+    .join("\n");
+  if (detail) lines.push(`DESCRIPTION:${escapeIcs(detail)}`);
+  lines.push("END:VEVENT");
+  return lines;
+}
+
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token");
@@ -110,13 +143,20 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
-  const { data, error } = await supabase.from("events").select("*").eq("user_id", token);
+  const [eventsRes, tasksRes] = await Promise.all([
+    supabase.from("events").select("*").eq("user_id", token),
+    supabase.from("tasks").select("*").eq("user_id", token),
+  ]);
 
-  if (error) {
+  if (eventsRes.error) {
     return new Response("Etkinlikler okunamadı", { status: 500 });
   }
 
-  const events = ((data ?? []) as EventRow[]).filter((e) => !e.deleted_at);
+  const events = ((eventsRes.data ?? []) as EventRow[]).filter((e) => !e.deleted_at);
+  // Tarihli, tamamlanmamış görevler tüm gün kaydı olarak beslemeye girer
+  const tasks = ((tasksRes.data ?? []) as TaskRow[]).filter(
+    (t) => !t.deleted_at && t.date && t.status !== "done"
+  );
 
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -129,6 +169,9 @@ export async function GET(request: Request): Promise<Response> {
   ];
   for (const e of events) {
     lines.push(...eventToVevent(e));
+  }
+  for (const t of tasks) {
+    lines.push(...taskToVevent(t));
   }
   lines.push("END:VCALENDAR");
 
