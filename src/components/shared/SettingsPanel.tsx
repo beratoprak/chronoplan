@@ -1,9 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info, DatabaseBackup, Upload, CalendarClock, Copy, Check } from "lucide-react";
+import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info, DatabaseBackup, Upload, CalendarClock, Copy, Check, CloudUpload, RefreshCw } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { exportTasksToCSV, exportNotesToMarkdown, exportEventsToICS, exportFullBackup, parseBackupFile } from "@/lib/export";
+import { outboxSize, flushOutbox } from "@/lib/supabase-sync";
+import { formatRelativeTime } from "@/lib/dates";
 import type { ThemeMode } from "@/types";
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: React.ElementType }[] = [
@@ -23,10 +25,20 @@ const SHORTCUTS = [
 ];
 
 export function SettingsPanel() {
-  const { isSettingsOpen, closeSettings, theme, setTheme, tasks, notes, events, tags, richNotes, mediaItems, workSessions, pomodoroSettings, importBackup, user, isDemoMode } = useAppStore();
+  const { isSettingsOpen, closeSettings, theme, setTheme, tasks, notes, events, tags, richNotes, mediaItems, workSessions, pomodoroSettings, importBackup, user, isDemoMode, lastSyncAt, syncStatus, syncFromSupabase } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [syncingNow, setSyncingNow] = useState(false);
+  const [pendingCount, setPendingCount] = useState(() => outboxSize());
+
+  async function handleSyncNow() {
+    setSyncingNow(true);
+    await flushOutbox();
+    await syncFromSupabase();
+    setPendingCount(outboxSize());
+    setSyncingNow(false);
+  }
 
   const icsUrl =
     user && typeof window !== "undefined"
@@ -137,6 +149,53 @@ export function SettingsPanel() {
               ))}
             </div>
           </div>
+
+          {/* ── Senkronizasyon Durumu ─────────────── */}
+          {user && !isDemoMode && (
+            <div>
+              <h3
+                className="text-[11px] font-medium uppercase tracking-wider mb-3"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                <CloudUpload size={12} className="inline mr-1" />
+                Bulut Senkronizasyonu
+              </h3>
+              <div
+                className="rounded-lg p-3 flex flex-col gap-2"
+                style={{
+                  background: pendingCount > 0 ? "var(--priority-medium-bg)" : "var(--priority-low-bg)",
+                  border: "0.5px solid var(--border-default)",
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <span
+                      className="text-[13px] font-medium"
+                      style={{ color: pendingCount > 0 ? "var(--priority-medium-text)" : "var(--priority-low-text)" }}
+                    >
+                      {pendingCount > 0
+                        ? `${pendingCount} kayıt gönderilmeyi bekliyor`
+                        : "Her şey bulutta ✓"}
+                    </span>
+                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                      {lastSyncAt
+                        ? `Son eşitleme: ${formatRelativeTime(lastSyncAt)}`
+                        : "Henüz eşitlenmedi"}
+                      {syncStatus === "error" && " · Son deneme başarısız"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleSyncNow}
+                    disabled={syncingNow}
+                    className="cp-btn cp-btn-ghost text-[11px] px-2.5 py-1.5 gap-1 shrink-0"
+                  >
+                    <RefreshCw size={12} className={syncingNow ? "animate-spin" : ""} />
+                    Şimdi Eşitle
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Tam Yedekleme ────────────────────── */}
           <div>

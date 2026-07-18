@@ -219,6 +219,8 @@ export interface AppState {
   authLoading: boolean;
   syncStatus: "idle" | "syncing" | "error";
   hasSyncedOnce: boolean; // arka plan senkronizasyonları spinner göstermesin diye
+  lastSyncAt: string | null; // son başarılı eşitleme — Ayarlar'daki senkron panosu için
+  settingsUpdatedAt?: string; // pomodoro/tema ayarlarının LWW damgası
   initAuth: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;

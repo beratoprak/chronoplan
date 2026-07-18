@@ -15,6 +15,9 @@ import {
   pushMediaItem,
   pushWorkSession,
   pushSoftDelete,
+  pushUserSettings,
+  fetchUserSettings,
+  maybeCloudBackup,
   flushOutbox,
   taskToRow,
   eventToRow,
@@ -145,6 +148,8 @@ export const useAppStore = create<AppState>()(
       authLoading: true,
       syncStatus: "idle",
       hasSyncedOnce: false,
+      lastSyncAt: null,
+      settingsUpdatedAt: undefined,
       tombstones: {},
 
       // ── Tam Yedekten Geri Yükleme ─────────────────────────────
@@ -329,6 +334,7 @@ export const useAppStore = create<AppState>()(
           tombstones: pruneTombstones(newTombstones),
           syncStatus: "idle",
           hasSyncedOnce: true,
+          lastSyncAt: new Date().toISOString(),
         });
 
         // Yerelde daha yeni olanları sunucuya gönder (outbox üzerinden)
@@ -349,6 +355,44 @@ export const useAppStore = create<AppState>()(
           pushSoftDelete("rich_notes", richNoteToRow(entity, user.id) as unknown as Record<string, unknown>, deletedAt);
         for (const { entity, deletedAt } of mediaM.toSoftDelete)
           pushSoftDelete("media_items", mediaItemToRow(entity, user.id) as unknown as Record<string, unknown>, deletedAt);
+
+        // ── Ayarlar (pomodoro + tema): LWW ────────────────────
+        try {
+          const remoteSettings = await fetchUserSettings(user.id);
+          const localStamp = get().settingsUpdatedAt ?? "";
+          if (remoteSettings && remoteSettings.updated_at > localStamp) {
+            set({
+              pomodoroSettings: (remoteSettings.pomodoro as typeof state.pomodoroSettings) ?? state.pomodoroSettings,
+              theme: (remoteSettings.theme as ThemeMode) ?? state.theme,
+              settingsUpdatedAt: remoteSettings.updated_at,
+            });
+          } else if (localStamp && (!remoteSettings || remoteSettings.updated_at < localStamp)) {
+            pushUserSettings({
+              user_id: user.id,
+              pomodoro: get().pomodoroSettings,
+              theme: get().theme,
+              updated_at: localStamp,
+            });
+          }
+        } catch {
+          // user_settings tablosu henüz yok (migration v2) — sorun değil
+        }
+
+        // ── Günlük otomatik bulut yedeği ──────────────────────
+        const snap = get();
+        void maybeCloudBackup(user.id, {
+          app: "epoche",
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          tasks: snap.tasks,
+          notes: snap.notes,
+          events: snap.events,
+          tags: snap.tags,
+          richNotes: snap.richNotes,
+          mediaItems: snap.mediaItems,
+          workSessions: snap.workSessions,
+          pomodoroSettings: snap.pomodoroSettings,
+        });
       },
 
       // Tasks
@@ -436,11 +480,15 @@ export const useAppStore = create<AppState>()(
 
           return { tasks };
         });
-        // Sync affected tasks
+        // Sıralama TÜM kolonu etkiler — kolondaki her görevi buluta gönder
         const { user } = get();
         if (user && isSupabaseConfigured) {
-          const updatedTask = get().tasks.find((t) => t.id === id);
-          if (updatedTask) void pushTask(updatedTask, user.id);
+          const moved = get().tasks.find((t) => t.id === id);
+          if (moved) {
+            for (const t of get().tasks.filter((x) => x.status === moved.status)) {
+              pushTask(t, user.id);
+            }
+          }
         }
       },
 
@@ -531,7 +579,11 @@ export const useAppStore = create<AppState>()(
       // ── Theme (Faz 7) ────────────────────────────────────────
       theme: "light" as ThemeMode,
       setTheme: (newTheme) => {
-        set({ theme: newTheme });
+        const stamp = new Date().toISOString();
+        set({ theme: newTheme, settingsUpdatedAt: stamp });
+        const { user } = get();
+        if (user && isSupabaseConfigured)
+          pushUserSettings({ user_id: user.id, pomodoro: get().pomodoroSettings, theme: newTheme, updated_at: stamp });
         // Immediately apply to DOM (don't wait for React re-render)
         if (typeof document !== "undefined") {
           const resolved =
@@ -636,8 +688,16 @@ export const useAppStore = create<AppState>()(
         const { user } = get();
         if (user && isSupabaseConfigured) pushWorkSession(newSession, user.id);
       },
-      setPomodoroSettings: (settings) =>
-        set((s) => ({ pomodoroSettings: { ...s.pomodoroSettings, ...settings } })),
+      setPomodoroSettings: (settings) => {
+        const stamp = new Date().toISOString();
+        set((s) => ({
+          pomodoroSettings: { ...s.pomodoroSettings, ...settings },
+          settingsUpdatedAt: stamp,
+        }));
+        const { user } = get();
+        if (user && isSupabaseConfigured)
+          pushUserSettings({ user_id: user.id, pomodoro: get().pomodoroSettings, theme: get().theme, updated_at: stamp });
+      },
     }),
     {
       name: STORAGE_KEY,
@@ -653,6 +713,8 @@ export const useAppStore = create<AppState>()(
         workSessions: state.workSessions,
         pomodoroSettings: state.pomodoroSettings,
         tombstones: state.tombstones,
+        lastSyncAt: state.lastSyncAt,
+        settingsUpdatedAt: state.settingsUpdatedAt,
       }),
       onRehydrateStorage: () => () => {
         useAppStore.setState({ selectedDate: format(new Date(), "yyyy-MM-dd") });

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { parseISO, format } from "date-fns";
-import { Menu, Plus, Search, CalendarPlus, LogOut, Loader2, Sun, Moon, Clock } from "lucide-react";
+import { Menu, Plus, Search, CalendarPlus, LogOut, Loader2, Sun, Moon, Clock, CloudOff } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MONTH_NAMES_TR, DAY_NAMES_TR, DATE_FORMAT } from "@/lib/dates";
@@ -117,6 +117,14 @@ export function Topbar() {
             size={15}
             className="animate-spin"
             style={{ color: "var(--text-muted)" }}
+          />
+        )}
+        {/* Bulut hatası — kullanıcı senkron sorununu GÖRSÜN */}
+        {syncStatus === "error" && (
+          <CloudOff
+            size={15}
+            style={{ color: "var(--priority-urgent)" }}
+            aria-label="Bulut eşitleme hatası — Ayarlar'dan Şimdi Eşitle deneyin"
           />
         )}
         {/* Dark mode toggle (Faz 7) */}

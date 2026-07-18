@@ -299,7 +299,7 @@ function rowToWorkSession(row: WorkSessionRow): WorkSession {
 // değişiklik kaybolmaz — bağlantı gelince otomatik akar.
 // ============================================================
 
-export type SyncTable = "tasks" | "notes" | "events" | "tags" | "rich_notes" | "media_items" | "work_sessions";
+export type SyncTable = "tasks" | "notes" | "events" | "tags" | "rich_notes" | "media_items" | "work_sessions" | "user_settings";
 
 interface OutboxOp {
   key: string; // dedup anahtarı: table:id
@@ -506,6 +506,57 @@ export function pushMediaItem(item: MediaItem, userId: string): void {
 
 export function pushWorkSession(session: WorkSession, userId: string): void {
   queueUpsert("work_sessions", workSessionToRow(session, userId) as unknown as Record<string, unknown>);
+}
+
+export interface UserSettingsRow {
+  user_id: string;
+  pomodoro: unknown;
+  theme: string | null;
+  updated_at: string;
+}
+
+export function pushUserSettings(row: UserSettingsRow): void {
+  queueUpsert("user_settings", row as unknown as Record<string, unknown>);
+}
+
+export async function fetchUserSettings(userId: string): Promise<UserSettingsRow | null> {
+  const { data, error } = await supabase
+    .from("user_settings")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as UserSettingsRow;
+}
+
+// ── Otomatik bulut yedeği ─────────────────────────────────────
+// Günde bir kez tüm veri anlık görüntüsü backups tablosuna yazılır.
+// Migration v2 çalıştırılmamışsa sessizce atlanır, ertesi denemede tekrar dener.
+
+const LAST_BACKUP_KEY = "epoche-last-cloud-backup";
+
+export async function maybeCloudBackup(userId: string, snapshot: unknown): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const last = Number(localStorage.getItem(LAST_BACKUP_KEY) ?? 0);
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+
+    const { error } = await supabase.from("backups").insert({
+      id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
+      user_id: userId,
+      created_at: new Date().toISOString(),
+      data: snapshot,
+    });
+    if (error) return; // tablo yoksa (v2 migration bekleniyor) sessiz geç
+
+    localStorage.setItem(LAST_BACKUP_KEY, String(Date.now()));
+
+    // 30 günden eski yedekleri temizle
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from("backups").delete().eq("user_id", userId).lt("created_at", cutoff);
+  } catch {
+    // yedek alınamadı — bir sonraki eşitlemede tekrar denenir
+  }
 }
 
 /** Soft delete: kayıt sunucuda deleted_at ile işaretlenir, asla fiziksel silinmez. */
