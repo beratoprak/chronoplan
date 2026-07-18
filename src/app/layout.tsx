@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { UpdateNotifier } from "@/components/UpdateNotifier";
 
 export const metadata: Metadata = {
   title: "Epoche — Profesyonel Takvim & Planlama",
@@ -35,7 +36,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <UpdateNotifier />
+      </body>
     </html>
   );
 }

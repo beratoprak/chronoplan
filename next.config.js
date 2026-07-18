@@ -47,6 +47,11 @@ const withPWA = require("next-pwa")({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    // Derleme kimliği — istemci, /api/version ile karşılaştırıp
+    // yeni sürüm çıktığında kullanıcıya "Güncelle" gösterir.
+    NEXT_PUBLIC_BUILD_ID: (process.env.VERCEL_GIT_COMMIT_SHA || "dev").slice(0, 7),
+  },
   transpilePackages: [
     "@blocknote/core",
     "@blocknote/react",

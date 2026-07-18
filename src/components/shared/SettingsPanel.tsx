@@ -363,7 +363,7 @@ export function SettingsPanel() {
             <div className="flex items-center gap-2 mb-1">
               <Info size={13} style={{ color: "var(--text-tertiary)" }} />
               <span className="text-[11px] font-medium" style={{ color: "var(--text-tertiary)" }}>
-                Epoche v1.0.0
+                Epoche v1.0.0 · yapı {process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}
               </span>
             </div>
             <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
