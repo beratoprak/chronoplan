@@ -4,7 +4,7 @@
 // ============================================================
 
 import { parseISO, addDays, addWeeks, addMonths, isBefore, isEqual, format } from "date-fns";
-import type { CalendarEvent, Task } from "@/types";
+import type { CalendarEvent, Task, ChecklistItem } from "@/types";
 
 export const DATE_FORMAT = "yyyy-MM-dd";
 
@@ -123,6 +123,25 @@ export function getTasksForDate(tasks: Task[], date: string): Task[] {
   return tasks
     .filter((t) => t.date === date && t.status !== "done")
     .sort((a, b) => a.order - b.order);
+}
+
+// ── Checklist birleştirme ──────────────────────────────────────
+// Görevin geri kalanı LWW (kim daha yeni) ile seçilir, ama checklist
+// maddeleri asla "kaybolmaz": iki cihazda da eklenen maddeler id'ye
+// göre birleştirilir. Aynı id'de tamamlanma çakışırsa "tamamlandı"
+// kazanır (bir işareti geri almak, işareti kaybetmekten daha güvenli).
+export function mergeChecklists(a: ChecklistItem[], b: ChecklistItem[]): ChecklistItem[] {
+  const map = new Map<string, ChecklistItem>();
+  for (const item of a) map.set(item.id, item);
+  for (const item of b) {
+    const existing = map.get(item.id);
+    if (!existing) {
+      map.set(item.id, item);
+    } else if (item.completed && !existing.completed) {
+      map.set(item.id, item);
+    }
+  }
+  return Array.from(map.values());
 }
 
 // ── Senkronizasyon birleştirme (LWW + tombstone) ──────────────

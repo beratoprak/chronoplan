@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { format } from "date-fns";
-import { expandEvents, mergeEntities, pruneTombstones } from "./planner";
+import { expandEvents, mergeEntities, mergeChecklists, pruneTombstones } from "./planner";
 import type { AppState, Task, TaskStatus, DayNote, CalendarEvent, Tag, RecurrenceType, KanbanFilter, ThemeMode, Workspace, RichNote, MediaItem, WorkSession, PomodoroSettings, BackupData } from "@/types";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "./supabase";
@@ -280,7 +280,34 @@ export const useAppStore = create<AppState>()(
         const state = get();
         const tombs = state.tombstones ?? {};
 
-        const tasksM = mergeEntities(state.tasks, data.tasks, data.deleted.tasks, tombs, "tasks");
+        // ── Checklist maddesi kaybını önle ────────────────────────
+        // Aynı görev iki cihazda senkron aralarında düzenlenmişse, LWW
+        // görevin TAMAMINI seçer ve kaybeden tarafın checklist'e eklediği
+        // maddeler sessizce giderdi. Bunu önlemek için: eşleşen her görev
+        // çiftinde checklist'i id bazlı BİRLEŞTİRİP her iki kopyaya da
+        // yazıyoruz — böylece LWW hangi tarafı seçerse seçsin, checklist
+        // zaten birleşmiş halde olduğu için hiçbir madde kaybolmaz.
+        const remoteTaskById = new Map(data.tasks.map((t) => [t.id, t]));
+        const localTaskById = new Map(state.tasks.map((t) => [t.id, t]));
+        const patchedLocalTasks = state.tasks.map((t) => {
+          const rem = remoteTaskById.get(t.id);
+          if (!rem) return t;
+          return { ...t, checklist: mergeChecklists(t.checklist, rem.checklist) };
+        });
+        const patchedRemoteTasks = data.tasks.map((t) => {
+          const loc = localTaskById.get(t.id);
+          if (!loc) return t;
+          return { ...t, checklist: mergeChecklists(loc.checklist, t.checklist) };
+        });
+
+        const tasksM = mergeEntities(patchedLocalTasks, patchedRemoteTasks, data.deleted.tasks, tombs, "tasks");
+        // Eşleşen her çiftin birleşmiş checklist'ini buluta da yaz — kazanan
+        // taraf ne olursa olsun, sunucudaki "gerçek" veri de tam kalsın.
+        for (const merged of tasksM.merged) {
+          if (remoteTaskById.has(merged.id) && localTaskById.has(merged.id)) {
+            if (!tasksM.toPush.some((t) => t.id === merged.id)) tasksM.toPush.push(merged);
+          }
+        }
         const eventsM = mergeEntities(state.events, data.events, data.deleted.events, tombs, "events");
         const richM = mergeEntities(state.richNotes, data.richNotes, data.deleted.richNotes, tombs, "rich_notes");
         const mediaM = mergeEntities(state.mediaItems, data.mediaItems, data.deleted.mediaItems, tombs, "media_items");

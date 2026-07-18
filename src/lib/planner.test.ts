@@ -8,6 +8,7 @@ import {
   getUpcomingTasks,
   getTasksForDate,
   mergeEntities,
+  mergeChecklists,
   pruneTombstones,
 } from "./planner";
 import type { CalendarEvent, Task } from "@/types";
@@ -265,6 +266,44 @@ describe("mergeEntities", () => {
     const tombs = { "events:x": "2026-07-05T00:00:00Z" };
     const r = mergeEntities<Item>([], remote, {}, tombs, "tasks");
     expect(r.merged).toHaveLength(1);
+  });
+});
+
+describe("mergeChecklists", () => {
+  it("iki cihazda bağımsız eklenen maddelerin ikisini de korur (asıl hata senaryosu)", () => {
+    // Mac'te eklenen madde
+    const macSide = [
+      { id: "1", text: "frontend", completed: true },
+      { id: "2", text: "backend", completed: true },
+    ];
+    // iPhone'da, Mac senkron olmadan ÖNCE aynı göreve eklenen madde
+    const iphoneSide = [
+      { id: "1", text: "frontend", completed: true },
+      { id: "2", text: "backend", completed: true },
+      { id: "3", text: "e ticaret gereksinimlerini belirleme", completed: false },
+    ];
+    // Eski davranış: LWW ile hangisi "daha yeni" ise checklist'in TAMAMI o olurdu
+    // ve iPhone'un "3" maddesi Mac kazanırsa sessizce kaybolurdu.
+    const merged = mergeChecklists(macSide, iphoneSide);
+    expect(merged.map((i) => i.id).sort()).toEqual(["1", "2", "3"]);
+    expect(merged.find((i) => i.id === "3")?.text).toBe("e ticaret gereksinimlerini belirleme");
+  });
+
+  it("aynı maddede 'tamamlandı' işareti, işaretlenmemiş olana karşı kazanır", () => {
+    const a = [{ id: "1", text: "x", completed: false }];
+    const b = [{ id: "1", text: "x", completed: true }];
+    expect(mergeChecklists(a, b)[0].completed).toBe(true);
+    expect(mergeChecklists(b, a)[0].completed).toBe(true);
+  });
+
+  it("her iki taraf da boşsa boş döner", () => {
+    expect(mergeChecklists([], [])).toEqual([]);
+  });
+
+  it("yalnızca bir tarafta madde varsa onu korur", () => {
+    const a = [{ id: "1", text: "tek", completed: false }];
+    expect(mergeChecklists(a, [])).toHaveLength(1);
+    expect(mergeChecklists([], a)).toHaveLength(1);
   });
 });
 
