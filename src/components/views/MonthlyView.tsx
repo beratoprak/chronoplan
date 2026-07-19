@@ -13,11 +13,12 @@ import {
 import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "@/types";
 
+// Tema değişkenleri: açık modda pastel, koyu modda Apple Takvim tarzı doygun
 const TAG_EVENT_STYLES: Record<string, { bg: string; color: string }> = {
-  work: { bg: "#FCEBEB", color: "#791F1F" },
-  personal: { bg: "#E1F5EE", color: "#085041" },
-  project: { bg: "#EEEDFE", color: "#3C3489" },
-  meeting: { bg: "#FAEEDA", color: "#633806" },
+  work: { bg: "var(--tag-work-bg)", color: "var(--tag-work-text)" },
+  personal: { bg: "var(--tag-personal-bg)", color: "var(--tag-personal-text)" },
+  project: { bg: "var(--tag-project-bg)", color: "var(--tag-project-text)" },
+  meeting: { bg: "var(--tag-meeting-bg)", color: "var(--tag-meeting-text)" },
 };
 
 export function MonthlyView() {

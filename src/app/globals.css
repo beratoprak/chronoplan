@@ -48,12 +48,16 @@
     /* Tag colors */
     --tag-work: #E24B4A;
     --tag-work-bg: #FCEBEB;
+    --tag-work-text: #791F1F;
     --tag-personal: #1D9E75;
     --tag-personal-bg: #E1F5EE;
+    --tag-personal-text: #085041;
     --tag-project: #7F77DD;
     --tag-project-bg: #EEEDFE;
+    --tag-project-text: #3C3489;
     --tag-meeting: #BA7517;
     --tag-meeting-bg: #FAEEDA;
+    --tag-meeting-text: #633806;
 
     /* Kanban status */
     --status-planned-bg: #EEEDFE;
@@ -77,49 +81,59 @@
     --transition-slow: 0.3s ease-out;
   }
 
-  /* ── Dark Mode ──────────────────────────────────────────── */
+  /* ── Dark Mode — Apple Takvim tarzı: nötr siyah/gri yüzeyler,
+        temiz beyaz metin; altın yalnızca vurgu olarak kalır ───── */
   [data-theme="dark"] {
-    --surface-base: #1A1714;
-    --surface-raised: #242019;
-    --surface-sunken: #13110E;
-    --surface-overlay: rgba(0, 0, 0, 0.7);
+    --surface-base: #000000;
+    --surface-raised: #1C1C1E;
+    --surface-sunken: #101012;
+    --surface-overlay: rgba(0, 0, 0, 0.75);
 
-    --text-primary: #EDE8DD;
-    --text-secondary: #A09882;
-    --text-tertiary: #6B5B3E;
-    --text-muted: #4A3F2F;
-    --text-inverse: #1A1714;
+    --text-primary: #F5F5F7;
+    --text-secondary: #AEAEB2;
+    --text-tertiary: #8E8E93;
+    --text-muted: #636366;
+    --text-inverse: #0A0A0B;
 
-    --brand-gold: #C4A060;
-    --brand-gold-hover: #D4B070;
-    --brand-gold-light: #2A2318;
-    --brand-gold-subtle: #1E1B15;
+    --brand-gold: #D3A868;
+    --brand-gold-hover: #E2B978;
+    --brand-gold-light: #2C2415;
+    --brand-gold-subtle: #1C1A15;
 
-    --border-default: #2E2A22;
-    --border-subtle: #252119;
-    --border-strong: #3A3428;
-    --border-accent: #C4A060;
+    --border-default: #2C2C2E;
+    --border-subtle: #232325;
+    --border-strong: #3A3A3C;
+    --border-accent: #D3A868;
 
-    --priority-urgent-bg: #2D1A1A;
-    --priority-urgent-text: #F5A0A0;
-    --priority-high-bg: #2D1E14;
-    --priority-high-text: #F0A882;
-    --priority-medium-bg: #2A2210;
-    --priority-medium-text: #E0B860;
-    --priority-low-bg: #142D24;
-    --priority-low-text: #70D4A8;
+    --priority-urgent-bg: #3A1D1D;
+    --priority-urgent-text: #FF9F9E;
+    --priority-high-bg: #37231A;
+    --priority-high-text: #FFAD85;
+    --priority-medium-bg: #332913;
+    --priority-medium-text: #EFC768;
+    --priority-low-bg: #143327;
+    --priority-low-text: #6FDDAC;
 
-    --tag-work-bg: #2D1A1A;
-    --tag-personal-bg: #142D24;
-    --tag-project-bg: #1E1A2D;
-    --tag-meeting-bg: #2A2210;
+    --tag-work-bg: #3A1D1D;
+    --tag-work-text: #FF9F9E;
+    --tag-personal-bg: #143327;
+    --tag-personal-text: #6FDDAC;
+    --tag-project-bg: #232040;
+    --tag-project-text: #ABA5F0;
+    --tag-meeting-bg: #332913;
+    --tag-meeting-text: #EFC768;
 
-    --status-planned-bg: #1E1A2D;
-    --status-planned-text: #A09BDD;
-    --status-active-bg: #141E2D;
-    --status-active-text: #82B8E0;
-    --status-done-bg: #142D24;
-    --status-done-text: #70D4A8;
+    --status-planned-bg: #232040;
+    --status-planned-text: #ABA5F0;
+    --status-active-bg: #16273D;
+    --status-active-text: #8CC2EF;
+    --status-done-bg: #143327;
+    --status-done-text: #6FDDAC;
+  }
+
+  /* Açık temaya özel krem hover'lar koyu modda nötr griye döner */
+  [data-theme="dark"] .hover\:bg-cream-200:hover {
+    background-color: #2C2C2E;
   }
 
   * {
