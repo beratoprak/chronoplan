@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Trash2, Pin, PinOff, Tag, X, Edit3 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useAppStore } from "@/lib/store";
 import { aranabilirMetin } from "@/lib/note-content";
 import { baglantilariCozumle, geriBaglantilar } from "@/lib/note-links";
+import { bloklariOku, bloklariYaz, type NoteBlock } from "@/lib/note-content";
+import { depoYolu } from "@/lib/pdf-kaynak";
+
+const PdfReader = dynamic(() => import("@/components/editor/PdfReader").then((m) => m.PdfReader), { ssr: false });
 
 // BlockNote tarayıcıya bağımlı; sunucuda çizilirse hydration hatası veriyor.
 const BlockEditor = dynamic(() => import("@/components/editor/BlockEditor").then((m) => m.BlockEditor), {
@@ -66,6 +70,36 @@ export function NotesView() {
   }, [richNotes, search, filterTag]);
 
   const selected = richNotes.find((n) => n.id === selectedId) || null;
+
+  // PDF okuyucu notun yanında açılıyor. Materyal bloğu global bir olay
+  // gönderiyor; blok bileşeninin görünümün durumuna erişimi yok ve olması da
+  // gerekmiyor — uygulamada zaten kullanılan desen bu.
+  const [pdf, setPdf] = useState<{ yol: string; baslik: string } | null>(null);
+  useEffect(() => {
+    const ac = (e: Event) => {
+      const d = (e as CustomEvent<{ dersKodu: string; cmid: string; baslik: string }>).detail;
+      if (!d?.dersKodu || !d?.cmid) return;
+      setPdf({ yol: depoYolu(d.dersKodu, d.cmid), baslik: d.baslik || "Ders materyali" });
+    };
+    window.addEventListener("epoche:pdf-ac", ac);
+    return () => window.removeEventListener("epoche:pdf-ac", ac);
+  }, []);
+
+  /** Okurken seçilen metni notun sonuna alıntı olarak ekler. */
+  const alintiEkle = useCallback((metin: string, sayfa: number) => {
+    const bloklar = bloklariOku(editingContent);
+    const alinti: NoteBlock = {
+      type: "quote",
+      props: {},
+      content: [{ type: "text", text: metin, styles: {} }],
+    };
+    const kaynak: NoteBlock = {
+      type: "paragraph",
+      props: {},
+      content: [{ type: "text", text: `— ${pdf?.baslik ?? "Materyal"}, s. ${sayfa}`, styles: { italic: true } }],
+    };
+    handleContentChange(bloklariYaz([...bloklar, alinti, kaynak]));
+  }, [editingContent, pdf]);
 
   // Bağlantılar ayrı bir tabloda tutulmuyor; notun metninden hesaplanıyor.
   // Böylece bir notun adı değiştiğinde ya da yeni not açıldığında bağlantılar
@@ -346,12 +380,24 @@ export function NotesView() {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto epoche-block-editor">
-            <BlockEditor
-              noteId={selected.id}
-              content={editingContent}
-              onChange={handleContentChange}
-            />
+          <div className="flex-1 flex min-h-0">
+            <div className="flex-1 overflow-y-auto epoche-block-editor min-w-0">
+              <BlockEditor
+                noteId={selected.id}
+                content={editingContent}
+                onChange={handleContentChange}
+              />
+            </div>
+            {pdf && (
+              <div className="hidden md:flex w-[46%] max-w-[560px] min-w-[320px]">
+                <PdfReader
+                  yol={pdf.yol}
+                  baslik={pdf.baslik}
+                  onKapat={() => setPdf(null)}
+                  onAlinti={alintiEkle}
+                />
+              </div>
+            )}
           </div>
 
           {/* Footer */}

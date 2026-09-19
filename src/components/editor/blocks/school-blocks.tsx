@@ -72,13 +72,17 @@ export const MateryalBlock = createReactBlockSpec(
       etiket: { default: "Dosya" },
       url: { default: "" },
       dakika: { default: 0 },
+      dersKodu: { default: "" },
+      cmid: { default: "" },
     },
     content: "none",
   },
   {
     render: ({ block }) => {
-      const { ad, etiket, url, dakika } = block.props;
+      const { ad, etiket, url, dakika, dersKodu, cmid } = block.props;
       const Ikon = etiket === "Video" ? Video : etiket === "Ses" ? Headphones : FileText;
+      // Yalnız depoya yüklenmiş bölüm PDF'leri içeride okunabiliyor.
+      const okunabilir = etiket === "Kitap" && Boolean(dersKodu) && Boolean(cmid);
       const govde = (
         <>
           <Ikon size={15} style={{ flexShrink: 0, color: "var(--tag-school-text)" }} />
@@ -86,13 +90,28 @@ export const MateryalBlock = createReactBlockSpec(
           {dakika > 0 && <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{dakika} dk</span>}
         </>
       );
+      const okuDugmesi = okunabilir ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent("epoche:pdf-ac", { detail: { dersKodu, cmid, baslik: ad } }));
+          }}
+          style={{ fontSize: 11, border: "none", background: "none", cursor: "pointer", color: "var(--tag-school-text)", flexShrink: 0 }}
+        >
+          Oku
+        </button>
+      ) : null;
       return url ? (
-        <a href={url} target="_blank" rel="noreferrer"
-           style={{ ...kutu, display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "var(--text-primary)" }}>
-          {govde}
-        </a>
+        <div style={{ ...kutu, display: "flex", gap: 10, alignItems: "center" }}>
+          <a href={url} target="_blank" rel="noreferrer"
+             style={{ display: "flex", gap: 10, alignItems: "center", flex: 1, minWidth: 0, textDecoration: "none", color: "var(--text-primary)" }}>
+            {govde}
+          </a>
+          {okuDugmesi}
+        </div>
       ) : (
-        <div style={{ ...kutu, display: "flex", gap: 10, alignItems: "center" }}>{govde}</div>
+        <div style={{ ...kutu, display: "flex", gap: 10, alignItems: "center" }}>{govde}{okuDugmesi}</div>
       );
     },
   },

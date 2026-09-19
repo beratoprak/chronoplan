@@ -13,8 +13,11 @@ import type { StudyUnit } from "./study-plan";
 const kazanimBlok = (outcomeId: string, unitId: string, metin: string): NoteBlock =>
   ({ type: "kazanim", props: { outcomeId, unitId, metin, checked: false }, content: undefined });
 
-const materyalBlok = (m: StudyModule, etiket: string): NoteBlock =>
-  ({ type: "materyal", props: { moduleId: m.id, ad: m.ad, etiket, url: m.oys_url ?? "", dakika: m.tahmini_dakika }, content: undefined });
+const materyalBlok = (m: StudyModule, etiket: string, dersKodu: string): NoteBlock =>
+  ({ type: "materyal", props: {
+      moduleId: m.id, ad: m.ad, etiket, url: m.oys_url ?? "", dakika: m.tahmini_dakika,
+      dersKodu, cmid: String(m.id).replace(/^ybs:mod:/, ""),
+    }, content: undefined });
 
 const soruBlok = (q: StudyQuestion): NoteBlock =>
   ({ type: "soru", props: {
@@ -79,7 +82,7 @@ export function buildUnitNoteBlocks(
     .sort((a, b) => OKUMA_SIRASI.indexOf(a.etiket) - OKUMA_SIRASI.indexOf(b.etiket));
   if (okunacak.length) {
     bloklar.push(baslik("Materyal"));
-    for (const { m, etiket } of okunacak) bloklar.push(materyalBlok(m, etiket));
+    for (const { m, etiket } of okunacak) bloklar.push(materyalBlok(m, etiket, unit.ders_kodu));
   }
 
   bloklar.push(baslik("Özet"), paragraf(), baslik("Anlamadıklarım"), paragraf());

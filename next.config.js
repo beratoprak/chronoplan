@@ -77,6 +77,10 @@ const nextConfig = {
     // İki derleme ayrı modül örneği demek; birinden çıkan düğüm diğerine
     // geçemiyor. Bu yüzden doğrudan ESM dosyasına, tam eşleşmeyle bağlanıyor.
     const pmEsm = (ad) => path.join(__dirname, "node_modules", ad, "dist", "index.js");
+    // pdfjs-dist .mjs yayınlıyor; Next'in derleyicisi bunları varsayılan olarak
+    // modül saymayıp "import.meta cannot be used outside of module code" diyor.
+    config.module.rules.push({ test: /\.mjs$/, include: /node_modules/, type: "javascript/auto" });
+
     config.resolve.alias = {
       ...config.resolve.alias,
       "prosemirror-model$": pmEsm("prosemirror-model"),
