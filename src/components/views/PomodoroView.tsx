@@ -41,7 +41,7 @@ function groupSessionsByDate(sessions: WorkSession[]): { date: string; sessions:
 }
 
 export function PomodoroView() {
-  const { pomodoroSettings, setPomodoroSettings, workSessions, addWorkSession } = useAppStore();
+  const { pomodoroSettings, setPomodoroSettings, workSessions, addWorkSession, tasks } = useAppStore();
 
   // Timer state
   const [phase, setPhase] = useState<PomodoroPhase>("work");
@@ -49,6 +49,7 @@ export function PomodoroView() {
   const [running, setRunning] = useState(false);
   const [sessionCount, setSessionCount] = useState(0);
   const [label, setLabel] = useState("");
+  const [selectedTaskId, setSelectedTaskId] = useState("");
   const [showSettings, setShowSettings] = useState(false);
 
   // Settings edit state
@@ -116,9 +117,10 @@ export function PomodoroView() {
         const newCount = sessionCount + 1;
         setSessionCount(newCount);
         addWorkSession({
-          projectLabel: label || "Genel",
+          projectLabel: tasks.find((task) => task.id === selectedTaskId)?.title || label || "Genel",
           durationMinutes: pomodoroSettings.workMinutes,
           phase: "work",
+          taskId: selectedTaskId || undefined,
         });
         // Next phase
         const isLongBreak = newCount % pomodoroSettings.sessionsBeforeLongBreak === 0;
@@ -218,9 +220,25 @@ export function PomodoroView() {
           </div>
         </div>
 
-        {/* Project label */}
+        {/* Task / project context */}
+        <select
+          value={selectedTaskId}
+          onChange={(event) => {
+            setSelectedTaskId(event.target.value);
+            const task = tasks.find((item) => item.id === event.target.value);
+            if (task) setLabel(task.title);
+          }}
+          className="text-sm px-4 py-2.5 min-h-11 rounded-xl outline-none w-full max-w-xs"
+          style={{ background: "var(--surface-raised)", border: "1px solid var(--border-default)", color: "var(--text-primary)" }}
+          aria-label="Odak oturumunun bağlı olduğu görev"
+        >
+          <option value="">Görev seçmeden odaklan</option>
+          {tasks.filter((task) => task.status !== "done").map((task) => (
+            <option key={task.id} value={task.id}>{task.title}</option>
+          ))}
+        </select>
         <input value={label} onChange={(e) => setLabel(e.target.value)}
-          placeholder="Ne üzerinde çalışıyorsun? (opsiyonel)"
+          placeholder="Oturum etiketi (opsiyonel)"
           className="text-sm text-center px-4 py-2 rounded-xl outline-none w-full max-w-xs"
           style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", color: "var(--text-primary)" }} />
 
@@ -310,7 +328,7 @@ export function PomodoroView() {
                   style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)" }}>
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PHASE_COLORS[s.phase] }} />
                   <span className="text-xs flex-1 truncate" style={{ color: "var(--text-secondary)" }}>
-                    {s.projectLabel}
+                    {tasks.find((task) => task.id === s.taskId)?.title || s.projectLabel}
                   </span>
                   <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
                     {s.durationMinutes}dk

@@ -9,6 +9,7 @@ const TAG_BAR_COLORS: Record<string, string> = {
   personal: "var(--tag-personal)",
   project: "var(--tag-project)",
   meeting: "var(--tag-meeting)",
+  school: "var(--tag-school)",
 };
 
 interface EventCardProps {

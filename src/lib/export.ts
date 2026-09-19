@@ -3,7 +3,7 @@
  * CSV for tasks, Markdown for notes, ICS for events
  */
 
-import type { Task, DayNote, CalendarEvent, BackupData } from "@/types";
+import type { Task, DayNote, CalendarEvent, BackupData, RichNote } from "@/types";
 import { getPriorityLabel, getStatusLabel, getTagColorLabel } from "./utils";
 
 // ── Tam Yedekleme (JSON) ───────────────────────────────────
@@ -13,7 +13,7 @@ import { getPriorityLabel, getStatusLabel, getTagColorLabel } from "./utils";
 export function exportFullBackup(data: Omit<BackupData, "app" | "version" | "exportedAt">): void {
   const backup: BackupData = {
     app: "epoche",
-    version: 1,
+    version: 3,
     exportedAt: new Date().toISOString(),
     ...data,
   };
@@ -74,7 +74,7 @@ export function exportTasksToCSV(tasks: Task[]): void {
 
 // ── Markdown Export ────────────────────────────────────────
 
-export function exportNotesToMarkdown(notes: DayNote[]): void {
+export function exportNotesToMarkdown(notes: DayNote[], richNotes: RichNote[] = []): void {
   const sorted = [...notes].sort((a, b) => b.date.localeCompare(a.date));
 
   const md = sorted
@@ -83,7 +83,12 @@ export function exportNotesToMarkdown(notes: DayNote[]): void {
     })
     .join("\n");
 
-  const content = `# Epoche — Notlar\n\nExport tarihi: ${new Date().toLocaleDateString("tr-TR")}\n\n---\n\n${md}`;
+  const independent = [...richNotes]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .map((note) => `## ${note.title || "Başlıksız"}\n\n${note.content || "(Boş not)"}\n\n${note.tags.length ? `Etiketler: ${note.tags.join(", ")}\n\n` : ""}---\n`)
+    .join("\n");
+
+  const content = `# Epoche — Notlar\n\nDışa aktarma tarihi: ${new Date().toLocaleDateString("tr-TR")}\n\n---\n\n## Günlük notlar\n\n${md}\n# Bağımsız notlar\n\n${independent}`;
 
   downloadFile(content, "epoche-notlar.md", "text/markdown;charset=utf-8;");
 }

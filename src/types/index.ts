@@ -4,13 +4,15 @@
 
 import type { User } from "@supabase/supabase-js";
 
-export type ViewType = "daily" | "weekly" | "monthly" | "kanban" | "notes" | "media" | "pomodoro";
+export type ViewType = "daily" | "weekly" | "monthly" | "kanban" | "notes" | "media" | "pomodoro" | "school";
 
 export type Priority = "urgent" | "high" | "medium" | "low";
 
 export type TaskStatus = "planned" | "active" | "done";
 
-export type TagColor = "work" | "personal" | "project" | "meeting";
+export type TagColor = "work" | "personal" | "project" | "meeting" | "school";
+
+export type RecurrenceType = "none" | "daily" | "weekly" | "monthly";
 
 // ---- Tag ----
 export interface Tag {
@@ -26,6 +28,12 @@ export interface ChecklistItem {
   completed: boolean;
 }
 
+export interface Reminder {
+  offsetMinutes: number;
+  sent_at?: string | null;
+  label: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -35,11 +43,27 @@ export interface Task {
   tags: Tag[];
   estimatedMinutes?: number;
   checklist: ChecklistItem[];
-  date?: string; // ISO date string YYYY-MM-DD — optional (dateless tasks)
+  /**
+   * Eski Epoche sürümlerinin tarih alanı. Veri kaybını önlemek ve eski
+   * yedekleri okuyabilmek için korunur; yeni kayıtlarda dueDate ile aynı
+   * değeri taşır. Görevin takvimdeki gerçek zamanı scheduled* alanlarıdır.
+   */
+  date?: string;
+  dueDate?: string; // Son teslim tarihi — YYYY-MM-DD
+  scheduledDate?: string; // Çalışmak için ayrılan gün — YYYY-MM-DD
+  scheduledStartTime?: string; // HH:mm
+  scheduledEndTime?: string; // HH:mm
+  focusDate?: string; // O günün öne çıkan üç görevinden biri
+  recurrence?: RecurrenceType;
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
   order: number; // for kanban drag ordering
+  isManaged?: boolean;
+  source?: string;
+  sourceUrl?: string;
+  lastVerifiedAt?: string;
+  reminders?: Reminder[];
 }
 
 // ---- Rich Note ----
@@ -83,6 +107,7 @@ export interface WorkSession {
   durationMinutes: number;
   phase: PomodoroPhase;
   completedAt: string;
+  taskId?: string; // Oturumun bağlı olduğu görev; eski kayıtlarda boş olabilir
 }
 
 export interface PomodoroSettings {
@@ -102,8 +127,6 @@ export interface DayNote {
 }
 
 // ---- Calendar Event ----
-export type RecurrenceType = "none" | "daily" | "weekly" | "monthly";
-
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -117,6 +140,13 @@ export interface CalendarEvent {
   recurrenceEndDate?: string; // YYYY-MM-DD — recurring events stop after this date
   createdAt?: string; // ne zaman eklendi
   updatedAt?: string; // cihazlar arası çakışma çözümü (LWW) için
+  isManaged?: boolean;
+  source?: string;
+  sourceUrl?: string;
+  lastVerifiedAt?: string;
+  reminders?: Reminder[];
+  ackRequired?: boolean;
+  ackedAt?: string;
 }
 
 // ---- Tam Yedekleme ----
@@ -141,7 +171,7 @@ export interface KanbanFilter {
 }
 
 // ---- Search Result (Faz 6) ----
-export type SearchResultType = "task" | "event" | "note";
+export type SearchResultType = "task" | "event" | "note" | "rich_note";
 
 export interface SearchResult {
   type: SearchResultType;
@@ -172,7 +202,8 @@ export interface AppState {
   // Task Modal (Faz 3)
   isTaskModalOpen: boolean;
   editingTask: Task | null;
-  openTaskModal: (task?: Task) => void;
+  taskDraft: Partial<Task> | null;
+  openTaskModal: (task?: Task, draft?: Partial<Task>) => void;
   closeTaskModal: () => void;
 
   // Delete Confirm (Faz 3)
@@ -196,7 +227,8 @@ export interface AppState {
   // Event Modal (Faz 4)
   isEventModalOpen: boolean;
   editingEvent: CalendarEvent | null;
-  openEventModal: (event?: CalendarEvent) => void;
+  eventDraft: Partial<CalendarEvent> | null;
+  openEventModal: (event?: CalendarEvent, draft?: Partial<CalendarEvent>) => void;
   closeEventModal: () => void;
 
   // Event Delete Confirm (Faz 4)
@@ -238,6 +270,8 @@ export interface AppState {
   isSearchOpen: boolean;
   openSearch: () => void;
   closeSearch: () => void;
+  requestedRichNoteId: string | null;
+  requestRichNote: (id: string | null) => void;
 
   // ── Kanban Filter (Faz 6) ─────────────────────────────────
   kanbanFilter: KanbanFilter;

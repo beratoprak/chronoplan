@@ -13,11 +13,13 @@ import {
   Tag,
   CheckSquare,
   AlertCircle,
+  Star,
+  Repeat,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn, getPriorityLabel } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/dates";
-import type { Priority, TaskStatus, TagColor, ChecklistItem, Tag as TagType } from "@/types";
+import type { Priority, TaskStatus, ChecklistItem, Tag as TagType, RecurrenceType } from "@/types";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -46,6 +48,7 @@ export function TaskModal() {
   const {
     isTaskModalOpen,
     editingTask,
+    taskDraft,
     closeTaskModal,
     addTask,
     updateTask,
@@ -61,6 +64,11 @@ export function TaskModal() {
   const [status, setStatus] = useState<TaskStatus>("planned");
   const [selectedTags, setSelectedTags] = useState<TagType[]>([]);
   const [date, setDate] = useState(selectedDate);
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledStartTime, setScheduledStartTime] = useState("");
+  const [scheduledEndTime, setScheduledEndTime] = useState("");
+  const [focusDate, setFocusDate] = useState("");
+  const [recurrence, setRecurrence] = useState<RecurrenceType>("none");
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>(undefined);
   const [customMinutes, setCustomMinutes] = useState("");
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -84,7 +92,12 @@ export function TaskModal() {
         setPriority(editingTask.priority);
         setStatus(editingTask.status);
         setSelectedTags(editingTask.tags);
-        setDate(editingTask.date ?? "");
+        setDate(editingTask.dueDate ?? editingTask.date ?? "");
+        setScheduledDate(editingTask.scheduledDate ?? editingTask.date ?? "");
+        setScheduledStartTime(editingTask.scheduledStartTime ?? "");
+        setScheduledEndTime(editingTask.scheduledEndTime ?? "");
+        setFocusDate(editingTask.focusDate ?? "");
+        setRecurrence(editingTask.recurrence ?? "none");
         setEstimatedMinutes(editingTask.estimatedMinutes);
         setCustomMinutes(editingTask.estimatedMinutes?.toString() || "");
         setChecklist(editingTask.checklist.map((c) => ({ ...c })));
@@ -95,7 +108,12 @@ export function TaskModal() {
         setPriority("medium");
         setStatus("planned");
         setSelectedTags([]);
-        setDate(selectedDate);
+        setDate(taskDraft?.dueDate ?? taskDraft?.date ?? selectedDate);
+        setScheduledDate(taskDraft?.scheduledDate ?? selectedDate);
+        setScheduledStartTime(taskDraft?.scheduledStartTime ?? "");
+        setScheduledEndTime(taskDraft?.scheduledEndTime ?? "");
+        setFocusDate(taskDraft?.focusDate ?? "");
+        setRecurrence(taskDraft?.recurrence ?? "none");
         setEstimatedMinutes(undefined);
         setCustomMinutes("");
         setChecklist([]);
@@ -107,7 +125,7 @@ export function TaskModal() {
       // Focus title after mount
       setTimeout(() => titleRef.current?.focus(), 100);
     }
-  }, [isTaskModalOpen, editingTask, selectedDate]);
+  }, [isTaskModalOpen, editingTask, selectedDate, taskDraft]);
 
   // ── Escape key to close ────────────────────────────────────
   useEffect(() => {
@@ -207,7 +225,13 @@ export function TaskModal() {
         priority,
         status,
         tags: selectedTags,
-        date,
+        date: date || scheduledDate || undefined,
+        dueDate: date || undefined,
+        scheduledDate: scheduledDate || undefined,
+        scheduledStartTime: scheduledDate && scheduledStartTime ? scheduledStartTime : undefined,
+        scheduledEndTime: scheduledDate && scheduledEndTime ? scheduledEndTime : undefined,
+        focusDate: focusDate || undefined,
+        recurrence,
         estimatedMinutes,
         checklist,
         completedAt: status === "done" && editingTask.status !== "done"
@@ -223,7 +247,13 @@ export function TaskModal() {
         priority,
         status,
         tags: selectedTags,
-        date,
+        date: date || scheduledDate || undefined,
+        dueDate: date || undefined,
+        scheduledDate: scheduledDate || undefined,
+        scheduledStartTime: scheduledDate && scheduledStartTime ? scheduledStartTime : undefined,
+        scheduledEndTime: scheduledDate && scheduledEndTime ? scheduledEndTime : undefined,
+        focusDate: focusDate || undefined,
+        recurrence,
         estimatedMinutes,
         checklist,
       });
@@ -454,14 +484,14 @@ export function TaskModal() {
               </div>
             </div>
 
-            {/* Date */}
+            {/* Due date */}
             <div
               className="flex items-center gap-3 px-4 py-3"
               style={{ borderBottom: "0.5px solid var(--border-subtle)" }}
             >
               <Calendar size={14} style={{ color: "var(--text-tertiary)" }} />
               <span className="text-[12px] w-20 shrink-0" style={{ color: "var(--text-tertiary)" }}>
-                Tarih
+                Son tarih
               </span>
               <input
                 type="date"
@@ -481,9 +511,92 @@ export function TaskModal() {
                   className="text-[10px] px-2 py-0.5 rounded hover:opacity-70"
                   style={{ color: "var(--text-muted)", background: "var(--surface-sunken)" }}
                 >
-                  Tarifsiz
+                  Kaldır
                 </button>
               )}
+            </div>
+
+            {/* Calendar scheduling */}
+            <div
+              className="flex items-start gap-3 px-4 py-3"
+              style={{ borderBottom: "0.5px solid var(--border-subtle)" }}
+            >
+              <Clock size={14} className="mt-1" style={{ color: "var(--text-tertiary)" }} />
+              <span className="text-[12px] w-20 shrink-0 mt-1" style={{ color: "var(--text-tertiary)" }}>
+                Takvime koy
+              </span>
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-[1fr_88px_88px] gap-2">
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  className="text-[12px] font-medium outline-none rounded-md px-2 py-1.5 min-h-9"
+                  style={{ color: "var(--text-primary)", background: "var(--surface-sunken)" }}
+                  aria-label="Takvime planlanan tarih"
+                />
+                <input
+                  type="time"
+                  value={scheduledStartTime}
+                  onChange={(e) => setScheduledStartTime(e.target.value)}
+                  disabled={!scheduledDate}
+                  className="text-[12px] outline-none rounded-md px-2 py-1.5 min-h-9 disabled:opacity-40"
+                  style={{ color: "var(--text-primary)", background: "var(--surface-sunken)" }}
+                  aria-label="Başlangıç saati"
+                />
+                <input
+                  type="time"
+                  value={scheduledEndTime}
+                  min={scheduledStartTime || undefined}
+                  onChange={(e) => setScheduledEndTime(e.target.value)}
+                  disabled={!scheduledDate}
+                  className="text-[12px] outline-none rounded-md px-2 py-1.5 min-h-9 disabled:opacity-40"
+                  style={{ color: "var(--text-primary)", background: "var(--surface-sunken)" }}
+                  aria-label="Bitiş saati"
+                />
+              </div>
+            </div>
+
+            {/* Focus and recurrence */}
+            <div
+              className="flex items-center gap-3 px-4 py-3"
+              style={{ borderBottom: "0.5px solid var(--border-subtle)" }}
+            >
+              <Star size={14} style={{ color: "var(--text-tertiary)" }} />
+              <span className="text-[12px] w-20 shrink-0" style={{ color: "var(--text-tertiary)" }}>
+                Günün odağı
+              </span>
+              <button
+                type="button"
+                onClick={() => setFocusDate(focusDate === selectedDate ? "" : selectedDate)}
+                className="text-[12px] px-3 py-1.5 min-h-9 rounded-lg font-medium"
+                style={{
+                  color: focusDate === selectedDate ? "var(--brand-gold-hover)" : "var(--text-secondary)",
+                  background: focusDate === selectedDate ? "var(--brand-gold-light)" : "var(--surface-sunken)",
+                }}
+              >
+                {focusDate === selectedDate ? "Odakta" : "Bugün odağa al"}
+              </button>
+            </div>
+
+            <div
+              className="flex items-center gap-3 px-4 py-3"
+              style={{ borderBottom: "0.5px solid var(--border-subtle)" }}
+            >
+              <Repeat size={14} style={{ color: "var(--text-tertiary)" }} />
+              <span className="text-[12px] w-20 shrink-0" style={{ color: "var(--text-tertiary)" }}>
+                Tekrar
+              </span>
+              <select
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
+                className="text-[12px] outline-none rounded-md px-2 py-1.5 min-h-9"
+                style={{ color: "var(--text-primary)", background: "var(--surface-sunken)" }}
+              >
+                <option value="none">Tekrar yok</option>
+                <option value="daily">Her gün</option>
+                <option value="weekly">Her hafta</option>
+                <option value="monthly">Her ay</option>
+              </select>
             </div>
 
             {/* Estimated Duration */}

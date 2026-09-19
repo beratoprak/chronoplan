@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info, DatabaseBackup, Upload, CalendarClock, Copy, Check, CloudUpload, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X, Sun, Moon, Monitor, Download, FileText, Calendar, ListTodo, Keyboard, Info, DatabaseBackup, Upload, CalendarClock, Copy, Check, CloudUpload, RefreshCw, Bell, BellOff } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { exportTasksToCSV, exportNotesToMarkdown, exportEventsToICS, exportFullBackup, parseBackupFile } from "@/lib/export";
 import { outboxSize, flushOutbox } from "@/lib/supabase-sync";
 import { formatRelativeTime } from "@/lib/dates";
+import { disablePush, enablePush, getPushStatus, type PushStatus } from "@/lib/push-notifications";
 import type { ThemeMode } from "@/types";
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: React.ElementType }[] = [
@@ -18,7 +19,7 @@ const SHORTCUTS = [
   { keys: ["←", "→"], desc: "Gun degistir" },
   { keys: ["T"], desc: "Bugune don" },
   { keys: ["1", "2", "3", "4"], desc: "Gorunum degistir" },
-  { keys: ["⌘", "N"], desc: "Yeni gorev" },
+  { keys: ["⌘", "N"], desc: "Yeni görev" },
   { keys: ["⌘", "E"], desc: "Yeni etkinlik" },
   { keys: ["⌘", "K"], desc: "Arama" },
   { keys: ["⌘", ","], desc: "Ayarlar" },
@@ -31,6 +32,36 @@ export function SettingsPanel() {
   const [copied, setCopied] = useState(false);
   const [syncingNow, setSyncingNow] = useState(false);
   const [pendingCount, setPendingCount] = useState(() => outboxSize());
+  const [pushStatus, setPushStatus] = useState<PushStatus>("off");
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isSettingsOpen || !user || isDemoMode) return;
+    void getPushStatus().then(setPushStatus);
+  }, [isSettingsOpen, isDemoMode, user]);
+
+  async function togglePush() {
+    if (!user) return;
+    setPushBusy(true);
+    setPushMessage(null);
+    try {
+      if (pushStatus === "on") {
+        await disablePush(user.id);
+        setPushStatus("off");
+        setPushMessage("Bildirimler bu cihazda kapatıldı.");
+      } else {
+        await enablePush(user.id);
+        setPushStatus("on");
+        setPushMessage("Kritik okul bildirimleri bu cihazda açık.");
+      }
+    } catch (error) {
+      setPushStatus(await getPushStatus());
+      setPushMessage(error instanceof Error ? error.message : "Bildirim ayarı değiştirilemedi.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function handleSyncNow() {
     setSyncingNow(true);
@@ -197,6 +228,28 @@ export function SettingsPanel() {
             </div>
           )}
 
+          {user && !isDemoMode && (
+            <div>
+              <h3 className="text-[11px] font-medium uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
+                <Bell size={12} className="inline mr-1" />
+                Kritik Hatırlatmalar
+              </h3>
+              <div className="rounded-lg p-3 flex items-center gap-3" style={{ background: "var(--surface-base)", border: "0.5px solid var(--border-default)" }}>
+                {pushStatus === "on" ? <Bell size={17} style={{ color: "var(--priority-low)" }} /> : <BellOff size={17} style={{ color: "var(--text-tertiary)" }} />}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
+                    {pushStatus === "on" ? "Bu cihazda açık" : pushStatus === "blocked" ? "Tarayıcı tarafından engellendi" : pushStatus === "unsupported" ? "Bu tarayıcı desteklemiyor" : pushStatus === "unconfigured" ? "Sunucu yapılandırması bekleniyor" : "Bu cihazda kapalı"}
+                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>Sınav ve kayıt tarihleri için çok aşamalı uyarı al.</p>
+                  {pushMessage && <p className="text-[10px] mt-1" role="status" style={{ color: "var(--brand-gold)" }}>{pushMessage}</p>}
+                </div>
+                <button onClick={() => void togglePush()} disabled={pushBusy || ["blocked", "unsupported", "unconfigured"].includes(pushStatus)} className="cp-btn cp-btn-ghost text-[11px] px-2.5 py-1.5 shrink-0 disabled:opacity-40">
+                  {pushBusy ? <RefreshCw size={12} className="animate-spin" /> : pushStatus === "on" ? "Kapat" : "Aç"}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── Tam Yedekleme ────────────────────── */}
           <div>
             <h3
@@ -260,14 +313,14 @@ export function SettingsPanel() {
             </div>
           </div>
 
-          {/* ── Disa Aktar ───────────────────────── */}
+          {/* ── Dışa Aktar ───────────────────────── */}
           <div>
             <h3
               className="text-[11px] font-medium uppercase tracking-wider mb-3"
               style={{ color: "var(--text-tertiary)" }}
             >
               <Download size={12} className="inline mr-1" />
-              Disa Aktar
+              Dışa aktar
             </h3>
             <div className="flex flex-col gap-2">
               <button
@@ -282,15 +335,15 @@ export function SettingsPanel() {
                 <ListTodo size={16} style={{ color: "var(--brand-gold)" }} />
                 <div>
                   <div className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
-                    Gorevler (CSV)
+                    Görevler (CSV)
                   </div>
                   <div className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                    {tasks.length} gorev
+                    {tasks.length} görev
                   </div>
                 </div>
               </button>
               <button
-                onClick={() => exportNotesToMarkdown(notes)}
+                onClick={() => exportNotesToMarkdown(notes, richNotes)}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
                 style={{
                   border: "0.5px solid var(--border-default)",
@@ -304,7 +357,7 @@ export function SettingsPanel() {
                     Notlar (Markdown)
                   </div>
                   <div className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                    {notes.length} not
+                    {notes.length + richNotes.length} not
                   </div>
                 </div>
               </button>
@@ -323,7 +376,7 @@ export function SettingsPanel() {
                     Etkinlikler (ICS)
                   </div>
                   <div className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                    {events.length} etkinlik — Takvim uygulamalarina aktarabilirsin
+                    {events.length} etkinlik — takvim uygulamalarına aktarabilirsiniz
                   </div>
                 </div>
               </button>
@@ -426,9 +479,9 @@ export function SettingsPanel() {
               </span>
             </div>
             <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-              Profesyonel takvim & planlama uygulamasi.
+              Takvimin üzerinde yaşayan dijital ajanda.
               <br />
-              beratoprak.com tarafindan gelistirilmistir.
+              beratoprak.com tarafından geliştirilmiştir.
             </p>
           </div>
         </div>

@@ -10,6 +10,7 @@ import {
   FileText,
   BookOpen,
   Timer,
+  GraduationCap,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -17,24 +18,26 @@ import { MiniCalendar } from "./MiniCalendar";
 import type { ViewType } from "@/types";
 
 const VIEW_ITEMS: { id: ViewType; label: string; icon: React.ElementType; group?: string }[] = [
-  { id: "daily", label: "Günlük detay", icon: CalendarDays, group: "Takvim" },
+  { id: "daily", label: "Bugün", icon: CalendarDays, group: "Takvim" },
   { id: "weekly", label: "Haftalık", icon: CalendarRange, group: "Takvim" },
   { id: "monthly", label: "Aylık", icon: LayoutGrid, group: "Takvim" },
-  { id: "kanban", label: "Kanban", icon: Columns3, group: "Takvim" },
-  { id: "notes", label: "Notlar", icon: FileText, group: "Çalışma" },
-  { id: "media", label: "Kitap & Film", icon: BookOpen, group: "Çalışma" },
-  { id: "pomodoro", label: "Zamanlayıcı", icon: Timer, group: "Çalışma" },
+  { id: "kanban", label: "Görevler", icon: Columns3, group: "Planlama" },
+  { id: "notes", label: "Notlar", icon: FileText, group: "Planlama" },
+  { id: "pomodoro", label: "Odak", icon: Timer, group: "Planlama" },
+  { id: "media", label: "Arşiv", icon: BookOpen, group: "Planlama" },
+  { id: "school", label: "Okul", icon: GraduationCap, group: "Okul" },
 ];
 
 const TAG_DOTS: { label: string; color: string }[] = [
-  { label: "Is", color: "var(--tag-work)" },
-  { label: "Kisisel", color: "var(--tag-personal)" },
+  { label: "İş", color: "var(--tag-work)" },
+  { label: "Kişisel", color: "var(--tag-personal)" },
   { label: "Proje", color: "var(--tag-project)" },
-  { label: "Toplanti", color: "var(--tag-meeting)" },
+  { label: "Toplantı", color: "var(--tag-meeting)" },
+  { label: "Okul", color: "var(--tag-school)" },
 ];
 
 export function Sidebar() {
-  const { currentView, setView, sidebarOpen, openSettings, openWorkspaceModal, isDemoMode } = useAppStore();
+  const { currentView, setView, sidebarOpen, openSettings, openWorkspaceModal, isDemoMode, tags, setKanbanFilter } = useAppStore();
 
   if (!sidebarOpen) return null;
 
@@ -69,7 +72,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-col gap-0.5">
-        {["Takvim", "Çalışma"].map((group) => (
+        {["Takvim", "Planlama", "Okul"].map((group) => (
           <div key={group} className="flex flex-col gap-0.5">
             <span
               className="text-[10px] uppercase tracking-wider px-3 pb-0.5 pt-1"
@@ -110,9 +113,14 @@ export function Sidebar() {
           Etiketler
         </span>
         {TAG_DOTS.map((tag) => (
-          <div
+          <button
             key={tag.label}
-            className="flex items-center gap-2 text-xs cursor-pointer py-0.5 hover:opacity-80 transition-opacity"
+            onClick={() => {
+              const matched = tags.find((item) => item.name === tag.label);
+              if (matched) setKanbanFilter({ tagId: matched.id });
+              setView("kanban");
+            }}
+            className="flex items-center gap-2 text-xs text-left min-h-8 hover:opacity-80 transition-opacity"
             style={{ color: "var(--text-secondary)" }}
           >
             <div
@@ -120,7 +128,7 @@ export function Sidebar() {
               style={{ background: tag.color }}
             />
             {tag.label}
-          </div>
+          </button>
         ))}
       </div>
 

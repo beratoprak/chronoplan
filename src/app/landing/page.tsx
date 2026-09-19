@@ -17,43 +17,43 @@ import {
 const FEATURES = [
   {
     icon: CalendarDays,
-    title: "4 Gorunum",
-    desc: "Gunluk detay, haftalik timeline, aylik grid ve kanban board — hepsi tek yerde.",
+    title: "Gerçek Ajanda",
+    desc: "Günlük sayfa, süreli haftalık takvim, aylık görünüm ve görev planı tek yerde.",
   },
   {
     icon: FileText,
-    title: "Notion-tarzi Notlar",
-    desc: "Her gune ozel block editor ile serbest not tutma. Otomatik kaydetme.",
+    title: "Not Odaklı Günlük",
+    desc: "Her güne özel, şablonlu ve otomatik kaydedilen düşünme alanı.",
   },
   {
     icon: Columns3,
-    title: "Kanban Board",
-    desc: "Surukle-birak ile gorev yonetimi. Planlanan, devam eden, tamamlanan.",
+    title: "Zamanlanan Görevler",
+    desc: "Görevleri son tarihten bağımsız olarak takvimde gerçek bir çalışma saatine yerleştirin.",
   },
   {
     icon: Search,
-    title: "Hizli Arama",
-    desc: "Cmd+K ile aninda arama. Notlar, gorevler ve etkinlikler tek noktada.",
+    title: "Hızlı Arama",
+    desc: "Cmd+K ile günlükler, bağımsız notlar, görevler ve etkinlikler arasında arayın.",
   },
   {
     icon: Moon,
-    title: "Karanlik Mod",
-    desc: "Goz yormayan koyu tema. Sistem tercihinize gore otomatik gecis.",
+    title: "Karanlık Mod",
+    desc: "Göz yormayan koyu tema. Sistem tercihinize göre otomatik geçiş.",
   },
   {
     icon: Shield,
-    title: "Guvenli Veri",
-    desc: "Supabase altyapisi ile veriler guvenle saklanir. Row-level security.",
+    title: "Güvenli Veri",
+    desc: "Offline-first kayıt, kalıcı yazma kuyruğu ve kullanıcı bazlı erişim güvenliği.",
   },
   {
     icon: Zap,
-    title: "Offline Calisma",
-    desc: "PWA destegi ile internet olmadan da calis. Veriler otomatik senkronize olur.",
+    title: "Çevrimdışı Çalışma",
+    desc: "İnternet olmadan çalışın; değişiklikler bağlantı geldiğinde otomatik eşitlensin.",
   },
   {
     icon: Smartphone,
     title: "Her Cihazda",
-    desc: "PWA olarak telefonunuza yukleyin veya Mac uygulamasi olarak kullanin.",
+    desc: "Telefonunuza PWA olarak yükleyin veya masaüstünde kullanın.",
   },
 ];
 
@@ -82,15 +82,14 @@ export default function LandingPage() {
           className="text-xl font-medium tracking-wide"
           style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
         >
-          <span style={{ color: "var(--text-secondary)" }}>Chrono</span>
-          <span style={{ color: "var(--brand-gold)" }}>Plan</span>
+          <span style={{ color: "var(--brand-gold)" }}>Epoche</span>
         </h1>
         <button
           onClick={() => router.push("/demo")}
           className="cp-btn cp-btn-primary text-xs gap-1.5"
         >
           <Play size={13} />
-          Demoyu Incele
+          Demoyu incele
         </button>
       </nav>
 
@@ -104,7 +103,7 @@ export default function LandingPage() {
             border: "0.5px solid var(--brand-gold)",
           }}
         >
-          <Zap size={12} /> Kisisel uretkenlik uygulamasi
+          <Zap size={12} /> Dijital ajanda ve düşünme alanı
         </div>
         <h2
           className="text-3xl md:text-5xl font-semibold leading-tight mb-4"
@@ -113,21 +112,21 @@ export default function LandingPage() {
             color: "var(--text-primary)",
           }}
         >
-          Takvim, notlar ve gorevler.{" "}
-          <span style={{ color: "var(--brand-gold)" }}>Tek yerde.</span>
+          Takvimin üzerinde yaşayan{" "}
+          <span style={{ color: "var(--brand-gold)" }}>dijital ajandanız.</span>
         </h2>
         <p
           className="text-base md:text-lg mb-8 max-w-2xl mx-auto"
           style={{ color: "var(--text-secondary)" }}
         >
-          Epoche, minimalist tasarimli kisisel planlama uygulamasi.
-          Gunluk notlar, haftalik planlama, kanban board ve takvim — hepsi bir arada.
+          Epoche; düşünceleri, görevleri ve zamanı aynı günlük akışta birleştirir.
+          Önce not alın, sonra önceliklendirin, takvime yerleştirin ve odaklanın.
         </p>
         <button
           onClick={() => router.push("/demo")}
           className="cp-btn cp-btn-primary text-sm px-6 py-2.5 gap-2"
         >
-          Uygulamayi Incele <ArrowRight size={16} />
+          Epoche&apos;yi incele <ArrowRight size={16} />
         </button>
       </section>
 
@@ -144,7 +143,7 @@ export default function LandingPage() {
               color: "var(--text-primary)",
             }}
           >
-            Ozellikler
+            Özellikler
           </h3>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
             {FEATURES.map((f) => {

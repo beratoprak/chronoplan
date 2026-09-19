@@ -22,8 +22,7 @@ export default function OfflinePage() {
             color: "var(--text-primary)",
           }}
         >
-          <span style={{ color: "var(--text-secondary)" }}>Chrono</span>
-          <span style={{ color: "var(--brand-gold)" }}>Plan</span>
+          <span style={{ color: "var(--brand-gold)" }}>Epoche</span>
         </h1>
         <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
           Internet baglantiniz yok. Cevrimdisi modda bazi ozellikler kisitli olabilir.

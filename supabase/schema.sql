@@ -25,7 +25,13 @@ CREATE TABLE IF NOT EXISTS tasks (
   tags                jsonb       NOT NULL DEFAULT '[]',
   estimated_minutes   integer,
   checklist           jsonb       NOT NULL DEFAULT '[]',
-  date                text        NOT NULL,
+  date                text,
+  due_date            text,
+  scheduled_date      text,
+  scheduled_start_time text,
+  scheduled_end_time  text,
+  focus_date          text,
+  recurrence          text        NOT NULL DEFAULT 'none' CHECK (recurrence IN ('none', 'daily', 'weekly', 'monthly')),
   created_at          text        NOT NULL,
   updated_at          text        NOT NULL,
   completed_at        text,
@@ -89,6 +95,8 @@ CREATE POLICY "events_owner" ON events
 
 CREATE INDEX IF NOT EXISTS idx_tasks_user_id   ON tasks   (user_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_date       ON tasks   (user_id, date);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date   ON tasks   (user_id, due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_schedule   ON tasks   (user_id, scheduled_date, scheduled_start_time);
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks   (user_id, status);
 CREATE INDEX IF NOT EXISTS idx_notes_user_date  ON notes   (user_id, date);
 CREATE INDEX IF NOT EXISTS idx_events_user_id   ON events  (user_id);

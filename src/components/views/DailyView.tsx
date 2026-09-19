@@ -1,216 +1,168 @@
 "use client";
+
 import dynamic from "next/dynamic";
+import { useMemo } from "react";
+import { addDays, format, parseISO } from "date-fns";
+import { CalendarClock, CheckCircle2, Focus, Plus, Sparkles } from "lucide-react";
+import { useAppStore } from "@/lib/store";
+import { formatDate } from "@/lib/dates";
+import { getTaskDueDate, getTasksForDate } from "@/lib/planner";
+import { EventCard } from "@/components/shared/EventCard";
+import { TaskCard } from "@/components/shared/TaskCard";
 
 const NoteEditor = dynamic(
   () => import("@/components/editor/NoteEditor").then((m) => m.NoteEditor),
   {
     ssr: false,
     loading: () => (
-      <div
-        className="flex-1 rounded-lg min-h-[360px] flex items-center justify-center"
-        style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)" }}
-      >
-        <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>Editör yükleniyor...</span>
+      <div className="flex-1 rounded-2xl min-h-[360px] flex items-center justify-center" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-default)" }}>
+        <span style={{ color: "var(--text-tertiary)", fontSize: "13px" }}>Editör yükleniyor…</span>
       </div>
     ),
   }
 );
-import { useMemo } from "react";
-import { parseISO, addDays, format } from "date-fns";
-import { useAppStore } from "@/lib/store";
-import { formatDate } from "@/lib/dates";
-import { getUpcomingTasks } from "@/lib/planner";
-import { EventCard } from "@/components/shared/EventCard";
-import { TaskCard } from "@/components/shared/TaskCard";
 
 export function DailyView() {
-  const { selectedDate, events, tasks, notes, openEventModal, getExpandedEvents } = useAppStore();
-  const date = parseISO(selectedDate);
-  void date;
+  const {
+    selectedDate,
+    events,
+    tasks,
+    notes,
+    workSessions,
+    openEventModal,
+    openTaskModal,
+    updateTask,
+    moveTask,
+    getExpandedEvents,
+  } = useAppStore();
 
   const dayEvents = useMemo(
-    () =>
-      getExpandedEvents(selectedDate, selectedDate)
-        .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")),
+    () => getExpandedEvents(selectedDate, selectedDate).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")),
     [events, selectedDate, getExpandedEvents]
   );
-
   const dayTasks = useMemo(
-    () => tasks.filter((t) => t.date === selectedDate && t.status !== "done"),
+    () => Array.from(new Map(tasks
+      .filter((task) => getTasksForDate([task], selectedDate).length > 0 || getTaskDueDate(task) === selectedDate || task.focusDate === selectedDate)
+      .sort((a, b) => Number(b.focusDate === selectedDate) - Number(a.focusDate === selectedDate) || (a.scheduledStartTime || "99:99").localeCompare(b.scheduledStartTime || "99:99"))
+      .map((task) => [task.id, task] as const)).values()),
     [tasks, selectedDate]
   );
+  const openTasks = dayTasks.filter((task) => task.status !== "done");
+  const completedTasks = dayTasks.filter((task) => task.status === "done");
+  const focusTasks = openTasks.filter((task) => task.focusDate === selectedDate).slice(0, 3);
+  const focusMinutes = workSessions
+    .filter((session) => session.completedAt.slice(0, 10) === selectedDate && session.phase === "work")
+    .reduce((sum, session) => sum + session.durationMinutes, 0);
+  const dayNote = notes.find((note) => note.date === selectedDate);
+  const tomorrow = format(addDays(parseISO(selectedDate), 1), "yyyy-MM-dd");
+  const tomorrowCount = tasks.filter((task) => getTaskDueDate(task) === tomorrow && task.status !== "done").length;
 
-  // Tarifsiz görevler (düşük öncelik hariç)
-  const datelessTasks = useMemo(
-    () => tasks.filter((t) => !t.date && t.status !== "done" && t.priority !== "low"),
-    [tasks]
-  );
-
-  const upcomingEvents = useMemo(() => {
-    const nextTwoWeeks = format(addDays(parseISO(selectedDate), 14), "yyyy-MM-dd");
-    const tomorrow = format(addDays(parseISO(selectedDate), 1), "yyyy-MM-dd");
-    return getExpandedEvents(tomorrow, nextTwoWeeks)
-      .sort((a, b) => a.date.localeCompare(b.date) || (a.startTime || "").localeCompare(b.startTime || ""))
-      .slice(0, 7);
-  }, [events, selectedDate, getExpandedEvents]);
-
-  // Yalnızca önümüzdeki 7 gün "yaklaşan" sayılır — uzak gelecek burada görünmez
-  const upcomingTasks = useMemo(
-    () => getUpcomingTasks(tasks, selectedDate, 7, 4),
-    [tasks, selectedDate]
-  );
-
-  const dayNote = notes.find((n) => n.date === selectedDate);
+  const toggleTask = (id: string, done: boolean) => moveTask(id, done ? "active" : "done");
+  const toggleFocus = (id: string, active: boolean) => {
+    if (!active && focusTasks.length >= 3) return;
+    updateTask(id, { focusDate: active ? undefined : selectedDate });
+  };
 
   return (
-    <div className="grid gap-5 h-full animate-fade-in grid-cols-1 lg:grid-cols-[1fr_300px]">
-      {/* Left: Note editor area — mobilde program üstte olsun diye order-2 */}
-      <div className="flex flex-col gap-3 min-w-0 order-2 lg:order-1">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[15px] font-medium" style={{ color: "var(--text-primary)" }}>
-            Günün notları
-          </h3>
+    <div className="grid gap-5 h-full animate-fade-in grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px]">
+      <section className="flex flex-col gap-3 min-w-0 order-1">
+        <div className="rounded-2xl p-4 sm:p-5" style={{ background: "linear-gradient(135deg, var(--brand-gold-light), var(--surface-raised))", border: "1px solid var(--border-default)" }}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[.14em] font-semibold" style={{ color: "var(--brand-gold-hover)" }}>Günün sayfası</p>
+              <h2 className="text-[20px] sm:text-[24px] font-semibold mt-1" style={{ color: "var(--text-primary)" }}>{formatDate(selectedDate, "d MMMM, EEEE")}</h2>
+            </div>
+            <button
+              onClick={() => openTaskModal(undefined, { dueDate: selectedDate, scheduledDate: selectedDate })}
+              className="cp-btn cp-btn-primary min-h-11 px-3.5 shrink-0"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Görev</span>
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <span className="cp-context-chip"><CalendarClock size={13} /> {dayEvents.length} zaman bloğu</span>
+            <span className="cp-context-chip"><CheckCircle2 size={13} /> {completedTasks.length}/{dayTasks.length} görev</span>
+            <span className="cp-context-chip"><Focus size={13} /> {focusMinutes} dk odak</span>
+            {tomorrowCount > 0 && <span className="cp-context-chip">Yarın {tomorrowCount} son tarih</span>}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h3 className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>Günlük not</h3>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>Planın üstündeki düşünme alanın</p>
+          </div>
           <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            {dayNote ? `Son düzenleme: ${formatDate(dayNote.updatedAt, "HH:mm")}` : "Henüz not yok"}
+            {dayNote ? `${formatDate(dayNote.updatedAt, "HH:mm")} kaydedildi` : "Otomatik kaydedilir"}
           </span>
         </div>
-
         <NoteEditor date={selectedDate} />
-      </div>
 
-      {/* Right: Schedule + upcoming — mobilde en üstte */}
-      <div className="flex flex-col gap-4 order-1 lg:order-2">
-        {/* Today's schedule */}
-        <div>
-          <h4
-            className="text-[11px] font-medium uppercase tracking-wider mb-2"
-            style={{ color: "var(--text-tertiary)" }}
-          >
-            Bugünün programı
-          </h4>
-          <div className="flex flex-col gap-1.5">
-            {dayEvents.length > 0 ? (
-              dayEvents.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  onClick={() => openEventModal(event)}
-                />
-              ))
-            ) : (
-              <p className="text-xs py-4 text-center" style={{ color: "var(--text-muted)" }}>
-                Bugün etkinlik yok
-              </p>
-            )}
+        <section className="xl:hidden rounded-2xl p-4" style={{ background: "var(--surface-base)", border: "1px solid var(--border-default)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Bugünün akışı</h3>
+            <button onClick={() => openEventModal(undefined, { date: selectedDate })} className="text-[12px] font-medium" style={{ color: "var(--brand-gold-hover)" }}>+ Zaman</button>
           </div>
-        </div>
+          <DayAgenda date={selectedDate} events={dayEvents} tasks={openTasks} onEvent={openEventModal} onTask={openTaskModal} onToggle={toggleTask} onFocus={toggleFocus} />
+        </section>
+      </section>
 
-        {/* Upcoming events */}
-        {upcomingEvents.length > 0 && (
-          <div>
-            <h4
-              className="text-[11px] font-medium uppercase tracking-wider mb-2"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Yaklaşan etkinlikler
-            </h4>
-            <div className="flex flex-col gap-1.5">
-              {upcomingEvents.map((event) => (
-                <div key={event.id} className="relative">
-                  <span
-                    className="absolute top-1 right-1.5 text-[9px] px-1.5 py-0.5 rounded"
-                    style={{ color: "var(--text-muted)", background: "var(--surface-sunken)" }}
-                  >
-                    {formatDate(event.date, "d MMM")}
-                  </span>
-                  <EventCard
-                    event={event}
-                    onClick={() => openEventModal(event)}
-                  />
-                </div>
-              ))}
+      <aside className="hidden xl:flex flex-col gap-5 order-2 min-w-0">
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="section-eyebrow">Günün odağı</h3>
+            <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{focusTasks.length}/3</span>
+          </div>
+          {focusTasks.length ? (
+            <div className="grid gap-2">
+              {focusTasks.map((task) => <TaskCard key={task.id} task={task} compact onClick={() => openTaskModal(task)} onToggle={() => toggleTask(task.id, false)} onFocus={() => toggleFocus(task.id, true)} showSchedule />)}
             </div>
-          </div>
-        )}
+          ) : (
+            <button onClick={() => openTaskModal(undefined, { dueDate: selectedDate, focusDate: selectedDate })} className="w-full rounded-xl p-4 text-left" style={{ border: "1px dashed var(--border-strong)", color: "var(--text-secondary)" }}>
+              <Sparkles size={17} className="mb-2" style={{ color: "var(--brand-gold-hover)" }} />
+              <span className="block text-[13px] font-medium">Günün en önemli işini seç</span>
+              <span className="block text-[11px] mt-1" style={{ color: "var(--text-tertiary)" }}>En fazla üç görev odağa alınabilir.</span>
+            </button>
+          )}
+        </section>
 
-        {/* Upcoming tasks */}
-        <div>
-          <h4
-            className="text-[11px] font-medium uppercase tracking-wider mb-2"
-            style={{ color: "var(--text-tertiary)" }}
-          >
-            Yaklaşan görevler
-          </h4>
-          <div className="flex flex-col gap-1.5">
-            {dayTasks.length > 0 ? (
-              dayTasks.map((task) => (
-                <TaskCard key={task.id} task={task} compact />
-              ))
-            ) : upcomingTasks.length > 0 ? (
-              upcomingTasks.map((task) => (
-                <div key={task.id} className="relative">
-                  <span
-                    className="absolute top-1 right-1.5 z-10 text-[9px] px-1.5 py-0.5 rounded"
-                    style={{ color: "var(--text-muted)", background: "var(--surface-sunken)" }}
-                  >
-                    {task.date ? formatDate(task.date, "d MMM") : ""}
-                  </span>
-                  <TaskCard task={task} compact />
-                </div>
-              ))
-            ) : (
-              <p className="text-xs py-4 text-center" style={{ color: "var(--text-muted)" }}>
-                Yaklaşan görev yok
-              </p>
-            )}
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="section-eyebrow">Program</h3>
+            <button onClick={() => openEventModal(undefined, { date: selectedDate })} className="text-[11px] font-medium" style={{ color: "var(--brand-gold-hover)" }}>+ Ekle</button>
           </div>
-        </div>
+          <DayAgenda date={selectedDate} events={dayEvents} tasks={openTasks} onEvent={openEventModal} onTask={openTaskModal} onToggle={toggleTask} onFocus={toggleFocus} />
+        </section>
+      </aside>
+    </div>
+  );
+}
 
-        {/* Dateless tasks */}
-        {datelessTasks.length > 0 && (
-          <div>
-            <h4
-              className="text-[11px] font-medium uppercase tracking-wider mb-2"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Tarifsiz görevler
-            </h4>
-            <div className="flex flex-col gap-1.5">
-              {datelessTasks.map((task) => (
-                <TaskCard key={task.id} task={task} compact />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Quick stats */}
-        <div
-          className="rounded-lg p-3 mt-auto"
-          style={{ background: "var(--surface-sunken)" }}
-        >
-          <h4
-            className="text-[11px] font-medium uppercase tracking-wider mb-2"
-            style={{ color: "var(--text-tertiary)" }}
-          >
-            Günlük özet
-          </h4>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: "Etkinlik", value: dayEvents.length },
-              { label: "Görev", value: dayTasks.length },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="text-lg font-medium" style={{ color: "var(--brand-gold)" }}>
-                  {stat.value}
-                </p>
-                <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                  {stat.label}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+function DayAgenda({
+  date,
+  events,
+  tasks,
+  onEvent,
+  onTask,
+  onToggle,
+  onFocus,
+}: {
+  date: string;
+  events: ReturnType<ReturnType<typeof useAppStore.getState>["getExpandedEvents"]>;
+  tasks: ReturnType<typeof useAppStore.getState>["tasks"];
+  onEvent: ReturnType<typeof useAppStore.getState>["openEventModal"];
+  onTask: ReturnType<typeof useAppStore.getState>["openTaskModal"];
+  onToggle: (id: string, done: boolean) => void;
+  onFocus: (id: string, active: boolean) => void;
+}) {
+  if (!events.length && !tasks.length) {
+    return <p className="rounded-xl py-6 text-center text-[12px]" style={{ background: "var(--surface-sunken)", color: "var(--text-tertiary)" }}>Bugün için henüz bir plan yok.</p>;
+  }
+  return (
+    <div className="grid gap-2">
+      {events.map((event) => <EventCard key={event.id} event={event} onClick={() => onEvent(event)} />)}
+      {tasks.map((task) => <TaskCard key={task.id} task={task} compact onClick={() => onTask(task)} onToggle={() => onToggle(task.id, false)} onFocus={() => onFocus(task.id, task.focusDate === date)} showSchedule />)}
     </div>
   );
 }

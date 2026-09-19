@@ -2,6 +2,13 @@ const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
   skipWaiting: true,
+  // Workbox tarafından üretilen ana worker'a Epoche'nin Web Push olaylarını ekle.
+  importScripts: ["/push-sw.js"],
+  // app-build-manifest.json bir derleme artefaktıdır; App Router onu servis
+  // etmez (404). Workbox precache listesinde kalırsa tek bir 404 yüzünden
+  // service worker kurulumu tamamen reddedilir ve worker redundant olur —
+  // bu da çevrimdışı önbelleği ve Web Push'u sessizce devre dışı bırakır.
+  buildExcludes: [/app-build-manifest\.json$/],
   disable: process.env.NODE_ENV === "development",
   runtimeCaching: [
     {

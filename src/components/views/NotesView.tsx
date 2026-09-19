@@ -20,7 +20,7 @@ function generateTagColor(tag: string): string {
 }
 
 export function NotesView() {
-  const { richNotes, addRichNote, updateRichNote, deleteRichNote } = useAppStore();
+  const { richNotes, addRichNote, updateRichNote, deleteRichNote, requestedRichNoteId, requestRichNote } = useAppStore();
 
   const [search, setSearch] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);
@@ -58,6 +58,15 @@ export function NotesView() {
   }, [richNotes, search, filterTag]);
 
   const selected = richNotes.find((n) => n.id === selectedId) || null;
+
+  useEffect(() => {
+    if (!requestedRichNoteId) return;
+    const requested = richNotes.find((note) => note.id === requestedRichNoteId);
+    if (requested) openNote(requested);
+    requestRichNote(null);
+  // `openNote` güncel düzenleme alanlarını kullandığı için yalnızca istek değişince çalışır.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedRichNoteId]);
 
   function openNote(note: RichNote) {
     if (isDirty && selectedId) saveCurrentNote();

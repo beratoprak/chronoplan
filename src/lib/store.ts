@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { format } from "date-fns";
 import { expandEvents, mergeEntities, mergeChecklists, pruneTombstones } from "./planner";
+import { buildDemoData } from "./demo-data";
+import { migratePersistedState } from "./migrations";
 import type { AppState, Task, TaskStatus, DayNote, CalendarEvent, Tag, RecurrenceType, KanbanFilter, ThemeMode, Workspace, RichNote, MediaItem, WorkSession, PomodoroSettings, BackupData } from "@/types";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "./supabase";
@@ -32,6 +34,9 @@ function generateId(): string {
 
 const STORAGE_KEY = "epoche-storage";
 
+type DemoSnapshot = Pick<AppState, "tasks" | "notes" | "events" | "richNotes" | "workSessions">;
+let demoSnapshot: DemoSnapshot | null = null;
+
 // Eski anahtarlardan (toprak-storage) yeni anahtara veri taşı.
 // Eski kayıt SİLİNMEZ — yedek olarak kalır, veri kaybı imkânsız.
 if (typeof window !== "undefined") {
@@ -50,6 +55,7 @@ const DEFAULT_TAGS: Tag[] = [
   { id: "tag-personal", name: "Kişisel", color: "personal" },
   { id: "tag-project", name: "Proje", color: "project" },
   { id: "tag-meeting", name: "Toplantı", color: "meeting" },
+  { id: "tag-school", name: "Okul", color: "school" },
 ];
 
 // ── Otomatik senkronizasyon tetikleyicileri (bir kez kurulur) ──
@@ -92,7 +98,24 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       // Demo mode
       isDemoMode: false,
-      setDemoMode: (value) => set({ isDemoMode: value }),
+      setDemoMode: (value) => {
+        if (value && !get().isDemoMode) {
+          const state = get();
+          demoSnapshot = {
+            tasks: state.tasks,
+            notes: state.notes,
+            events: state.events,
+            richNotes: state.richNotes,
+            workSessions: state.workSessions,
+          };
+          set({ isDemoMode: true, ...buildDemoData() });
+          return;
+        }
+        if (!value && get().isDemoMode) {
+          set({ isDemoMode: false, ...(demoSnapshot ?? {}) });
+          demoSnapshot = null;
+        }
+      },
       demoToast: null,
       showDemoToast: (message) => {
         set({ demoToast: message });
@@ -112,16 +135,17 @@ export const useAppStore = create<AppState>()(
       // ── Task Modal State ──────────────────────────────────────
       isTaskModalOpen: false,
       editingTask: null,
-      openTaskModal: (task) => {
-        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev duzenlenemez"); return; }
-        set({ isTaskModalOpen: true, editingTask: task ?? null });
+      taskDraft: null,
+      openTaskModal: (task, draft) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda görev düzenlenemez"); return; }
+        set({ isTaskModalOpen: true, editingTask: task ?? null, taskDraft: draft ?? null });
       },
-      closeTaskModal: () => set({ isTaskModalOpen: false, editingTask: null }),
+      closeTaskModal: () => set({ isTaskModalOpen: false, editingTask: null, taskDraft: null }),
 
       // ── Delete Confirm State ──────────────────────────────────
       deletingTaskId: null,
       openDeleteConfirm: (id) => {
-        if (get().isDemoMode) { get().showDemoToast("Demo modunda silme yapilamaz"); return; }
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda silme yapılamaz"); return; }
         set({ deletingTaskId: id });
       },
       closeDeleteConfirm: () => set({ deletingTaskId: null }),
@@ -129,11 +153,12 @@ export const useAppStore = create<AppState>()(
       // ── Event Modal State ─────────────────────────────────────
       isEventModalOpen: false,
       editingEvent: null,
-      openEventModal: (event) => {
-        if (get().isDemoMode) { get().showDemoToast("Demo modunda etkinlik duzenlenemez"); return; }
-        set({ isEventModalOpen: true, editingEvent: event ?? null });
+      eventDraft: null,
+      openEventModal: (event, draft) => {
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda etkinlik düzenlenemez"); return; }
+        set({ isEventModalOpen: true, editingEvent: event ?? null, eventDraft: draft ?? null });
       },
-      closeEventModal: () => set({ isEventModalOpen: false, editingEvent: null }),
+      closeEventModal: () => set({ isEventModalOpen: false, editingEvent: null, eventDraft: null }),
 
       // ── Event Delete Confirm State ────────────────────────────
       deletingEventId: null,
@@ -409,7 +434,7 @@ export const useAppStore = create<AppState>()(
         const snap = get();
         void maybeCloudBackup(user.id, {
           app: "epoche",
-          version: 1,
+          version: 4,
           exportedAt: new Date().toISOString(),
           tasks: snap.tasks,
           notes: snap.notes,
@@ -425,7 +450,7 @@ export const useAppStore = create<AppState>()(
       // Tasks
       tasks: [],
       addTask: (taskData) => {
-        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev eklenemez"); return; }
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda görev eklenemez"); return; }
         const newTask: Task = {
           ...taskData,
           id: generateId(),
@@ -462,7 +487,7 @@ export const useAppStore = create<AppState>()(
           pushSoftDelete("tasks", taskToRow(task, user.id) as unknown as Record<string, unknown>, deletedAt);
       },
       moveTask: (id, status) => {
-        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev tasinamaz"); return; }
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda görev taşınamaz"); return; }
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === id
@@ -480,7 +505,7 @@ export const useAppStore = create<AppState>()(
         if (user && isSupabaseConfigured && updatedTask) void pushTask(updatedTask, user.id);
       },
       reorderTask: (id, newOrder, newStatus) => {
-        if (get().isDemoMode) { get().showDemoToast("Demo modunda gorev tasinamaz"); return; }
+        if (get().isDemoMode) { get().showDemoToast("Demo modunda görev taşınamaz"); return; }
         set((s) => {
           const tasks = [...s.tasks];
           const taskIndex = tasks.findIndex((t) => t.id === id);
@@ -597,6 +622,8 @@ export const useAppStore = create<AppState>()(
       isSearchOpen: false,
       openSearch: () => set({ isSearchOpen: true }),
       closeSearch: () => set({ isSearchOpen: false }),
+      requestedRichNoteId: null,
+      requestRichNote: (id) => set({ requestedRichNoteId: id }),
 
       // ── Kanban Filter State (Faz 6) ───────────────────────────
       kanbanFilter: { priority: "all", tagId: "all" },
@@ -728,16 +755,18 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: STORAGE_KEY,
+      version: 4,
+      migrate: (persistedState) => migratePersistedState(persistedState),
       partialize: (state) => ({
-        tasks: state.tasks,
-        notes: state.notes,
-        events: state.events,
+        tasks: state.isDemoMode && demoSnapshot ? demoSnapshot.tasks : state.tasks,
+        notes: state.isDemoMode && demoSnapshot ? demoSnapshot.notes : state.notes,
+        events: state.isDemoMode && demoSnapshot ? demoSnapshot.events : state.events,
         tags: state.tags,
         currentView: state.currentView,
         theme: state.theme,
-        richNotes: state.richNotes,
+        richNotes: state.isDemoMode && demoSnapshot ? demoSnapshot.richNotes : state.richNotes,
         mediaItems: state.mediaItems,
-        workSessions: state.workSessions,
+        workSessions: state.isDemoMode && demoSnapshot ? demoSnapshot.workSessions : state.workSessions,
         pomodoroSettings: state.pomodoroSettings,
         tombstones: state.tombstones,
         lastSyncAt: state.lastSyncAt,

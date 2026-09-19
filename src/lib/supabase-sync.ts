@@ -5,7 +5,7 @@
 // ============================================================
 
 import { supabase } from "./supabase";
-import type { Task, DayNote, CalendarEvent, Tag, RichNote, MediaItem, WorkSession, TaskStatus, Priority, TagColor, RecurrenceType, MediaType, MediaStatus, PomodoroPhase } from "@/types";
+import type { Task, DayNote, CalendarEvent, Tag, RichNote, MediaItem, WorkSession, TaskStatus, Priority, TagColor, RecurrenceType, MediaType, MediaStatus, PomodoroPhase, Reminder } from "@/types";
 
 // ── DB Row Types (snake_case) ─────────────────────────────────
 
@@ -20,11 +20,22 @@ interface TaskRow {
   estimated_minutes: number | null;
   checklist: { id: string; text: string; completed: boolean }[];
   date: string | null;
+  due_date?: string | null;
+  scheduled_date?: string | null;
+  scheduled_start_time?: string | null;
+  scheduled_end_time?: string | null;
+  focus_date?: string | null;
+  recurrence?: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
   order: number;
   deleted_at?: string | null;
+  is_managed?: boolean;
+  source?: string | null;
+  source_url?: string | null;
+  last_verified_at?: string | null;
+  reminders?: Reminder[];
 }
 
 interface NoteRow {
@@ -51,6 +62,13 @@ interface EventRow {
   created_at?: string | null;
   updated_at?: string;
   deleted_at?: string | null;
+  is_managed?: boolean;
+  source?: string | null;
+  source_url?: string | null;
+  last_verified_at?: string | null;
+  reminders?: Reminder[];
+  ack_required?: boolean;
+  acked_at?: string | null;
 }
 
 interface TagRow {
@@ -98,6 +116,7 @@ interface WorkSessionRow {
   duration_minutes: number;
   phase: string;
   completed_at: string;
+  task_id?: string | null;
 }
 
 // ── Dönüşüm Fonksiyonları ─────────────────────────────────────
@@ -114,11 +133,22 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     estimated_minutes: task.estimatedMinutes ?? null,
     checklist: task.checklist,
     date: task.date ?? null,
+    due_date: task.dueDate ?? null,
+    scheduled_date: task.scheduledDate ?? null,
+    scheduled_start_time: task.scheduledStartTime ?? null,
+    scheduled_end_time: task.scheduledEndTime ?? null,
+    focus_date: task.focusDate ?? null,
+    recurrence: task.recurrence ?? "none",
     created_at: task.createdAt,
     updated_at: task.updatedAt,
     completed_at: task.completedAt ?? null,
     order: task.order,
     deleted_at: null,
+    is_managed: task.isManaged ?? false,
+    source: task.source ?? null,
+    source_url: task.sourceUrl ?? null,
+    last_verified_at: task.lastVerifiedAt ?? null,
+    reminders: task.reminders ?? [],
   };
 }
 
@@ -133,10 +163,21 @@ function rowToTask(row: TaskRow): Task {
     estimatedMinutes: row.estimated_minutes ?? undefined,
     checklist: row.checklist ?? [],
     date: row.date ?? undefined,
+    dueDate: row.due_date ?? row.date ?? undefined,
+    scheduledDate: row.scheduled_date ?? row.date ?? undefined,
+    scheduledStartTime: row.scheduled_start_time ?? undefined,
+    scheduledEndTime: row.scheduled_end_time ?? undefined,
+    focusDate: row.focus_date ?? undefined,
+    recurrence: (row.recurrence as RecurrenceType | undefined) ?? "none",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at ?? undefined,
     order: row.order,
+    isManaged: row.is_managed ?? false,
+    source: row.source ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
+    lastVerifiedAt: row.last_verified_at ?? undefined,
+    reminders: row.reminders ?? [],
   };
 }
 
@@ -177,6 +218,13 @@ export function eventToRow(event: CalendarEvent, userId: string): EventRow {
     created_at: event.createdAt ?? null,
     updated_at: event.updatedAt ?? new Date().toISOString(),
     deleted_at: null,
+    is_managed: event.isManaged ?? false,
+    source: event.source ?? null,
+    source_url: event.sourceUrl ?? null,
+    last_verified_at: event.lastVerifiedAt ?? null,
+    reminders: event.reminders ?? [],
+    ack_required: event.ackRequired ?? false,
+    acked_at: event.ackedAt ?? null,
   };
 }
 
@@ -194,6 +242,13 @@ function rowToEvent(row: EventRow): CalendarEvent {
     recurrenceEndDate: row.recurrence_end_date ?? undefined,
     createdAt: row.created_at ?? undefined,
     updatedAt: row.updated_at || undefined,
+    isManaged: row.is_managed ?? false,
+    source: row.source ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
+    lastVerifiedAt: row.last_verified_at ?? undefined,
+    reminders: row.reminders ?? [],
+    ackRequired: row.ack_required ?? false,
+    ackedAt: row.acked_at ?? undefined,
   };
 }
 
@@ -279,6 +334,7 @@ export function workSessionToRow(session: WorkSession, userId: string): WorkSess
     duration_minutes: session.durationMinutes,
     phase: session.phase,
     completed_at: session.completedAt,
+    task_id: session.taskId ?? null,
   };
 }
 
@@ -289,6 +345,7 @@ function rowToWorkSession(row: WorkSessionRow): WorkSession {
     durationMinutes: row.duration_minutes,
     phase: row.phase as PomodoroPhase,
     completedAt: row.completed_at,
+    taskId: row.task_id ?? undefined,
   };
 }
 
@@ -351,13 +408,61 @@ async function tryUpsert(op: OutboxOp): Promise<boolean> {
   // Kolon henüz yok (migration çalıştırılmamış) → o kolonlar olmadan gönder
   if (error.code === "PGRST204" || /column/i.test(error.message)) {
     const stripped = { ...op.row };
+    const extendedFields = [
+      "due_date",
+      "scheduled_date",
+      "scheduled_start_time",
+      "scheduled_end_time",
+      "focus_date",
+      "recurrence",
+      "task_id",
+      "is_managed",
+      "source",
+      "source_url",
+      "last_verified_at",
+      "reminders",
+      "ack_required",
+      "acked_at",
+    ];
+    const hasExtendedData = extendedFields.some(
+      (field) => {
+        const value = stripped[field];
+        return value !== undefined && value !== null && value !== false && value !== "none" && (!Array.isArray(value) || value.length > 0);
+      }
+    );
     delete stripped.deleted_at;
     delete stripped.updated_at;
     if (op.table === "events") delete stripped.created_at;
+    if (op.table === "tasks") {
+      delete stripped.due_date;
+      delete stripped.scheduled_date;
+      delete stripped.scheduled_start_time;
+      delete stripped.scheduled_end_time;
+      delete stripped.focus_date;
+      delete stripped.recurrence;
+      delete stripped.is_managed;
+      delete stripped.source;
+      delete stripped.source_url;
+      delete stripped.last_verified_at;
+      delete stripped.reminders;
+    }
+    if (op.table === "events") {
+      delete stripped.is_managed;
+      delete stripped.source;
+      delete stripped.source_url;
+      delete stripped.last_verified_at;
+      delete stripped.reminders;
+      delete stripped.ack_required;
+      delete stripped.acked_at;
+    }
+    if (op.table === "work_sessions") delete stripped.task_id;
     // deleted_at'lı bir soft-delete'i kolon yokken göndermek anlamsız — beklet
     if (op.row.deleted_at) return false;
     const { error: err2 } = await supabase.from(op.table).upsert(stripped, q);
-    if (!err2) return true;
+    // Eski şemaya çekirdek alanları yazabildik. Yeni alanlar varsa asıl
+    // operasyonu kuyrukta tutuyoruz; v3 migration uygulandığında otomatik
+    // tekrar gönderilir ve zamanlama/görev bağlantısı kaybolmaz.
+    if (!err2) return !hasExtendedData;
     console.error(`Sync hatası (${op.table}):`, err2.message);
     return false;
   }

@@ -10,6 +10,7 @@ export function getTagColorClasses(color: string): { bg: string; text: string; d
     personal: { bg: "bg-emerald-50", text: "text-emerald-800", dot: "bg-tag-personal" },
     project: { bg: "bg-violet-50", text: "text-violet-800", dot: "bg-tag-project" },
     meeting: { bg: "bg-amber-50", text: "text-amber-800", dot: "bg-tag-meeting" },
+    school: { bg: "bg-sky-50", text: "text-sky-900", dot: "bg-tag-school" },
   };
   return map[color] || map.work;
 }
@@ -39,6 +40,7 @@ export function getTagColorLabel(color: string): string {
     personal: "Kişisel",
     project: "Proje",
     meeting: "Toplantı",
+    school: "Okul",
   };
   return map[color] || color;
 }

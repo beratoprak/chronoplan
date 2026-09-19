@@ -8,6 +8,7 @@ import { KanbanView } from "./KanbanView";
 import { NotesView } from "./NotesView";
 import { MediaView } from "./MediaView";
 import { PomodoroView } from "./PomodoroView";
+import { SchoolView } from "./SchoolView";
 
 export function ViewSwitcher() {
   const { currentView } = useAppStore();
@@ -21,6 +22,7 @@ export function ViewSwitcher() {
       {currentView === "notes" && <NotesView />}
       {currentView === "media" && <MediaView />}
       {currentView === "pomodoro" && <PomodoroView />}
+      {currentView === "school" && <SchoolView />}
     </div>
   );
 }

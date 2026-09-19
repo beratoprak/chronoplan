@@ -3,10 +3,44 @@
 // Bileşenlerden bağımsız, birim testine tabi fonksiyonlar.
 // ============================================================
 
-import { parseISO, addDays, addWeeks, addMonths, isBefore, isEqual, format } from "date-fns";
+import { parseISO, addDays, addWeeks, addMonths, isBefore, isEqual, format, differenceInCalendarDays } from "date-fns";
 import type { CalendarEvent, Task, ChecklistItem } from "@/types";
 
 export const DATE_FORMAT = "yyyy-MM-dd";
+
+/** Eski `date` alanını kaybetmeden görevin son teslim tarihini okur. */
+export function getTaskDueDate(task: Task): string | undefined {
+  return task.dueDate ?? task.date;
+}
+
+/**
+ * Eski görevler yalnızca `date` taşıdığı için bu alan takvim günü olarak da
+ * okunur. Yeni görevlerde planlanan gün açıkça `scheduledDate` ile tutulur.
+ */
+export function getTaskScheduledDate(task: Task): string | undefined {
+  return task.scheduledDate ?? task.date;
+}
+
+export function timeToMinutes(time?: string): number | null {
+  if (!time || !/^\d{2}:\d{2}$/.test(time)) return null;
+  const [hours, minutes] = time.split(":").map(Number);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+export function minutesToTime(total: number): string {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, Math.round(total)));
+  const hours = Math.floor(clamped / 60);
+  const minutes = clamped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+export function taskEndTime(task: Task, fallbackMinutes = 30): string | undefined {
+  if (task.scheduledEndTime) return task.scheduledEndTime;
+  const start = timeToMinutes(task.scheduledStartTime);
+  if (start === null) return undefined;
+  return minutesToTime(start + (task.estimatedMinutes ?? fallbackMinutes));
+}
 
 // ── Tekrarlı etkinlik açılımı ─────────────────────────────────
 // [startDate, endDate] aralığındaki tüm etkinlik oluşumlarını döndürür.
@@ -113,16 +147,33 @@ export function getUpcomingTasks(
 ): Task[] {
   const windowEnd = format(addDays(parseISO(fromDate), days), DATE_FORMAT);
   return tasks
-    .filter((t) => t.date && t.date > fromDate && t.date <= windowEnd && t.status !== "done")
-    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
+    .filter((t) => {
+      const date = getTaskDueDate(t);
+      return date && date > fromDate && date <= windowEnd && t.status !== "done";
+    })
+    .sort((a, b) => (getTaskDueDate(a) ?? "").localeCompare(getTaskDueDate(b) ?? ""))
     .slice(0, limit);
 }
 
 /** Belirli günün tamamlanmamış görevleri. */
 export function getTasksForDate(tasks: Task[], date: string): Task[] {
   return tasks
-    .filter((t) => t.date === date && t.status !== "done")
+    .filter((t) => taskOccursOnDate(t, date) && t.status !== "done")
     .sort((a, b) => a.order - b.order);
+}
+
+/** Planlanan görevin tekrar kuralına göre hedef günde görünmesi gerekir mi? */
+export function taskOccursOnDate(task: Task, date: string): boolean {
+  const base = getTaskScheduledDate(task);
+  if (!base || date < base) return false;
+  const recurrence = task.recurrence ?? "none";
+  if (recurrence === "none") return base === date;
+  const baseDate = parseISO(base);
+  const targetDate = parseISO(date);
+  const dayDiff = differenceInCalendarDays(targetDate, baseDate);
+  if (recurrence === "daily") return true;
+  if (recurrence === "weekly") return dayDiff % 7 === 0;
+  return baseDate.getDate() === targetDate.getDate();
 }
 
 // ── Checklist birleştirme ──────────────────────────────────────

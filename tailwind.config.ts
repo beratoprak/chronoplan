@@ -44,6 +44,7 @@ const config: Config = {
           personal: "#1D9E75",
           project: "#7F77DD",
           meeting: "#BA7517",
+          school: "#3B82A0",
         },
         status: {
           planned: "#EEEDFE",

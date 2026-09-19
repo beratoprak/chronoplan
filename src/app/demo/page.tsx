@@ -62,7 +62,7 @@ export default function DemoPage() {
         >
           <Eye size={14} className="shrink-0" />
           <span className="text-[11px] sm:text-[13px] font-medium">
-            Demo Modu — Sadece goruntuleyebilirsiniz
+            Demo modu — örnek ajandayı görüntülüyorsunuz
           </span>
           <button
             onClick={() => router.push("/landing")}

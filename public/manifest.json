@@ -1,11 +1,11 @@
 {
   "name": "Epoche",
   "short_name": "Epoche",
-  "description": "Profesyonel takvim ve planlama uygulaması",
+  "description": "Takvimin üzerinde yaşayan, not odaklı dijital ajanda",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F5F0E8",
-  "theme_color": "#A0825C",
+  "theme_color": "#8A6B43",
   "orientation": "any",
   "categories": [
     "productivity",
@@ -28,14 +28,14 @@
   "screenshots": [],
   "shortcuts": [
     {
-      "name": "Günlük Görünüm",
+      "name": "Bugünün Sayfası",
       "url": "/?view=daily",
-      "description": "Günlük detay görünümü"
+      "description": "Notlar, odak görevleri ve bugünün programı"
     },
     {
-      "name": "Kanban Board",
+      "name": "Görevler",
       "url": "/?view=kanban",
-      "description": "Kanban görev yönetimi"
+      "description": "Görev ve öncelik yönetimi"
     }
   ]
 }

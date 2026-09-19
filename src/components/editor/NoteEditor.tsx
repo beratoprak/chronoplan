@@ -4,6 +4,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import {
   Plus, Heading1, Heading2, Heading3,
   List, ListOrdered, CheckSquare, Quote, Code, Minus, Type,
+  SunMedium, MoonStar,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
@@ -56,6 +57,15 @@ export function NoteEditor({ date }: NoteEditorProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const focusEditor = () => {
+      textareaRef.current?.focus();
+      textareaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    window.addEventListener("epoche:focus-day-note", focusEditor);
+    return () => window.removeEventListener("epoche:focus-day-note", focusEditor);
+  }, []);
 
   // Gün değişince notu yükle + fokusla
   useEffect(() => {
@@ -198,6 +208,13 @@ export function NoteEditor({ date }: NoteEditorProps) {
     }, 0);
   }
 
+  function insertTemplate(template: "plan" | "review") {
+    const content = template === "plan"
+      ? "# Bugünün niyeti\n\n☐ En önemli iş\n☐ İkinci adım\n☐ Kendim için\n\n## Notlar\n\n"
+      : "# Gün sonu değerlendirmesi\n\n## Bugün ne ilerledi?\n\n\n## Ne öğrendim?\n\n\n## Yarın için tek adım\n\n☐ ";
+    handleInsert(content);
+  }
+
   return (
     <div
       className="flex-1 flex flex-col rounded-lg overflow-hidden"
@@ -254,6 +271,16 @@ export function NoteEditor({ date }: NoteEditorProps) {
             </div>
           )}
         </div>
+        <div className="ml-auto flex items-center gap-1">
+          <button type="button" onClick={() => insertTemplate("plan")} className="cp-editor-tool" title="Gün planı şablonu">
+            <SunMedium size={14} />
+            <span className="hidden sm:inline">Gün planı</span>
+          </button>
+          <button type="button" onClick={() => insertTemplate("review")} className="cp-editor-tool" title="Gün sonu şablonu">
+            <MoonStar size={14} />
+            <span className="hidden sm:inline">Değerlendir</span>
+          </button>
+        </div>
       </div>
 
       {/* Serbest yazma alanı */}
@@ -263,7 +290,7 @@ export function NoteEditor({ date }: NoteEditorProps) {
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder="Bugün ne düşünüyorsun..."
-        className="flex-1 resize-none outline-none p-4 text-[14px] leading-relaxed"
+        className="flex-1 resize-none outline-none p-4 sm:p-5 text-[15px] leading-7"
         style={{
           background: "transparent",
           color: "var(--text-primary)",

@@ -10,6 +10,12 @@ import {
   mergeEntities,
   mergeChecklists,
   pruneTombstones,
+  getTaskDueDate,
+  getTaskScheduledDate,
+  timeToMinutes,
+  minutesToTime,
+  taskEndTime,
+  taskOccursOnDate,
 } from "./planner";
 import type { CalendarEvent, Task } from "@/types";
 
@@ -203,6 +209,37 @@ describe("getTasksForDate", () => {
       makeTask({ id: "bitti", date: "2026-07-09", status: "done" }),
     ];
     expect(getTasksForDate(tasks, "2026-07-09").map((t) => t.id)).toEqual(["a", "b"]);
+  });
+
+  it("yeni plan tarihini eski date alanına tercih eder", () => {
+    const task = makeTask({ date: "2026-07-09", scheduledDate: "2026-07-11" });
+    expect(getTasksForDate([task], "2026-07-09")).toHaveLength(0);
+    expect(getTasksForDate([task], "2026-07-11")).toHaveLength(1);
+  });
+});
+
+describe("ajanda tarih ve saat yardımcıları", () => {
+  it("eski görevlerde date alanına güvenli biçimde geri düşer", () => {
+    const legacy = makeTask({ date: "2026-07-09" });
+    expect(getTaskDueDate(legacy)).toBe("2026-07-09");
+    expect(getTaskScheduledDate(legacy)).toBe("2026-07-09");
+  });
+
+  it("takvim saatini dakikaya ve tekrar saate dönüştürür", () => {
+    expect(timeToMinutes("09:45")).toBe(585);
+    expect(minutesToTime(585)).toBe("09:45");
+    expect(timeToMinutes("geçersiz")).toBeNull();
+  });
+
+  it("bitiş saati yoksa tahmini süreden üretir", () => {
+    expect(taskEndTime(makeTask({ scheduledStartTime: "10:30", estimatedMinutes: 45 }))).toBe("11:15");
+  });
+
+  it("tekrarlanan görevi doğru takvim günlerine taşır", () => {
+    const weekly = makeTask({ scheduledDate: "2026-08-27", recurrence: "weekly" });
+    expect(taskOccursOnDate(weekly, "2026-09-03")).toBe(true);
+    expect(taskOccursOnDate(weekly, "2026-09-04")).toBe(false);
+    expect(taskOccursOnDate(weekly, "2026-08-20")).toBe(false);
   });
 });
 

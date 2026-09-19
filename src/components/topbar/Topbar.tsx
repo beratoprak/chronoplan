@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { parseISO, format } from "date-fns";
-import { Menu, Plus, Search, CalendarPlus, LogOut, Loader2, Sun, Moon, Clock, CloudOff } from "lucide-react";
+import { parseISO, format, addDays, addWeeks, addMonths } from "date-fns";
+import { Menu, Plus, Search, CalendarPlus, LogOut, Loader2, Sun, Moon, Clock, CloudOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MONTH_NAMES_TR, DAY_NAMES_TR, DATE_FORMAT } from "@/lib/dates";
@@ -45,21 +45,26 @@ function LiveClock() {
 }
 
 const VIEW_TABS: { id: ViewType; label: string }[] = [
-  { id: "daily", label: "Günlük" },
-  { id: "weekly", label: "Haftalık" },
-  { id: "monthly", label: "Aylık" },
-  { id: "kanban", label: "Kanban" },
-  { id: "notes", label: "Notlar" },
-  { id: "media", label: "Medya" },
-  { id: "pomodoro", label: "Pomodoro" },
+  { id: "daily", label: "Gün" },
+  { id: "weekly", label: "Hafta" },
+  { id: "monthly", label: "Ay" },
 ];
 
 export function Topbar() {
   const { selectedDate, setSelectedDate, currentView, setView, toggleSidebar, openTaskModal, openEventModal, openSearch, user, syncStatus, hasSyncedOnce, signOut, theme, setTheme, isDemoMode } = useAppStore();
   const date = parseISO(selectedDate);
   const dayOfWeek = DAY_NAMES_TR[(date.getDay() + 6) % 7]; // Monday-first
+  const isSchoolView = currentView === "school";
 
   const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const moveDate = (direction: -1 | 1) => {
+    const next = currentView === "monthly"
+      ? addMonths(date, direction)
+      : currentView === "weekly"
+        ? addWeeks(date, direction)
+        : addDays(date, direction);
+    setSelectedDate(format(next, DATE_FORMAT));
+  };
 
   return (
     <header
@@ -74,12 +79,16 @@ export function Topbar() {
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={toggleSidebar}
-          className="p-1.5 rounded-lg hover:bg-cream-200 transition-colors shrink-0"
+          className="cp-icon-button shrink-0"
           style={{ color: "var(--text-tertiary)" }}
+          aria-label="Menüyü aç veya kapat"
         >
           <Menu size={18} />
         </button>
-        <div className="flex items-baseline gap-1 sm:gap-2 min-w-0">
+        {isSchoolView ? (
+          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Okul ajandası</span>
+        ) : <div className="flex items-center gap-1 min-w-0">
+          <button onClick={() => moveDate(-1)} className="cp-icon-button hidden sm:flex" aria-label="Önceki dönem"><ChevronLeft size={16} /></button>
           <button
             onClick={() => setSelectedDate(format(new Date(), DATE_FORMAT))}
             className="text-sm sm:text-base font-medium truncate text-left hover:opacity-75 transition-opacity"
@@ -92,11 +101,12 @@ export function Topbar() {
             {dayOfWeek}
           </span>
           <LiveClock />
-        </div>
+          <button onClick={() => moveDate(1)} className="cp-icon-button hidden sm:flex" aria-label="Sonraki dönem"><ChevronRight size={16} /></button>
+        </div>}
       </div>
 
       {/* Center: view tabs — hidden on mobile */}
-      <div className="cp-view-tabs hidden md:flex">
+      {!isSchoolView && <div className="cp-view-tabs hidden md:flex" aria-label="Takvim görünümü">
         {VIEW_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -106,7 +116,7 @@ export function Topbar() {
             {tab.label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Right: actions */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -132,7 +142,7 @@ export function Topbar() {
           onClick={() => setTheme(isDark ? "light" : "dark")}
           className="p-1.5 rounded-lg hover:bg-cream-200 transition-colors"
           style={{ color: "var(--text-tertiary)" }}
-          title={isDark ? "Acik tema" : "Koyu tema"}
+          title={isDark ? "Açık tema" : "Koyu tema"}
         >
           {isDark ? <Sun size={16} /> : <Moon size={16} />}
         </button>
@@ -164,10 +174,10 @@ export function Topbar() {
         </button>
         <button
           onClick={() => openTaskModal()}
-          className="cp-btn cp-btn-primary text-xs gap-1.5"
+          className="cp-btn cp-btn-primary text-xs gap-1.5 hidden md:inline-flex"
         >
           <Plus size={14} />
-          <span className="hidden sm:inline">Yeni gorev</span>
+          <span className="hidden sm:inline">Yeni görev</span>
         </button>
         {/* Cikis yap — sadece giris yapilmissa ve demo degilse */}
         {user && !isDemoMode && (
@@ -175,7 +185,7 @@ export function Topbar() {
             onClick={() => signOut()}
             className="p-1.5 rounded-lg hover:bg-cream-200 transition-colors"
             style={{ color: "var(--text-tertiary)" }}
-            title="Cikis Yap"
+            title="Çıkış yap"
           >
             <LogOut size={16} />
           </button>

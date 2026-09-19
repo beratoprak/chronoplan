@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { UpdateNotifier } from "@/components/UpdateNotifier";
+import { ServiceWorkerRegistrar } from "@/components/shared/ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
-  title: "Epoche — Profesyonel Takvim & Planlama",
-  description: "Günlük notlar, haftalık planlama, kanban board ve takvim — hepsi bir arada.",
+  title: "Epoche — Takvimin Üzerindeki Dijital Ajanda",
+  description: "Notlarınızı, görevlerinizi, takviminizi ve odak zamanınızı aynı günlük akışta birleştirin.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#A0825C",
+  themeColor: "#8A6B43",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -37,6 +38,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className="antialiased">
+        <ServiceWorkerRegistrar />
         {children}
         <UpdateNotifier />
       </body>

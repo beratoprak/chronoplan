@@ -23,6 +23,7 @@ const TAG_COLORS: { value: TagColor; label: string; dot: string; bg: string }[] 
   { value: "personal", label: "Kişisel", dot: "var(--tag-personal)", bg: "var(--tag-personal-bg)" },
   { value: "project", label: "Proje", dot: "var(--tag-project)", bg: "var(--tag-project-bg)" },
   { value: "meeting", label: "Toplantı", dot: "var(--tag-meeting)", bg: "var(--tag-meeting-bg)" },
+  { value: "school", label: "Okul", dot: "var(--tag-school)", bg: "var(--tag-school-bg)" },
 ];
 
 const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
@@ -45,6 +46,7 @@ export function EventModal() {
   const {
     isEventModalOpen,
     editingEvent,
+    eventDraft,
     closeEventModal,
     addEvent,
     updateEvent,
@@ -84,18 +86,18 @@ export function EventModal() {
       } else {
         setTitle("");
         setDescription("");
-        setDate(selectedDate);
-        setStartTime("09:00");
-        setEndTime("10:00");
-        setTagColor("work");
-        setIsAllDay(false);
-        setRecurrence("none");
+        setDate(eventDraft?.date ?? selectedDate);
+        setStartTime(eventDraft?.startTime ?? "09:00");
+        setEndTime(eventDraft?.endTime ?? "10:00");
+        setTagColor(eventDraft?.tagColor ?? "work");
+        setIsAllDay(eventDraft?.isAllDay ?? false);
+        setRecurrence(eventDraft?.recurrence ?? "none");
         setRecurrenceEndDate("");
       }
 
       setTimeout(() => titleRef.current?.focus(), 100);
     }
-  }, [isEventModalOpen, editingEvent, selectedDate]);
+  }, [isEventModalOpen, editingEvent, selectedDate, eventDraft]);
 
   // ── Escape key ────────────────────────────────────────────
   useEffect(() => {

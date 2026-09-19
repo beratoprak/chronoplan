@@ -1,317 +1,194 @@
 "use client";
 
-import { Fragment, useMemo } from "react";
-import { parseISO, format } from "date-fns";
+import { useMemo } from "react";
+import { format, parseISO } from "date-fns";
+import { Clock3, Plus } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { getWeekDays, isTodayDate, WEEKDAY_LABELS_SHORT, DATE_FORMAT } from "@/lib/dates";
-import { buildWeekHours, eventsInSlot, isAllDayOrTimeless, getTasksForDate } from "@/lib/planner";
-import { cn } from "@/lib/utils";
-import type { CalendarEvent } from "@/types";
+import { DATE_FORMAT, getWeekDays, isTodayDate, WEEKDAY_LABELS_SHORT } from "@/lib/dates";
+import { getTasksForDate, minutesToTime, taskEndTime, timeToMinutes } from "@/lib/planner";
+import type { CalendarEvent, Task } from "@/types";
 
-// Tema değişkenleri: açık modda pastel, koyu modda Apple Takvim tarzı doygun
-const TAG_EVENT_STYLES: Record<string, { bg: string; color: string }> = {
-  work: { bg: "var(--tag-work-bg)", color: "var(--tag-work-text)" },
-  personal: { bg: "var(--tag-personal-bg)", color: "var(--tag-personal-text)" },
-  project: { bg: "var(--tag-project-bg)", color: "var(--tag-project-text)" },
-  meeting: { bg: "var(--tag-meeting-bg)", color: "var(--tag-meeting-text)" },
+const HOUR_HEIGHT = 64;
+const START_HOUR = 7;
+const END_HOUR = 22;
+const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => START_HOUR + index);
+
+const EVENT_STYLES: Record<string, { bg: string; color: string; border: string }> = {
+  work: { bg: "var(--tag-work-bg)", color: "var(--tag-work-text)", border: "var(--tag-work)" },
+  personal: { bg: "var(--tag-personal-bg)", color: "var(--tag-personal-text)", border: "var(--tag-personal)" },
+  project: { bg: "var(--tag-project-bg)", color: "var(--tag-project-text)", border: "var(--tag-project)" },
+  meeting: { bg: "var(--tag-meeting-bg)", color: "var(--tag-meeting-text)", border: "var(--tag-meeting)" },
+  school: { bg: "var(--tag-school-bg)", color: "var(--tag-school-text)", border: "var(--tag-school)" },
 };
 
-const GRID_COLS = "56px repeat(7, minmax(100px, 1fr))";
-
 export function WeeklyView() {
-  const { selectedDate, events, tasks, setSelectedDate, openEventModal, openTaskModal, getExpandedEvents } = useAppStore();
-  const date = parseISO(selectedDate);
-  const weekDays = useMemo(() => getWeekDays(date), [selectedDate]);
+  const {
+    selectedDate,
+    events,
+    tasks,
+    setSelectedDate,
+    setView,
+    openEventModal,
+    openTaskModal,
+    updateTask,
+    updateEvent,
+    getExpandedEvents,
+  } = useAppStore();
+  const weekDays = useMemo(() => getWeekDays(parseISO(selectedDate)), [selectedDate]);
+  const weekStart = format(weekDays[0], DATE_FORMAT);
+  const weekEnd = format(weekDays[6], DATE_FORMAT);
+  const expandedEvents = useMemo(() => getExpandedEvents(weekStart, weekEnd), [events, weekStart, weekEnd, getExpandedEvents]);
 
-  const weekStart = useMemo(() => format(weekDays[0], DATE_FORMAT), [weekDays]);
-  const weekEnd = useMemo(() => format(weekDays[weekDays.length - 1], DATE_FORMAT), [weekDays]);
-
-  const expandedEvents = useMemo(
-    () => getExpandedEvents(weekStart, weekEnd),
-    [events, weekStart, weekEnd, getExpandedEvents]
-  );
-
-  // Saat aralığı etkinliklere göre otomatik genişler — hiçbir etkinlik kaybolmaz
-  const hours = useMemo(() => buildWeekHours(expandedEvents), [expandedEvents]);
-
-  const eventsByDate = useMemo(() => {
-    const map: Record<string, CalendarEvent[]> = {};
-    expandedEvents.forEach((e) => {
-      if (!map[e.date]) map[e.date] = [];
-      map[e.date].push(e);
-    });
+  const byDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    for (const event of expandedEvents) map.set(event.date, [...(map.get(event.date) ?? []), event]);
     return map;
   }, [expandedEvents]);
 
-  const allDayByDate = useMemo(() => {
-    const map: Record<string, CalendarEvent[]> = {};
-    expandedEvents.filter(isAllDayOrTimeless).forEach((e) => {
-      if (!map[e.date]) map[e.date] = [];
-      map[e.date].push(e);
-    });
-    return map;
-  }, [expandedEvents]);
-
-  const tasksByDate = useMemo(() => {
-    const map: Record<string, ReturnType<typeof getTasksForDate>> = {};
-    weekDays.forEach((day) => {
-      const dateStr = format(day, DATE_FORMAT);
-      map[dateStr] = getTasksForDate(tasks, dateStr);
-    });
-    return map;
-  }, [tasks, weekDays]);
-
-  const hasAllDay = useMemo(
-    () => Object.values(allDayByDate).some((list) => list.length > 0),
-    [allDayByDate]
-  );
-  const hasTasks = useMemo(
-    () => Object.values(tasksByDate).some((list) => list.length > 0),
-    [tasksByDate]
-  );
-
-  function handleEventClick(e: React.MouseEvent, event: CalendarEvent) {
-    e.stopPropagation();
-    // Tekrarlı oluşum id'si "orijinal-YYYY-MM-DD" — düzenleme orijinali açar
-    const original = events.find((ev) => ev.id === event.id) ?? events.find((ev) => event.id.startsWith(`${ev.id}-`));
+  function openEvent(event: CalendarEvent) {
+    const original = events.find((item) => item.id === event.id) ?? events.find((item) => event.id.startsWith(`${item.id}-`));
     openEventModal(original ?? event);
   }
 
-  // ── Mobil: ajanda listesi (yatay kaydırma yok) ──────────────
-  const agenda = (
-    <div className="flex flex-col gap-2 md:hidden animate-fade-in">
-      {weekDays.map((day) => {
-        const dateStr = format(day, DATE_FORMAT);
-        const today = isTodayDate(day);
-        const dayEvents = (eventsByDate[dateStr] ?? [])
-          .slice()
-          .sort((a, b) => (a.isAllDay ? "" : a.startTime ?? "99").localeCompare(b.isAllDay ? "" : b.startTime ?? "99"));
-        const dayTasks = tasksByDate[dateStr] ?? [];
-        const isEmpty = dayEvents.length === 0 && dayTasks.length === 0;
+  function dropOnTimeline(event: React.DragEvent, date: string, column: HTMLDivElement) {
+    event.preventDefault();
+    const bounds = column.getBoundingClientRect();
+    const minutes = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, START_HOUR * 60 + Math.round(((event.clientY - bounds.top) / HOUR_HEIGHT) * 4) * 15));
+    const startTime = minutesToTime(minutes);
+    const taskId = event.dataTransfer.getData("application/x-epoche-task");
+    const eventId = event.dataTransfer.getData("application/x-epoche-event");
 
-        return (
-          <div
-            key={`ag-${dateStr}`}
-            className="rounded-xl p-3"
-            style={{
-              background: today ? "var(--brand-gold-light)" : "var(--surface-base)",
-              border: `0.5px solid ${today ? "var(--brand-gold)" : "var(--border-default)"}`,
-            }}
-          >
-            <button
-              onClick={() => setSelectedDate(dateStr)}
-              className="flex items-baseline gap-2 w-full text-left mb-1"
-            >
-              <span
-                className="text-base font-semibold tabular-nums"
-                style={{ color: today ? "var(--brand-gold)" : "var(--text-primary)" }}
-              >
-                {day.getDate()}
-              </span>
-              <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                {WEEKDAY_LABELS_SHORT[(day.getDay() + 6) % 7]}
-                {today && " · Bugün"}
-              </span>
-            </button>
-
-            {isEmpty ? (
-              <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                Boş
-              </p>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {dayEvents.map((event) => (
-                  <button
-                    key={event.id}
-                    onClick={(e) => handleEventClick(e, event)}
-                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left min-h-[36px]"
-                    style={{
-                      background: TAG_EVENT_STYLES[event.tagColor]?.bg || "var(--surface-sunken)",
-                      color: TAG_EVENT_STYLES[event.tagColor]?.color || "var(--text-primary)",
-                    }}
-                  >
-                    <span className="text-[11px] font-semibold tabular-nums shrink-0 w-12">
-                      {event.isAllDay || !event.startTime ? "Gün" : event.startTime}
-                    </span>
-                    <span className="text-[13px] font-medium truncate">{event.title}</span>
-                  </button>
-                ))}
-                {dayTasks.map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => openTaskModal(task)}
-                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left min-h-[36px]"
-                    style={{ background: "var(--surface-sunken)" }}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0 ml-1 mr-1"
-                      style={{ background: `var(--priority-${task.priority})` }}
-                    />
-                    <span className="text-[13px] truncate" style={{ color: "var(--text-secondary)" }}>
-                      {task.title}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+    if (taskId) {
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) return;
+      updateTask(taskId, {
+        scheduledDate: date,
+        scheduledStartTime: startTime,
+        scheduledEndTime: taskEndTime({ ...task, scheduledStartTime: startTime, scheduledEndTime: undefined }),
+      });
+    } else if (eventId) {
+      const original = events.find((item) => item.id === eventId);
+      if (!original || original.recurrence !== "none") return;
+      const originalStart = timeToMinutes(original.startTime) ?? minutes;
+      const originalEnd = timeToMinutes(original.endTime) ?? originalStart + 60;
+      const duration = Math.max(15, originalEnd - originalStart);
+      updateEvent(eventId, { date, startTime, endTime: minutesToTime(minutes + duration) });
+    }
+  }
 
   return (
-    <>
-      {agenda}
-      <div className="animate-fade-in overflow-x-auto min-w-0 hidden md:block">
-      {/* Week header */}
-      <div className="grid gap-px mb-1" style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px" }}>
-        <div />
+    <div className="animate-fade-in min-w-0">
+      <div className="md:hidden grid gap-3">
         {weekDays.map((day) => {
-          const dateStr = format(day, DATE_FORMAT);
-          const today = isTodayDate(day);
+          const date = format(day, DATE_FORMAT);
+          const dayEvents = (byDate.get(date) ?? []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+          const dayTasks = getTasksForDate(tasks, date);
           return (
-            <button
-              key={dateStr}
-              onClick={() => setSelectedDate(dateStr)}
-              className="text-center py-2 rounded-lg transition-colors hover:bg-cream-200"
-            >
-              <div className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                {WEEKDAY_LABELS_SHORT[(day.getDay() + 6) % 7]}
+            <section key={date} className="rounded-2xl p-3.5" style={{ background: isTodayDate(day) ? "var(--brand-gold-light)" : "var(--surface-base)", border: `1px solid ${isTodayDate(day) ? "var(--brand-gold)" : "var(--border-default)"}` }}>
+              <button onClick={() => { setSelectedDate(date); setView("daily"); }} className="w-full flex items-center justify-between text-left min-h-11">
+                <span>
+                  <span className="text-[18px] font-semibold" style={{ color: "var(--text-primary)" }}>{day.getDate()}</span>
+                  <span className="text-[12px] ml-2" style={{ color: "var(--text-tertiary)" }}>{WEEKDAY_LABELS_SHORT[(day.getDay() + 6) % 7]}{isTodayDate(day) ? " · Bugün" : ""}</span>
+                </span>
+                <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>{dayEvents.length + dayTasks.length} kayıt</span>
+              </button>
+              <div className="grid gap-1.5 mt-1">
+                {dayEvents.map((item) => <AgendaEvent key={item.id} event={item} onClick={() => openEvent(item)} />)}
+                {dayTasks.map((task) => <AgendaTask key={task.id} task={task} onClick={() => openTaskModal(task)} />)}
+                {!dayEvents.length && !dayTasks.length && (
+                  <button onClick={() => openEventModal(undefined, { date })} className="min-h-11 rounded-xl text-[12px] flex items-center justify-center gap-1.5" style={{ color: "var(--text-tertiary)", background: "var(--surface-sunken)" }}><Plus size={14} /> Plan ekle</button>
+                )}
               </div>
-              <div
-                className={cn("text-base font-medium", today && "text-gold-500")}
-                style={{ color: today ? "var(--brand-gold)" : "var(--text-secondary)" }}
-              >
-                {day.getDate()}
-              </div>
-            </button>
+            </section>
           );
         })}
       </div>
 
-      {/* Tüm gün / saatsiz etkinlikler */}
-      {hasAllDay && (
-        <div className="grid gap-px mb-1" style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px" }}>
-          <div className="text-[10px] text-right pr-2 pt-1" style={{ color: "var(--text-tertiary)" }}>
-            Tüm gün
-          </div>
-          {weekDays.map((day) => {
-            const dateStr = format(day, DATE_FORMAT);
-            const list = allDayByDate[dateStr] ?? [];
-            return (
-              <div key={`ad-${dateStr}`} className="flex flex-col gap-0.5 min-h-[4px]">
-                {list.map((event) => (
-                  <button
-                    key={event.id}
-                    onClick={(e) => handleEventClick(e, event)}
-                    className="rounded px-1.5 py-0.5 text-[11px] font-medium truncate text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
-                    style={{
-                      background: TAG_EVENT_STYLES[event.tagColor]?.bg || "#F5F0E8",
-                      color: TAG_EVENT_STYLES[event.tagColor]?.color || "#4A3F2F",
-                    }}
-                  >
-                    {event.title}
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="hidden md:block overflow-auto rounded-2xl" style={{ border: "1px solid var(--border-default)", background: "var(--surface-base)", maxHeight: "calc(100dvh - 170px)" }}>
+        <div className="min-w-[940px]">
+          <header className="sticky top-0 z-20 grid bg-[var(--surface-raised)]" style={{ gridTemplateColumns: "64px repeat(7,minmax(120px,1fr))", borderBottom: "1px solid var(--border-default)" }}>
+            <div />
+            {weekDays.map((day) => {
+              const date = format(day, DATE_FORMAT);
+              return (
+                <button key={date} onClick={() => setSelectedDate(date)} className="min-h-[62px] py-2 text-center" style={{ borderLeft: "1px solid var(--border-subtle)" }}>
+                  <span className="block text-[10px] uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>{WEEKDAY_LABELS_SHORT[(day.getDay() + 6) % 7]}</span>
+                  <span className="mt-1 inline-flex w-8 h-8 items-center justify-center rounded-full text-[15px] font-semibold" style={{ color: isTodayDate(day) ? "var(--text-inverse)" : "var(--text-primary)", background: isTodayDate(day) ? "var(--brand-gold)" : "transparent" }}>{day.getDate()}</span>
+                </button>
+              );
+            })}
+          </header>
 
-      {/* Günün görevleri */}
-      {hasTasks && (
-        <div
-          className="grid gap-px mb-1 pb-1"
-          style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px", borderBottom: "0.5px solid var(--border-default)" }}
-        >
-          <div className="text-[10px] text-right pr-2 pt-1" style={{ color: "var(--text-tertiary)" }}>
-            Görevler
-          </div>
-          {weekDays.map((day) => {
-            const dateStr = format(day, DATE_FORMAT);
-            const list = tasksByDate[dateStr] ?? [];
-            return (
-              <div key={`tk-${dateStr}`} className="flex flex-col gap-0.5 min-h-[4px]">
-                {list.slice(0, 3).map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => openTaskModal(task)}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] truncate text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)]"
-                    style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)" }}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ background: `var(--priority-${task.priority})` }}
-                    />
-                    <span className="truncate">{task.title}</span>
-                  </button>
-                ))}
-                {list.length > 3 && (
-                  <button
-                    onClick={() => setSelectedDate(dateStr)}
-                    className="text-[10px] text-left px-1.5"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    +{list.length - 3} görev daha
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Time grid */}
-      <div className="grid gap-px" style={{ gridTemplateColumns: GRID_COLS, minWidth: "756px" }}>
-        {hours.map((hour) => (
-          <Fragment key={hour}>
-            <div
-              className="text-[11px] text-right pr-2 min-h-12 flex items-start"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              {hour}
+          <div className="grid" style={{ gridTemplateColumns: "64px repeat(7,minmax(120px,1fr))" }}>
+            <div className="relative" style={{ height: HOURS.length * HOUR_HEIGHT }}>
+              {HOURS.map((hour, index) => <span key={hour} className="absolute right-2 -translate-y-2 text-[10px] tabular-nums" style={{ top: index * HOUR_HEIGHT, color: "var(--text-tertiary)" }}>{String(hour).padStart(2, "0")}:00</span>)}
             </div>
             {weekDays.map((day) => {
-              const dateStr = format(day, DATE_FORMAT);
-              const slotEvents = eventsInSlot(eventsByDate[dateStr] ?? [], hour);
-              const today = isTodayDate(day);
-
+              const date = format(day, DATE_FORMAT);
+              const timedEvents = (byDate.get(date) ?? []).filter((item) => !item.isAllDay && item.startTime);
+              const allDayEvents = (byDate.get(date) ?? []).filter((item) => item.isAllDay || !item.startTime);
+              const dayTasks = getTasksForDate(tasks, date);
               return (
-                <div
-                  key={`${dateStr}-${hour}`}
-                  className="min-h-12 flex flex-col gap-0.5 p-0.5"
-                  style={{
-                    borderTop: "0.5px solid var(--border-default)",
-                    background: today ? "rgba(160, 130, 92, 0.03)" : "transparent",
-                  }}
-                >
-                  {slotEvents.map((event) => (
-                    <button
-                      key={event.id}
-                      onClick={(e) => handleEventClick(e, event)}
-                      className="flex-1 rounded px-1.5 py-1 text-[11px] font-medium text-left transition-all hover:ring-1 hover:ring-[var(--border-accent)] min-h-[22px]"
-                      style={{
-                        background: TAG_EVENT_STYLES[event.tagColor]?.bg || "#F5F0E8",
-                        color: TAG_EVENT_STYLES[event.tagColor]?.color || "#4A3F2F",
-                      }}
-                    >
-                      <span className="block truncate">
-                        {event.startTime && event.startTime.slice(3, 5) !== "00" && (
-                          <span className="opacity-70 mr-1">{event.startTime}</span>
-                        )}
-                        {event.title}
-                      </span>
-                    </button>
-                  ))}
+                <div key={date} className="relative" style={{ height: HOURS.length * HOUR_HEIGHT, borderLeft: "1px solid var(--border-subtle)" }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => dropOnTimeline(e, date, e.currentTarget)} onClick={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  const bounds = e.currentTarget.getBoundingClientRect();
+                  const minutes = START_HOUR * 60 + Math.round(((e.clientY - bounds.top) / HOUR_HEIGHT) * 4) * 15;
+                  openEventModal(undefined, { date, startTime: minutesToTime(minutes), endTime: minutesToTime(minutes + 60) });
+                }}>
+                  {HOURS.map((hour, index) => <div key={hour} className="absolute inset-x-0" style={{ top: index * HOUR_HEIGHT, borderTop: "1px solid var(--border-subtle)" }} />)}
+                  {(allDayEvents.length > 0 || dayTasks.some((task) => !task.scheduledStartTime)) && (
+                    <div className="absolute z-10 inset-x-1 top-1 grid gap-1 max-h-24 overflow-hidden pointer-events-none">
+                      {allDayEvents.slice(0, 2).map((item) => <AgendaEvent key={item.id} event={item} onClick={() => openEvent(item)} compact />)}
+                      {dayTasks.filter((task) => !task.scheduledStartTime).slice(0, 2).map((task) => <AgendaTask key={task.id} task={task} onClick={() => openTaskModal(task)} compact />)}
+                    </div>
+                  )}
+                  {timedEvents.map((item) => <TimelineEvent key={item.id} event={item} onClick={() => openEvent(item)} onDragStart={(e) => {
+                    const original = events.find((candidate) => candidate.id === item.id) ?? events.find((candidate) => item.id.startsWith(`${candidate.id}-`));
+                    if (original?.recurrence === "none") e.dataTransfer.setData("application/x-epoche-event", original.id);
+                  }} />)}
+                  {dayTasks.filter((task) => task.scheduledStartTime).map((task) => <TimelineTask key={task.id} task={task} onClick={() => openTaskModal(task)} />)}
+                  {isTodayDate(day) && <NowLine />}
                 </div>
               );
             })}
-          </Fragment>
-        ))}
+          </div>
         </div>
       </div>
-    </>
+      <p className="hidden md:block text-[11px] mt-2" style={{ color: "var(--text-tertiary)" }}>Boş bir saate tıklayarak zaman bloğu oluşturabilir; görevleri ve tekil etkinlikleri sürükleyerek yeniden planlayabilirsiniz.</p>
+    </div>
   );
+}
+
+function AgendaEvent({ event, onClick, compact = false }: { event: CalendarEvent; onClick: () => void; compact?: boolean }) {
+  const style = EVENT_STYLES[event.tagColor] ?? EVENT_STYLES.work;
+  return <button onClick={(e) => { e.stopPropagation(); onClick(); }} className={`pointer-events-auto flex items-center gap-2 text-left rounded-lg px-2.5 ${compact ? "min-h-7 text-[10px]" : "min-h-11 text-[12px]"}`} style={{ background: style.bg, color: style.color, borderLeft: `3px solid ${style.border}` }}><span className="font-semibold tabular-nums shrink-0">{event.startTime || "Tüm gün"}</span><span className="font-medium truncate">{event.title}</span></button>;
+}
+
+function AgendaTask({ task, onClick, compact = false }: { task: Task; onClick: () => void; compact?: boolean }) {
+  return <button draggable onDragStart={(e) => e.dataTransfer.setData("application/x-epoche-task", task.id)} onClick={(e) => { e.stopPropagation(); onClick(); }} className={`pointer-events-auto flex items-center gap-2 text-left rounded-lg px-2.5 ${compact ? "min-h-7 text-[10px]" : "min-h-11 text-[12px]"}`} style={{ background: "var(--surface-sunken)", color: "var(--text-secondary)", borderLeft: `3px solid var(--priority-${task.priority})` }}><span className="font-semibold tabular-nums shrink-0">{task.scheduledStartTime || "Görev"}</span><span className="truncate">{task.title}</span></button>;
+}
+
+function TimelineEvent({ event, onClick, onDragStart }: { event: CalendarEvent; onClick: () => void; onDragStart: (e: React.DragEvent<HTMLButtonElement>) => void }) {
+  const start = timeToMinutes(event.startTime) ?? START_HOUR * 60;
+  const end = Math.max(start + 30, timeToMinutes(event.endTime) ?? start + 60);
+  const top = ((start - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+  const height = Math.max(28, ((end - start) / 60) * HOUR_HEIGHT);
+  const style = EVENT_STYLES[event.tagColor] ?? EVENT_STYLES.work;
+  return <button draggable onDragStart={onDragStart} onClick={(e) => { e.stopPropagation(); onClick(); }} className="absolute z-[5] left-1 right-1 rounded-lg px-2 py-1.5 text-left overflow-hidden shadow-sm" style={{ top, height, background: style.bg, color: style.color, borderLeft: `3px solid ${style.border}` }}><span className="block text-[11px] font-semibold truncate">{event.title}</span><span className="block text-[9px] mt-0.5 tabular-nums opacity-80">{event.startTime}–{event.endTime}</span></button>;
+}
+
+function TimelineTask({ task, onClick }: { task: Task; onClick: () => void }) {
+  const start = timeToMinutes(task.scheduledStartTime) ?? START_HOUR * 60;
+  const end = timeToMinutes(taskEndTime(task)) ?? start + 30;
+  const top = ((start - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+  const height = Math.max(28, ((Math.max(end, start + 30) - start) / 60) * HOUR_HEIGHT);
+  return <button draggable onDragStart={(e) => e.dataTransfer.setData("application/x-epoche-task", task.id)} onClick={(e) => { e.stopPropagation(); onClick(); }} className="absolute z-[6] left-2 right-2 rounded-lg px-2 py-1.5 text-left overflow-hidden" style={{ top, height, background: "var(--surface-raised)", color: "var(--text-primary)", border: `1px dashed var(--priority-${task.priority})` }}><span className="block text-[10px] font-semibold truncate">{task.title}</span><span className="block text-[9px] mt-0.5 tabular-nums" style={{ color: "var(--text-tertiary)" }}><Clock3 size={9} className="inline mr-1" />{task.scheduledStartTime}</span></button>;
+}
+
+function NowLine() {
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  if (minutes < START_HOUR * 60 || minutes > END_HOUR * 60) return null;
+  const top = ((minutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+  return <div className="absolute z-10 inset-x-0 h-px pointer-events-none" style={{ top, background: "var(--danger-text)" }}><span className="absolute -left-1 -top-1 w-2 h-2 rounded-full" style={{ background: "var(--danger-text)" }} /></div>;
 }

@@ -13,9 +13,11 @@ export function SearchModal() {
     tasks,
     events,
     notes,
+    richNotes,
     setSelectedDate,
     setView,
     openTaskModal,
+    requestRichNote,
   } = useAppStore();
 
   const [query, setQuery] = useState("");
@@ -96,8 +98,25 @@ export function SearchModal() {
       }
     }
 
+    // Bağımsız notlar
+    for (const note of richNotes) {
+      if (
+        note.title.toLowerCase().includes(q) ||
+        note.content.toLowerCase().includes(q) ||
+        note.tags.some((tag) => tag.toLowerCase().includes(q))
+      ) {
+        out.push({
+          type: "rich_note",
+          id: note.id,
+          title: note.title || "Başlıksız not",
+          subtitle: note.content.slice(0, 80).replace(/\n/g, " "),
+          date: note.updatedAt.slice(0, 10),
+        });
+      }
+    }
+
     return out.slice(0, 20);
-  }, [query, tasks, events, notes]);
+  }, [query, tasks, events, notes, richNotes]);
 
   // Sonuca tıklayınca navigate et
   function handleSelect(result: SearchResult) {
@@ -108,6 +127,9 @@ export function SearchModal() {
       if (task) openTaskModal(task);
     } else if (result.type === "event") {
       setView("daily");
+    } else if (result.type === "rich_note") {
+      requestRichNote(result.id);
+      setView("notes");
     } else {
       setView("daily");
     }
@@ -120,6 +142,7 @@ export function SearchModal() {
     task: results.filter((r) => r.type === "task"),
     event: results.filter((r) => r.type === "event"),
     note: results.filter((r) => r.type === "note"),
+    rich_note: results.filter((r) => r.type === "rich_note"),
   };
 
   const hasResults = results.length > 0;
@@ -186,11 +209,11 @@ export function SearchModal() {
         {/* Sonuçlar */}
         {hasResults && (
           <div className="overflow-y-auto" style={{ maxHeight: "420px" }}>
-            {(["task", "event", "note"] as const).map((type) => {
+            {(["task", "event", "note", "rich_note"] as const).map((type) => {
               const items = grouped[type];
               if (items.length === 0) return null;
 
-              const label = type === "task" ? "Görevler" : type === "event" ? "Etkinlikler" : "Notlar";
+              const label = type === "task" ? "Görevler" : type === "event" ? "Etkinlikler" : type === "note" ? "Günlük notlar" : "Bağımsız notlar";
               const Icon = type === "task" ? CheckSquare : type === "event" ? Calendar : FileText;
 
               return (
