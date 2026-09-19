@@ -195,6 +195,8 @@ export function SchoolView() {
         modulesByUnit.get(unitId) ?? [],
         questionsByUnit.get(unitId) ?? [],
       );
+      // Not konuya bağlanıyor: panel hangi konunun notu olduğunu buradan biliyor,
+      // Notlar görünümü de dersine göre gruplayabiliyor.
       const not = addRichNote({ ...tohum, pinned: false });
       if (user?.id) await setUnitNote(user.id, unitId, not.id);
       requestRichNote(not.id);

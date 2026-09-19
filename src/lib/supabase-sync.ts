@@ -88,6 +88,10 @@ interface RichNoteRow {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+  unit_id?: string | null;
+  ders_kodu?: string | null;
+  kind?: string | null;
+  icon?: string | null;
 }
 
 interface MediaItemRow {
@@ -271,6 +275,10 @@ export function richNoteToRow(note: RichNote, userId: string): RichNoteRow {
     created_at: note.createdAt,
     updated_at: note.updatedAt,
     deleted_at: null,
+    unit_id: note.unitId ?? null,
+    ders_kodu: note.dersKodu ?? null,
+    kind: note.kind ?? "serbest",
+    icon: note.icon ?? null,
   };
 }
 
@@ -283,6 +291,10 @@ function rowToRichNote(row: RichNoteRow): RichNote {
     pinned: row.pinned,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    unitId: row.unit_id ?? undefined,
+    dersKodu: row.ders_kodu ?? undefined,
+    kind: (row.kind as RichNote["kind"]) ?? "serbest",
+    icon: row.icon ?? undefined,
   };
 }
 

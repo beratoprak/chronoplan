@@ -5,6 +5,7 @@ import { Plus, Search, Trash2, Pin, PinOff, Tag, X, Edit3 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useAppStore } from "@/lib/store";
 import { aranabilirMetin } from "@/lib/note-content";
+import { baglantilariCozumle, geriBaglantilar } from "@/lib/note-links";
 
 // BlockNote tarayıcıya bağımlı; sunucuda çizilirse hydration hatası veriyor.
 const BlockEditor = dynamic(() => import("@/components/editor/BlockEditor").then((m) => m.BlockEditor), {
@@ -65,6 +66,18 @@ export function NotesView() {
   }, [richNotes, search, filterTag]);
 
   const selected = richNotes.find((n) => n.id === selectedId) || null;
+
+  // Bağlantılar ayrı bir tabloda tutulmuyor; notun metninden hesaplanıyor.
+  // Böylece bir notun adı değiştiğinde ya da yeni not açıldığında bağlantılar
+  // kendiliğinden güncel kalıyor, bakım gerektiren ikinci bir gerçek olmuyor.
+  const cikanBaglantilar = useMemo(
+    () => (selected ? baglantilariCozumle(editingContent, richNotes) : []),
+    [selected, editingContent, richNotes],
+  );
+  const gelenBaglantilar = useMemo(
+    () => (selected ? geriBaglantilar(selected.id, richNotes) : []),
+    [selected, richNotes],
+  );
 
   useEffect(() => {
     if (!requestedRichNoteId) return;
@@ -353,6 +366,61 @@ export function NotesView() {
               {aranabilirMetin(editingContent).split(/\s+/).filter(Boolean).length} kelime
             </span>
           </div>
+
+          {(cikanBaglantilar.length > 0 || gelenBaglantilar.length > 0) && (
+            <div className="px-6 py-3 space-y-3" style={{ borderTop: "0.5px solid var(--border-default)" }}>
+              {cikanBaglantilar.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: "var(--text-tertiary)" }}>
+                    Bu nottan çıkanlar
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {cikanBaglantilar.map((bag) => {
+                      const hedef = bag.targetId ? richNotes.find((n) => n.id === bag.targetId) : null;
+                      return (
+                        <button
+                          key={bag.text}
+                          onClick={() => hedef && openNote(hedef)}
+                          disabled={!hedef}
+                          className="rounded-full px-2.5 py-1 text-[11px] disabled:opacity-50 disabled:cursor-default"
+                          style={{
+                            background: hedef ? "var(--surface-sunken)" : "transparent",
+                            border: hedef ? "none" : "0.5px dashed var(--border-default)",
+                            color: hedef ? "var(--text-primary)" : "var(--text-tertiary)",
+                          }}
+                          title={hedef ? "Nota git" : "Bu başlıkta not yok"}
+                        >
+                          {bag.text}{!hedef && " · yok"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {gelenBaglantilar.length > 0 && (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: "var(--text-tertiary)" }}>
+                    Buraya bağlananlar ({gelenBaglantilar.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {gelenBaglantilar.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => {
+                          const tam = richNotes.find((x) => x.id === n.id);
+                          if (tam) openNote(tam);
+                        }}
+                        className="rounded-full px-2.5 py-1 text-[11px]"
+                        style={{ background: "var(--surface-sunken)", color: "var(--text-primary)" }}
+                      >
+                        {n.title || "Başlıksız"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center gap-3">

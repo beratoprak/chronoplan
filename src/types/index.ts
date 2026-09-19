@@ -70,11 +70,16 @@ export interface Task {
 export interface RichNote {
   id: string;
   title: string;
-  content: string; // plain text / markdown
+  content: string; // BlockNote blok JSON'ı; eski kayıtlar düz metin olabilir
   tags: string[]; // free-form tag strings
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Bağlıysa konunun kimliği (ybs_units.id). Serbest notlarda boş. */
+  unitId?: string;
+  dersKodu?: string;
+  kind?: "serbest" | "konu" | "ders";
+  icon?: string;
 }
 
 // ---- Media (Books & Movies) ----
