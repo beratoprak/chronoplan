@@ -9,6 +9,20 @@ import { bloklariYaz, type NoteBlock } from "./note-content";
 import type { StudyModule, StudyQuestion } from "./school-data";
 import type { StudyUnit } from "./study-plan";
 
+/** Kazanım bloğu — outcomeId ile bağlı, metni de taşıyor ki not tek başına okunabilsin. */
+const kazanimBlok = (outcomeId: string, unitId: string, metin: string): NoteBlock =>
+  ({ type: "kazanim", props: { outcomeId, unitId, metin, checked: false }, content: undefined });
+
+const materyalBlok = (m: StudyModule, etiket: string): NoteBlock =>
+  ({ type: "materyal", props: { moduleId: m.id, ad: m.ad, etiket, url: m.oys_url ?? "", dakika: m.tahmini_dakika }, content: undefined });
+
+const soruBlok = (q: StudyQuestion): NoteBlock =>
+  ({ type: "soru", props: {
+      questionId: q.id, govde: q.govde,
+      secenekler: JSON.stringify(q.secenekler ?? []),
+      dogru: q.dogru ?? "", verilen: "",
+    }, content: undefined });
+
 export interface SeededNote {
   title: string;
   content: string;
@@ -39,7 +53,7 @@ const baslik = (text: string, level = 2) => blok("heading", [metin(text)], { lev
 
 export function buildUnitNoteBlocks(
   unit: StudyUnit,
-  outcomes: { metin: string }[],
+  outcomes: { id?: string; metin: string }[],
   modules: StudyModule[],
   questions: StudyQuestion[] = [],
 ): NoteBlock[] {
@@ -53,7 +67,7 @@ export function buildUnitNoteBlocks(
 
   bloklar.push(baslik("Kazanımlar"));
   if (outcomes.length) {
-    for (const o of outcomes) bloklar.push(blok("checkListItem", [metin(o.metin)], { checked: false }));
+    for (const o of outcomes) bloklar.push(kazanimBlok(o.id ?? "", unit.id, o.metin));
   } else {
     // Eksikliği sessizce geçmek yerine söylüyoruz: bilginin yokluğu da bilgi.
     bloklar.push(blok("paragraph", [metin("Bu ders için OYS'de ve kitapta kazanım metni yok.", { italic: true })]));
@@ -65,21 +79,14 @@ export function buildUnitNoteBlocks(
     .sort((a, b) => OKUMA_SIRASI.indexOf(a.etiket) - OKUMA_SIRASI.indexOf(b.etiket));
   if (okunacak.length) {
     bloklar.push(baslik("Materyal"));
-    for (const { m, etiket } of okunacak) {
-      const parcalar: unknown[] = [metin(`${etiket}: `, { bold: true })];
-      if (m.oys_url) parcalar.push({ type: "link", href: m.oys_url, content: [metin(m.ad)] });
-      else parcalar.push(metin(m.ad));
-      bloklar.push(blok("bulletListItem", parcalar));
-    }
+    for (const { m, etiket } of okunacak) bloklar.push(materyalBlok(m, etiket));
   }
 
   bloklar.push(baslik("Özet"), paragraf(), baslik("Anlamadıklarım"), paragraf());
 
   if (questions.length) {
     bloklar.push(baslik(`Çıkmış sorular (${questions.length})`));
-    for (const q of questions) {
-      bloklar.push(blok("checkListItem", [metin(`${q.soru_no}. ${q.govde}`)], { checked: false }));
-    }
+    for (const q of questions) bloklar.push(soruBlok(q));
   }
 
   return bloklar;
@@ -87,7 +94,7 @@ export function buildUnitNoteBlocks(
 
 export function buildUnitNote(
   unit: StudyUnit,
-  outcomes: { metin: string }[],
+  outcomes: { id?: string; metin: string }[],
   modules: StudyModule[],
   questions: StudyQuestion[] = [],
 ): SeededNote {

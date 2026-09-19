@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
+import { okulSemasi } from "./blocks/schema";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { useAppStore } from "@/lib/store";
@@ -24,7 +25,9 @@ export function BlockEditor({ content, onChange, noteId, editable = true }: Prop
   // editörü yeniden kurmak imleci başa atar ve yazmayı imkânsız kılar.
   const initialContent = useMemo(() => bloklariOku(content) as NoteBlock[], [noteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const editor = useCreateBlockNote({ initialContent: initialContent as never }, [noteId]);
+  // Şema her editörde aynı olmak zorunda: kayıtlı olmayan bir blok tipi içeren
+  // not açıldığında BlockNote çöküyor. Özel bloklar tek yerden veriliyor.
+  const editor = useCreateBlockNote({ schema: okulSemasi, initialContent: initialContent as never }, [noteId]);
   const sonYazilan = useRef(content);
 
   useEffect(() => {

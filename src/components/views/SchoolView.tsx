@@ -11,6 +11,7 @@ import { useAppStore } from "@/lib/store";
 import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
 import { buildStudyPlan, type StudyUnit, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
+import { isaretliKazanimlar } from "@/lib/note-blocks";
 import type { CalendarEvent, Task } from "@/types";
 
 const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], sessions: [], warnings: [] };
@@ -73,7 +74,7 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 export function SchoolView() {
   const {
     user, isDemoMode, events, tasks, addRichNote, setView, openTaskModal, syncStatus, updateEvent,
-    requestRichNote,
+    requestRichNote, richNotes,
   } = useAppStore();
   const [data, setData] = useState<SchoolData>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -133,9 +134,10 @@ export function SchoolView() {
     });
   }, [data.units, data.sessions, progressMap, examEvent]);
   const outcomesByUnit = useMemo(() => {
-    const map = new Map<string, string[]>();
+    // Kazanım bloğu kimliğe bağlanıyor, bu yüzden metin değil tam kayıt tutuluyor.
+    const map = new Map<string, { id: string; metin: string }[]>();
     for (const outcome of [...data.outcomes].sort((a, b) => a.sira - b.sira)) {
-      map.set(outcome.unit_id, [...(map.get(outcome.unit_id) ?? []), outcome.metin]);
+      map.set(outcome.unit_id, [...(map.get(outcome.unit_id) ?? []), { id: outcome.id, metin: outcome.metin }]);
     }
     return map;
   }, [data.outcomes]);
@@ -173,6 +175,10 @@ export function SchoolView() {
 
   const unitById = useMemo(() => new Map(data.units.map((u) => [u.id, u])), [data.units]);
 
+  // Kazanım ilerlemesi notlardan okunuyor: notta işaretlediğin kutucuk burada
+  // aynı anda görünüyor, arada senkronlanacak ikinci bir kayıt yok.
+  const isaretli = useMemo(() => isaretliKazanimlar(richNotes), [richNotes]);
+
   /**
    * Konu notunu açar; yoksa kazanımlar, materyal ve çıkmış sorularla dolu bir
    * şablon üretip birime bağlar. Boş bir not kutusu açmak işe yaramıyor —
@@ -191,7 +197,7 @@ export function SchoolView() {
     try {
       const tohum = buildUnitNote(
         unit,
-        (outcomesByUnit.get(unitId) ?? []).map((metin) => ({ metin })),
+        outcomesByUnit.get(unitId) ?? [],
         modulesByUnit.get(unitId) ?? [],
         questionsByUnit.get(unitId) ?? [],
       );
@@ -422,11 +428,27 @@ export function SchoolView() {
                           ))}
                         </div>
                       </div>
-                      {kazanimlar.length > 0 && (
-                        <ul className="mt-2 pl-4 space-y-1 list-disc" style={{ color: "var(--text-secondary)" }}>
-                          {kazanimlar.map((metin) => <li key={metin} className="text-[11px] leading-snug">{metin}</li>)}
-                        </ul>
-                      )}
+                      {kazanimlar.length > 0 && (() => {
+                        const biten = kazanimlar.filter((k) => isaretli.has(k.id)).length;
+                        return (
+                          <>
+                            <p className="text-[10px] mt-2 mb-1" style={{ color: "var(--text-tertiary)" }}>
+                              Kazanım {biten}/{kazanimlar.length}
+                            </p>
+                            <ul className="pl-4 space-y-1 list-disc" style={{ color: "var(--text-secondary)" }}>
+                              {kazanimlar.map((k) => (
+                                <li
+                                  key={k.id}
+                                  className="text-[11px] leading-snug"
+                                  style={isaretli.has(k.id) ? { textDecoration: "line-through", color: "var(--text-tertiary)" } : undefined}
+                                >
+                                  {k.metin}
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        );
+                      })()}
                       {(modulesByUnit.get(oneri.unit_id) ?? []).length > 0 && (
                         <div className="mt-2">
                           <button
