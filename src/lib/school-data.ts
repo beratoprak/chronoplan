@@ -54,6 +54,16 @@ export interface SchoolProfile {
   obs_last_sync_at?: string | null;
 }
 
+export interface StudyModule {
+  id: string;
+  unit_id: string;
+  ad: string;
+  tip: string;
+  oys_url: string | null;
+  tahmini_dakika: number;
+  yerel_dosya: string | null;
+}
+
 export interface StudyQuestion {
   id: string;
   ders_kodu: string;
@@ -88,6 +98,7 @@ export interface SchoolData {
   units: StudyUnit[];
   progress: UnitProgress[];
   outcomes: StudyOutcome[];
+  modules: StudyModule[];
   questions: StudyQuestion[];
   attempts: QuestionAttempt[];
   sessions: StudySession[];
@@ -173,7 +184,7 @@ export function isSchoolSourceStale(source: SchoolSource, now = Date.now()): boo
   return now - Date.parse(source.last_ok_at) > source.max_age_hours * 60 * 60 * 1000;
 }
 
-const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], questions: [], attempts: [], sessions: [], warnings: [] };
+const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], sessions: [], warnings: [] };
 
 function missingTable(error: { code?: string; message?: string } | null): boolean {
   return Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message ?? "")));
@@ -188,7 +199,7 @@ async function readTable<T>(table: string, userId: string): Promise<{ rows: T[];
 
 export async function fetchSchoolData(userId?: string | null): Promise<SchoolData> {
   if (!userId || !isSupabaseConfigured) return EMPTY;
-  const [sources, courses, grades, announcements, profileRows, units, progress, outcomes, questions, attempts, sessions] = await Promise.all([
+  const [sources, courses, grades, announcements, profileRows, units, progress, outcomes, modules, questions, attempts, sessions] = await Promise.all([
     readTable<SchoolSource>("ybs_sources", userId),
     readTable<SchoolCourse>("ybs_courses", userId),
     readTable<SchoolGrade>("ybs_grades", userId),
@@ -197,6 +208,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     readTable<StudyUnit & { deleted_at: string | null }>("ybs_units", userId),
     readTable<UnitProgress>("ybs_unit_progress", userId),
     readTable<StudyOutcome>("ybs_outcomes", userId),
+    readTable<StudyModule & { deleted_at: string | null }>("ybs_modules", userId),
     readTable<StudyQuestion>("ybs_questions", userId),
     readTable<QuestionAttempt>("ybs_question_attempts", userId),
     readTable<{ completed_at: string; duration_minutes: number; phase: string }>("work_sessions", userId),
@@ -211,6 +223,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     units: units.rows.filter((unit) => !unit.deleted_at),
     progress: progress.rows,
     outcomes: outcomes.rows,
+    modules: modules.rows.filter((row) => !row.deleted_at),
     questions: questions.rows,
     attempts: attempts.rows,
     // Yalnız çalışma fazı tempoya sayılır; molalar sayılırsa tempo olduğundan büyük görünür.
@@ -218,7 +231,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
       .filter((row) => row.phase === "work")
       .map((row) => ({ tarih: row.completed_at, dakika: row.duration_minutes })),
     warnings: [sources.warning, courses.warning, grades.warning, announcements.warning, profileRows.warning,
-               units.warning, progress.warning, outcomes.warning, questions.warning, attempts.warning].filter(Boolean) as string[],
+               units.warning, progress.warning, outcomes.warning, modules.warning, questions.warning, attempts.warning].filter(Boolean) as string[],
   };
 }
 
@@ -299,6 +312,7 @@ export function buildSchoolDemoData(): SchoolData {
     ],
     progress: [],
     outcomes: [],
+    modules: [],
     questions: [],
     attempts: [],
     sessions: [],

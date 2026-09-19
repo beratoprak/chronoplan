@@ -12,13 +12,30 @@ import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchool
 import { buildStudyPlan, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
 import type { CalendarEvent, Task } from "@/types";
 
-const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], questions: [], attempts: [], sessions: [], warnings: [] };
+const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], sessions: [], warnings: [] };
 
 const HAL_ETIKET = { yolunda: "Yolunda", geriliyor: "Geriliyor", kritik: "Kritik" } as const;
 const DURUM_ETIKET: Record<UnitProgressState, string> = {
   dokunulmadi: "Başlamadım", calisildi: "Çalıştım", test_edildi: "Test ettim", hakim: "Hakimim",
 };
 const saatce = (dakika: number) => `${(dakika / 60).toFixed(1)} sa`;
+
+/** Modül etiketi: tipten çok adı belirleyici — aynı "resource" hem kitap hem ses olabiliyor. */
+function materyalEtiketi(ad: string, tip: string) {
+  if (/e-?pub/i.test(ad)) return "E-Pub";
+  if (/podcast|ses metni/i.test(ad)) return "Ses";
+  if (/çıkmış|örnek soru/i.test(ad)) return "Çıkmış soru";
+  if (/kitap|ders notu/i.test(ad)) return "Kitap";
+  if (tip === "hvp") return "Video";
+  if (tip === "quiz") return "Test";
+  if (tip === "page") return "Sayfa";
+  if (tip === "folder") return "Klasör";
+  if (tip === "resource") return "Dosya";
+  return tip;
+}
+
+/** Çalışma sırası: önce oku, sonra izle, sonra kendini dene. */
+const MATERYAL_SIRASI = ["Kitap", "Ses", "Video", "Sayfa", "Test", "Çıkmış soru", "Dosya", "Klasör", "E-Pub"];
 
 function isSchoolTask(task: Task) {
   return task.isManaged || task.id.startsWith("ybs-") || task.tags.some((tag) => tag.color === "school" || tag.name.toLocaleLowerCase("tr-TR") === "okul");
@@ -82,7 +99,7 @@ export function SchoolView() {
     if (!isDemoMode || found.length) return found.sort((a, b) => a.date.localeCompare(b.date));
     return [
       { id: "ybs-demo-registration", title: "Ders kaydı ve ödeme son günü", date: "2026-09-27", tagColor: "school", isAllDay: true, recurrence: "none" },
-      { id: "ybs-demo-midterm", title: "Güz ara sınavı", date: "2026-11-28", tagColor: "school", isAllDay: true, recurrence: "none" },
+      { id: "ybs-demo-midterm", title: "Güz ara sınavı", date: "2026-11-14", tagColor: "school", isAllDay: true, recurrence: "none" },
     ] as CalendarEvent[];
   }, [events, isDemoMode]);
   const schoolTasks = useMemo(() => tasks.filter(isSchoolTask).filter((task) => task.status !== "done"), [tasks]);
@@ -129,6 +146,22 @@ export function SchoolView() {
     }
     return map;
   }, [data.questions]);
+
+  const modulesByUnit = useMemo(() => {
+    const map = new Map<string, typeof data.modules>();
+    for (const m of data.modules) {
+      map.set(m.unit_id, [...(map.get(m.unit_id) ?? []), m]);
+    }
+    for (const [k, v] of Array.from(map.entries())) {
+      map.set(k, [...v].sort((a, b) => {
+        const fark = MATERYAL_SIRASI.indexOf(materyalEtiketi(a.ad, a.tip)) - MATERYAL_SIRASI.indexOf(materyalEtiketi(b.ad, b.tip));
+        return fark !== 0 ? fark : a.ad.localeCompare(b.ad, "tr");
+      }));
+    }
+    return map;
+  }, [data.modules]);
+
+  const [acikMateryal, setAcikMateryal] = useState<string | null>(null);
 
   const answerQuestion = useCallback(async (questionId: string, harf: string, dogru: string | null) => {
     setVerilenCevap((onceki) => ({ ...onceki, [questionId]: harf }));
@@ -348,6 +381,44 @@ export function SchoolView() {
                           {kazanimlar.map((metin) => <li key={metin} className="text-[11px] leading-snug">{metin}</li>)}
                         </ul>
                       )}
+                      {(modulesByUnit.get(oneri.unit_id) ?? []).length > 0 && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => setAcikMateryal(acikMateryal === oneri.unit_id ? null : oneri.unit_id)}
+                            className="cp-btn cp-btn-ghost min-h-9 text-[11px]"
+                          >
+                            <BookOpenCheck size={13} />
+                            {acikMateryal === oneri.unit_id ? "Materyali kapat" : `Materyal (${(modulesByUnit.get(oneri.unit_id) ?? []).length})`}
+                          </button>
+                          {acikMateryal === oneri.unit_id && (
+                            <ul className="mt-2 space-y-1">
+                              {(modulesByUnit.get(oneri.unit_id) ?? []).map((mat) => (
+                                <li key={mat.id}>
+                                  <a
+                                    href={mat.oys_url ?? "#"}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] leading-snug"
+                                    style={{ background: "var(--surface-raised)", color: "var(--text-primary)" }}
+                                  >
+                                    <span
+                                      className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                                      style={{ background: "var(--tag-school-bg)", color: "var(--tag-school-text)" }}
+                                    >
+                                      {materyalEtiketi(mat.ad, mat.tip)}
+                                    </span>
+                                    <span className="truncate flex-1">{mat.ad}</span>
+                                    {mat.tahmini_dakika > 0 && (
+                                      <span className="shrink-0" style={{ color: "var(--text-tertiary)" }}>{mat.tahmini_dakika} dk</span>
+                                    )}
+                                    <ArrowUpRight size={12} className="shrink-0" style={{ color: "var(--text-tertiary)" }} />
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                       {(questionsByUnit.get(oneri.unit_id) ?? []).length > 0 && (
                         <div className="mt-2">
                           <button
@@ -411,8 +482,8 @@ export function SchoolView() {
                         }}
                       />
                     </div>
-                    <span className="text-[11px] w-24 text-right shrink-0" style={{ color: "var(--text-tertiary)" }}>
-                      {ders.esikte ? "eşikte ✓" : `${ders.esige_kalan} soru · ${saatce(ders.kalan_dakika)}`}
+                    <span className="text-[11px] w-32 text-right shrink-0" style={{ color: "var(--text-tertiary)" }}>
+                      {ders.esikte ? "eşikte ✓" : `${ders.esige_kalan} soru eksik · ${saatce(ders.kalan_dakika)}`}
                     </span>
                   </div>
                 ))}
