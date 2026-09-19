@@ -8,11 +8,11 @@ import {
   RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveSchoolGrade, setUnitProgress, type SchoolData } from "@/lib/school-data";
+import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveQuestionAttempt, saveSchoolGrade, setUnitProgress, type SchoolData } from "@/lib/school-data";
 import { buildStudyPlan, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
 import type { CalendarEvent, Task } from "@/types";
 
-const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], sessions: [], warnings: [] };
+const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], questions: [], attempts: [], sessions: [], warnings: [] };
 
 const HAL_ETIKET = { yolunda: "Yolunda", geriliyor: "Geriliyor", kritik: "Kritik" } as const;
 const DURUM_ETIKET: Record<UnitProgressState, string> = {
@@ -66,6 +66,8 @@ export function SchoolView() {
   const [gradeStatus, setGradeStatus] = useState<string | null>(null);
   const [ackMessage, setAckMessage] = useState<string | null>(null);
   const [unitBusy, setUnitBusy] = useState<string | null>(null);
+  const [acikSoru, setAcikSoru] = useState<string | null>(null);
+  const [verilenCevap, setVerilenCevap] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,6 +120,21 @@ export function SchoolView() {
     }
     return map;
   }, [data.outcomes]);
+
+  const questionsByUnit = useMemo(() => {
+    const map = new Map<string, typeof data.questions>();
+    for (const q of data.questions) {
+      if (!q.unit_id) continue;
+      map.set(q.unit_id, [...(map.get(q.unit_id) ?? []), q]);
+    }
+    return map;
+  }, [data.questions]);
+
+  const answerQuestion = useCallback(async (questionId: string, harf: string, dogru: string | null) => {
+    setVerilenCevap((onceki) => ({ ...onceki, [questionId]: harf }));
+    if (!user?.id) return;
+    await saveQuestionAttempt(user.id, questionId, harf, harf === dogru);
+  }, [user?.id]);
 
   const markUnit = useCallback(async (unitId: string, durum: UnitProgressState) => {
     if (!user?.id) return;
@@ -330,6 +347,50 @@ export function SchoolView() {
                         <ul className="mt-2 pl-4 space-y-1 list-disc" style={{ color: "var(--text-secondary)" }}>
                           {kazanimlar.map((metin) => <li key={metin} className="text-[11px] leading-snug">{metin}</li>)}
                         </ul>
+                      )}
+                      {(questionsByUnit.get(oneri.unit_id) ?? []).length > 0 && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => setAcikSoru(acikSoru === oneri.unit_id ? null : oneri.unit_id)}
+                            className="cp-btn cp-btn-ghost min-h-9 text-[11px]"
+                          >
+                            <NotebookPen size={13} />
+                            {acikSoru === oneri.unit_id ? "Soruyu kapat" : `Çıkmış soru (${(questionsByUnit.get(oneri.unit_id) ?? []).length})`}
+                          </button>
+                          {acikSoru === oneri.unit_id && (questionsByUnit.get(oneri.unit_id) ?? []).map((soru) => {
+                            const verilen = verilenCevap[soru.id];
+                            return (
+                              <div key={soru.id} className="mt-2 rounded-xl p-3" style={{ background: "var(--surface-raised)" }}>
+                                <p className="text-[12px] leading-snug font-medium">{soru.govde}</p>
+                                <div className="mt-2 space-y-1">
+                                  {soru.secenekler.map((sik) => {
+                                    const secili = verilen === sik.harf;
+                                    const dogruSik = verilen != null && sik.harf === soru.dogru;
+                                    return (
+                                      <button
+                                        key={sik.harf}
+                                        onClick={() => void answerQuestion(soru.id, sik.harf, soru.dogru)}
+                                        disabled={verilen != null}
+                                        className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] leading-snug disabled:cursor-default"
+                                        style={{
+                                          background: dogruSik ? "var(--priority-low-bg)" : secili ? "var(--priority-high-bg)" : "var(--surface-sunken)",
+                                          color: dogruSik ? "var(--priority-low-text)" : secili ? "var(--priority-high-text)" : "var(--text-primary)",
+                                        }}
+                                      >
+                                        <strong className="mr-1.5">{sik.harf})</strong>{sik.metin}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {verilen != null && (
+                                  <p className="text-[11px] mt-2" style={{ color: verilen === soru.dogru ? "var(--priority-low-text)" : "var(--priority-high-text)" }}>
+                                    {verilen === soru.dogru ? "Doğru." : `Yanlış — doğrusu ${soru.dogru}.`}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   );

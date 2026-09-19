@@ -54,6 +54,25 @@ export interface SchoolProfile {
   obs_last_sync_at?: string | null;
 }
 
+export interface StudyQuestion {
+  id: string;
+  ders_kodu: string;
+  unit_id: string | null;
+  soru_no: number;
+  bolum_no: number | null;
+  govde: string;
+  secenekler: { harf: string; metin: string }[];
+  dogru: "A" | "B" | "C" | "D" | "E" | null;
+}
+
+export interface QuestionAttempt {
+  id: string;
+  question_id: string;
+  verilen: string | null;
+  dogru_mu: boolean;
+  cozuldu_at: string;
+}
+
 /** Pomodoro oturumu — çalışma temposunun tek ölçüm kaynağı. */
 export interface StudySession {
   tarih: string;
@@ -69,6 +88,8 @@ export interface SchoolData {
   units: StudyUnit[];
   progress: UnitProgress[];
   outcomes: StudyOutcome[];
+  questions: StudyQuestion[];
+  attempts: QuestionAttempt[];
   sessions: StudySession[];
   warnings: string[];
 }
@@ -152,7 +173,7 @@ export function isSchoolSourceStale(source: SchoolSource, now = Date.now()): boo
   return now - Date.parse(source.last_ok_at) > source.max_age_hours * 60 * 60 * 1000;
 }
 
-const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], sessions: [], warnings: [] };
+const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], questions: [], attempts: [], sessions: [], warnings: [] };
 
 function missingTable(error: { code?: string; message?: string } | null): boolean {
   return Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message ?? "")));
@@ -167,7 +188,7 @@ async function readTable<T>(table: string, userId: string): Promise<{ rows: T[];
 
 export async function fetchSchoolData(userId?: string | null): Promise<SchoolData> {
   if (!userId || !isSupabaseConfigured) return EMPTY;
-  const [sources, courses, grades, announcements, profileRows, units, progress, outcomes, sessions] = await Promise.all([
+  const [sources, courses, grades, announcements, profileRows, units, progress, outcomes, questions, attempts, sessions] = await Promise.all([
     readTable<SchoolSource>("ybs_sources", userId),
     readTable<SchoolCourse>("ybs_courses", userId),
     readTable<SchoolGrade>("ybs_grades", userId),
@@ -176,6 +197,8 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     readTable<StudyUnit & { deleted_at: string | null }>("ybs_units", userId),
     readTable<UnitProgress>("ybs_unit_progress", userId),
     readTable<StudyOutcome>("ybs_outcomes", userId),
+    readTable<StudyQuestion>("ybs_questions", userId),
+    readTable<QuestionAttempt>("ybs_question_attempts", userId),
     readTable<{ completed_at: string; duration_minutes: number; phase: string }>("work_sessions", userId),
   ]);
   return {
@@ -188,12 +211,14 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     units: units.rows.filter((unit) => !unit.deleted_at),
     progress: progress.rows,
     outcomes: outcomes.rows,
+    questions: questions.rows,
+    attempts: attempts.rows,
     // Yalnız çalışma fazı tempoya sayılır; molalar sayılırsa tempo olduğundan büyük görünür.
     sessions: sessions.rows
       .filter((row) => row.phase === "work")
       .map((row) => ({ tarih: row.completed_at, dakika: row.duration_minutes })),
     warnings: [sources.warning, courses.warning, grades.warning, announcements.warning, profileRows.warning,
-               units.warning, progress.warning, outcomes.warning].filter(Boolean) as string[],
+               units.warning, progress.warning, outcomes.warning, questions.warning, attempts.warning].filter(Boolean) as string[],
   };
 }
 
@@ -218,6 +243,28 @@ export async function setUnitProgress(
     ...(gercekDakika != null ? { gercek_dakika: gercekDakika } : {}),
     updated_at: now,
   }, { onConflict: "unit_id" });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Soru denemesi kaydeder. Deneme tablosu kullanıcınındır; motor yazmaz.
+ * Her deneme ayrı satır — aynı soruyu tekrar çözmek önceki kaydı silmez,
+ * çünkü ilerleme "bir kez bildim" değil "tekrar tekrar biliyorum" ile ölçülür.
+ */
+export async function saveQuestionAttempt(
+  userId: string,
+  questionId: string,
+  verilen: string,
+  dogru: boolean,
+): Promise<void> {
+  const { error } = await supabase.from("ybs_question_attempts").insert({
+    id: `att-${questionId}-${Date.now()}`,
+    user_id: userId,
+    question_id: questionId,
+    verilen,
+    dogru_mu: dogru,
+    cozuldu_at: new Date().toISOString(),
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -252,6 +299,8 @@ export function buildSchoolDemoData(): SchoolData {
     ],
     progress: [],
     outcomes: [],
+    questions: [],
+    attempts: [],
     sessions: [],
     warnings: [],
   };
