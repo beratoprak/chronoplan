@@ -431,7 +431,9 @@ export function SchoolView() {
                   const kazanimlar = outcomesByUnit.get(oneri.unit_id) ?? [];
                   return (
                     <div key={oneri.unit_id} className="rounded-2xl p-3 mb-2" style={{ background: "var(--surface-sunken)" }}>
-                      <div className="flex items-start justify-between gap-3">
+                      {/* Dar ekranda üç düğme aynı satırda durunca başlık dikey bir
+                          şeride sıkışıyordu; mobilde düğmeler başlığın altına iniyor. */}
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
                         <div className="min-w-0">
                           <p className="text-[13px] font-semibold leading-snug">{oneri.baslik}</p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--text-tertiary)" }}>
@@ -439,7 +441,7 @@ export function SchoolView() {
                             {oneri.esik_isi && <> · <span style={{ color: "var(--priority-medium-text)" }}>eşik işi</span></>}
                           </p>
                         </div>
-                        <div className="flex gap-1 shrink-0">
+                        <div className="flex gap-1 shrink-0 flex-wrap">
                           <button
                             onClick={() => void openUnitNote(oneri.unit_id)}
                             disabled={unitBusy === oneri.unit_id}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Search, Trash2, Pin, PinOff, Tag, X, Edit3 } from "lucide-react";
+import { ChevronLeft, Edit3, Pin, PinOff, Plus, Search, Tag, Trash2, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useAppStore } from "@/lib/store";
 import { aranabilirMetin } from "@/lib/note-content";
@@ -214,8 +214,11 @@ export function NotesView() {
       style={{ border: "0.5px solid var(--border-default)", background: "var(--surface-base)" }}
     >
       {/* Left panel — note list */}
+      {/* Mobilde liste ve editör aynı anda görünmeye çalışınca ikisi de kullanılmaz
+          hale geliyordu: liste kısa bir şeride sıkışıp ortasından kesiliyordu.
+          Dar ekranda not seçiliyse liste gizlenip editör tam ekran açılıyor. */}
       <div
-        className="flex flex-col w-full md:w-64 shrink-0 h-48 md:h-full"
+        className={`flex flex-col w-full md:w-64 shrink-0 md:h-full ${selectedId ? "hidden md:flex" : "flex-1 md:flex-none"}`}
         style={{ borderRight: "0.5px solid var(--border-default)", borderBottom: "0.5px solid var(--border-default)", background: "var(--surface-sunken)" }}
       >
         {/* Search + New */}
@@ -340,9 +343,16 @@ export function NotesView() {
 
       {/* Right panel — editor */}
       {selected ? (
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <div className={`flex-1 flex-col h-full overflow-hidden ${selectedId ? "flex" : "hidden md:flex"}`}>
           {/* Title */}
           <div className="px-6 pt-5 pb-2" style={{ borderBottom: "0.5px solid var(--border-default)" }}>
+            {/* Liste mobilde gizlendiği için geri dönüş yolu burada olmak zorunda. */}
+            <button
+              onClick={() => setSelectedId(null)}
+              className="md:hidden cp-btn cp-btn-ghost min-h-9 text-[12px] mb-2 -ml-2"
+            >
+              <ChevronLeft size={14} />Notlar
+            </button>
             <input
               value={editingTitle}
               onChange={(e) => handleTitleChange(e.target.value)}
@@ -389,7 +399,9 @@ export function NotesView() {
               />
             </div>
             {pdf && (
-              <div className="hidden md:flex w-[46%] max-w-[560px] min-w-[320px]">
+              // Mobilde okuyucu tam ekran: 375 pikselde notla yan yana iki sütun
+              // ikisini de okunmaz yapıyor.
+              <div className="fixed inset-0 z-50 flex bg-[var(--surface-base)] md:static md:z-auto md:w-[46%] md:max-w-[560px] md:min-w-[320px]">
                 <PdfReader
                   yol={pdf.yol}
                   baslik={pdf.baslik}
@@ -469,7 +481,9 @@ export function NotesView() {
           )}
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        // Seçim yokken boş durum mobilde listenin altında yer kaplıyordu; dar
+        // ekranda liste tek başına tam ekran kalmalı.
+        <div className="flex-1 hidden md:flex flex-col items-center justify-center gap-3">
           <Edit3 size={40} style={{ color: "var(--text-muted)", opacity: 0.4 }} />
           <div className="text-center">
             <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
