@@ -444,3 +444,20 @@
 .animate-fade-in {
   animation: fade-in 0.15s ease-out;
 }
+
+/* ── Blok editörü ────────────────────────────────────────────
+   BlockNote kendi Mantine temasıyla geliyor; Epoche'nin yüzey ve
+   metin değişkenlerine bağlayıp arayüzün geri kalanıyla aynı
+   görünmesini sağlıyoruz. */
+.epoche-block-editor .bn-container,
+.epoche-block-editor .bn-editor {
+  background: transparent;
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+.epoche-block-editor .bn-editor {
+  padding: 1rem 1.25rem 3rem;
+  color: var(--text-primary);
+}
+.epoche-block-editor .bn-inline-content::before {
+  color: var(--text-tertiary);
+}

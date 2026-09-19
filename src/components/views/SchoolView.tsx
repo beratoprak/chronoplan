@@ -8,8 +8,9 @@ import {
   RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveQuestionAttempt, saveSchoolGrade, setUnitProgress, type SchoolData } from "@/lib/school-data";
-import { buildStudyPlan, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
+import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
+import { buildStudyPlan, type StudyUnit, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
+import { buildUnitNote } from "@/lib/study-note";
 import type { CalendarEvent, Task } from "@/types";
 
 const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], sessions: [], warnings: [] };
@@ -72,6 +73,7 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 export function SchoolView() {
   const {
     user, isDemoMode, events, tasks, addRichNote, setView, openTaskModal, syncStatus, updateEvent,
+    requestRichNote,
   } = useAppStore();
   const [data, setData] = useState<SchoolData>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -168,6 +170,40 @@ export function SchoolView() {
     if (!user?.id) return;
     await saveQuestionAttempt(user.id, questionId, harf, harf === dogru);
   }, [user?.id]);
+
+  const unitById = useMemo(() => new Map(data.units.map((u) => [u.id, u])), [data.units]);
+
+  /**
+   * Konu notunu açar; yoksa kazanımlar, materyal ve çıkmış sorularla dolu bir
+   * şablon üretip birime bağlar. Boş bir not kutusu açmak işe yaramıyor —
+   * neyi bilmen gerektiği notun içinde durmalı.
+   */
+  const openUnitNote = useCallback(async (unitId: string) => {
+    const mevcut = progressMap.get(unitId)?.not_id;
+    if (mevcut) {
+      requestRichNote(mevcut);
+      setView("notes");
+      return;
+    }
+    const unit = unitById.get(unitId) as StudyUnit | undefined;
+    if (!unit) return;
+    setUnitBusy(unitId);
+    try {
+      const tohum = buildUnitNote(
+        unit,
+        (outcomesByUnit.get(unitId) ?? []).map((metin) => ({ metin })),
+        modulesByUnit.get(unitId) ?? [],
+        questionsByUnit.get(unitId) ?? [],
+      );
+      const not = addRichNote({ ...tohum, pinned: false });
+      if (user?.id) await setUnitNote(user.id, unitId, not.id);
+      requestRichNote(not.id);
+      setView("notes");
+      await load();
+    } finally {
+      setUnitBusy(null);
+    }
+  }, [progressMap, unitById, outcomesByUnit, modulesByUnit, questionsByUnit, addRichNote, requestRichNote, setView, user?.id, load]);
 
   const markUnit = useCallback(async (unitId: string, durum: UnitProgressState) => {
     if (!user?.id) return;
@@ -364,6 +400,14 @@ export function SchoolView() {
                           </p>
                         </div>
                         <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={() => void openUnitNote(oneri.unit_id)}
+                            disabled={unitBusy === oneri.unit_id}
+                            className="cp-btn cp-btn-ghost min-h-9 text-[11px] disabled:opacity-40"
+                            title="Konu notunu aç"
+                          >
+                            <NotebookPen size={12} />Not
+                          </button>
                           {(["calisildi", "hakim"] as const).map((durum) => (
                             <button
                               key={durum}

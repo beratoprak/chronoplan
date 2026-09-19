@@ -1,3 +1,5 @@
+const path = require("node:path");
+
 const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
@@ -65,9 +67,22 @@ const nextConfig = {
     "@blocknote/mantine",
   ],
   webpack: (config) => {
+    // ProseMirror paketleri tek örnek olmak zorunda: aynı paketin ESM ve CJS
+    // derlemeleri ayrı modül sayıldığında bir derlemeden çıkan düğüm diğerine
+    // geçemiyor ve editör "multiple versions of prosemirror-model" diye çöküyor.
+    // Daha önce yalnız prosemirror-view takma adlanmıştı; bu, view'i CJS'e
+    // sabitleyip model'i ESM'de bırakarak sorunu çözmek yerine üretiyordu.
+    // Paket dizinine takma ad vermek yetmiyor: her paketin hem ESM hem CJS
+    // derlemesi var ve webpack ithal eden kodun biçimine göre birini seçiyor.
+    // İki derleme ayrı modül örneği demek; birinden çıkan düğüm diğerine
+    // geçemiyor. Bu yüzden doğrudan ESM dosyasına, tam eşleşmeyle bağlanıyor.
+    const pmEsm = (ad) => path.join(__dirname, "node_modules", ad, "dist", "index.js");
     config.resolve.alias = {
       ...config.resolve.alias,
-      "prosemirror-view": require.resolve("prosemirror-view"),
+      "prosemirror-model$": pmEsm("prosemirror-model"),
+      "prosemirror-state$": pmEsm("prosemirror-state"),
+      "prosemirror-view$": pmEsm("prosemirror-view"),
+      "prosemirror-transform$": pmEsm("prosemirror-transform"),
     };
     return config;
   },

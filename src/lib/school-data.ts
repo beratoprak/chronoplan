@@ -281,6 +281,18 @@ export async function saveQuestionAttempt(
   if (error) throw new Error(error.message);
 }
 
+/** Konu ile notunu bağlar. İlerleme tablosu kullanıcınındır; motor buraya yazmaz. */
+export async function setUnitNote(userId: string, unitId: string, noteId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("ybs_unit_progress").upsert({
+    unit_id: unitId,
+    user_id: userId,
+    not_id: noteId,
+    updated_at: now,
+  }, { onConflict: "unit_id" });
+  if (error) throw new Error(error.message);
+}
+
 export function buildSchoolDemoData(): SchoolData {
   const now = new Date().toISOString();
   return {

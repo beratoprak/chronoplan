@@ -675,6 +675,8 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ richNotes: [newNote, ...s.richNotes] }));
         const { user } = get();
         if (user && isSupabaseConfigured) pushRichNote(newNote, user.id);
+        // Çağıranın kimliğe ihtiyacı var: konu notu, ait olduğu birime bağlanıyor.
+        return newNote;
       },
       updateRichNote: (id, updates) => {
         set((s) => ({

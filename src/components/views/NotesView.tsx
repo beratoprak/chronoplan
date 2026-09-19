@@ -2,7 +2,15 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Search, Trash2, Pin, PinOff, Tag, X, Edit3 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useAppStore } from "@/lib/store";
+import { aranabilirMetin } from "@/lib/note-content";
+
+// BlockNote tarayıcıya bağımlı; sunucuda çizilirse hydration hatası veriyor.
+const BlockEditor = dynamic(() => import("@/components/editor/BlockEditor").then((m) => m.BlockEditor), {
+  ssr: false,
+  loading: () => <div className="flex-1 px-6 py-4 text-sm" style={{ color: "var(--text-tertiary)" }}>Editör yükleniyor…</div>,
+});
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/dates";
 import type { RichNote } from "@/types";
@@ -30,7 +38,6 @@ export function NotesView() {
   const [editingTags, setEditingTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [isDirty, setIsDirty] = useState(false);
-  const contentRef = useRef<HTMLTextAreaElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allTags = useMemo(() => {
@@ -46,7 +53,7 @@ export function NotesView() {
         const matchSearch =
           !q ||
           n.title.toLowerCase().includes(q) ||
-          n.content.toLowerCase().includes(q) ||
+          aranabilirMetin(n.content).toLowerCase().includes(q) ||
           n.tags.some((t) => t.toLowerCase().includes(q));
         const matchTag = !filterTag || n.tags.includes(filterTag);
         return matchSearch && matchTag;
@@ -326,17 +333,13 @@ export function NotesView() {
           </div>
 
           {/* Content */}
-          <textarea
-            ref={contentRef}
-            value={editingContent}
-            onChange={(e) => handleContentChange(e.target.value)}
-            placeholder="Notunu buraya yaz... (Markdown desteklenir)"
-            className="flex-1 resize-none bg-transparent outline-none px-6 py-4 text-sm leading-relaxed"
-            style={{
-              color: "var(--text-primary)",
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-            }}
-          />
+          <div className="flex-1 overflow-y-auto epoche-block-editor">
+            <BlockEditor
+              noteId={selected.id}
+              content={editingContent}
+              onChange={handleContentChange}
+            />
+          </div>
 
           {/* Footer */}
           <div
@@ -347,7 +350,7 @@ export function NotesView() {
               {isDirty ? "Kaydediliyor..." : `Kaydedildi · ${formatDate(selected.updatedAt, "d MMM HH:mm")}`}
             </span>
             <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              {editingContent.split(/\s+/).filter(Boolean).length} kelime
+              {aranabilirMetin(editingContent).split(/\s+/).filter(Boolean).length} kelime
             </span>
           </div>
         </div>

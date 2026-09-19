@@ -30,6 +30,8 @@ export interface UnitProgress {
   durum: UnitProgressState;
   son_temas_at?: string | null;
   gercek_dakika: number;
+  /** Konuya bağlı not; Faz F köprüsü. */
+  not_id?: string | null;
 }
 
 export interface StudyOutcome {

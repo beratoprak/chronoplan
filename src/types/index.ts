@@ -296,7 +296,7 @@ export interface AppState {
 
   // ── Rich Notes ───────────────────────────────────────────
   richNotes: RichNote[];
-  addRichNote: (note: Omit<RichNote, "id" | "createdAt" | "updatedAt">) => void;
+  addRichNote: (note: Omit<RichNote, "id" | "createdAt" | "updatedAt">) => RichNote;
   updateRichNote: (id: string, updates: Partial<RichNote>) => void;
   deleteRichNote: (id: string) => void;
 
