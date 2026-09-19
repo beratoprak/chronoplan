@@ -1,5 +1,5 @@
 import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
-import { KazanimBlock, MateryalBlock, SoruBlock } from "./school-blocks";
+import { EzberKartiBlock, KazanimBlock, MateryalBlock, SoruBlock } from "./school-blocks";
 
 /**
  * Editörün blok şeması.
@@ -15,6 +15,7 @@ export const okulSemasi = BlockNoteSchema.create({
     kazanim: KazanimBlock(),
     materyal: MateryalBlock(),
     soru: SoruBlock(),
+    ezberKarti: EzberKartiBlock(),
   },
 });
 

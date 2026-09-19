@@ -83,6 +83,18 @@ export interface QuestionAttempt {
   cozuldu_at: string;
 }
 
+export interface FlashcardRow {
+  id: string;
+  unit_id: string | null;
+  ders_kodu: string | null;
+  ease: number;
+  interval_days: number;
+  reps: number;
+  lapses: number;
+  due_at: string;
+  last_reviewed_at: string | null;
+}
+
 /** Pomodoro oturumu — çalışma temposunun tek ölçüm kaynağı. */
 export interface StudySession {
   tarih: string;
@@ -101,6 +113,7 @@ export interface SchoolData {
   modules: StudyModule[];
   questions: StudyQuestion[];
   attempts: QuestionAttempt[];
+  flashcards: FlashcardRow[];
   sessions: StudySession[];
   warnings: string[];
 }
@@ -184,7 +197,7 @@ export function isSchoolSourceStale(source: SchoolSource, now = Date.now()): boo
   return now - Date.parse(source.last_ok_at) > source.max_age_hours * 60 * 60 * 1000;
 }
 
-const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], sessions: [], warnings: [] };
+const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], flashcards: [], sessions: [], warnings: [] };
 
 function missingTable(error: { code?: string; message?: string } | null): boolean {
   return Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message ?? "")));
@@ -199,7 +212,7 @@ async function readTable<T>(table: string, userId: string): Promise<{ rows: T[];
 
 export async function fetchSchoolData(userId?: string | null): Promise<SchoolData> {
   if (!userId || !isSupabaseConfigured) return EMPTY;
-  const [sources, courses, grades, announcements, profileRows, units, progress, outcomes, modules, questions, attempts, sessions] = await Promise.all([
+  const [sources, courses, grades, announcements, profileRows, units, progress, outcomes, modules, questions, attempts, flashcards, sessions] = await Promise.all([
     readTable<SchoolSource>("ybs_sources", userId),
     readTable<SchoolCourse>("ybs_courses", userId),
     readTable<SchoolGrade>("ybs_grades", userId),
@@ -211,6 +224,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     readTable<StudyModule & { deleted_at: string | null }>("ybs_modules", userId),
     readTable<StudyQuestion>("ybs_questions", userId),
     readTable<QuestionAttempt>("ybs_question_attempts", userId),
+    readTable<FlashcardRow>("ybs_flashcards", userId),
     readTable<{ completed_at: string; duration_minutes: number; phase: string }>("work_sessions", userId),
   ]);
   return {
@@ -226,12 +240,13 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     modules: modules.rows.filter((row) => !row.deleted_at),
     questions: questions.rows,
     attempts: attempts.rows,
+    flashcards: flashcards.rows,
     // Yalnız çalışma fazı tempoya sayılır; molalar sayılırsa tempo olduğundan büyük görünür.
     sessions: sessions.rows
       .filter((row) => row.phase === "work")
       .map((row) => ({ tarih: row.completed_at, dakika: row.duration_minutes })),
     warnings: [sources.warning, courses.warning, grades.warning, announcements.warning, profileRows.warning,
-               units.warning, progress.warning, outcomes.warning, modules.warning, questions.warning, attempts.warning].filter(Boolean) as string[],
+               units.warning, progress.warning, outcomes.warning, modules.warning, questions.warning, attempts.warning, flashcards.warning].filter(Boolean) as string[],
   };
 }
 
@@ -293,6 +308,28 @@ export async function setUnitNote(userId: string, unitId: string, noteId: string
   if (error) throw new Error(error.message);
 }
 
+/** Kart değerlendirmesini kaydeder. Zamanlama tablosu kullanıcınındır. */
+export async function saveCardReview(
+  userId: string,
+  cardId: string,
+  durum: { ease: number; interval: number; reps: number; lapses: number; dueAt: string; lastReviewedAt?: string | null },
+  baglam: { unitId?: string; dersKodu?: string } = {},
+): Promise<void> {
+  const { error } = await supabase.from("ybs_flashcards").upsert({
+    id: cardId,
+    user_id: userId,
+    unit_id: baglam.unitId || null,
+    ders_kodu: baglam.dersKodu || null,
+    ease: durum.ease,
+    interval_days: durum.interval,
+    reps: durum.reps,
+    lapses: durum.lapses,
+    due_at: durum.dueAt,
+    last_reviewed_at: durum.lastReviewedAt ?? new Date().toISOString(),
+  }, { onConflict: "id" });
+  if (error) throw new Error(error.message);
+}
+
 export function buildSchoolDemoData(): SchoolData {
   const now = new Date().toISOString();
   return {
@@ -327,6 +364,7 @@ export function buildSchoolDemoData(): SchoolData {
     modules: [],
     questions: [],
     attempts: [],
+    flashcards: [],
     sessions: [],
     warnings: [],
   };

@@ -8,7 +8,8 @@
 // not kendi başına okunabilir kalsın — veri kaybolursa not boşalmasın.
 
 import { createReactBlockSpec } from "@blocknote/react";
-import { Check, FileText, Headphones, Video } from "lucide-react";
+import { useState } from "react";
+import { Check, FileText, Headphones, RotateCcw, Video } from "lucide-react";
 
 const kutu = {
   borderRadius: "10px",
@@ -147,6 +148,57 @@ export const SoruBlock = createReactBlockSpec(
               {verilen === dogru ? "Doğru." : `Yanlış — doğrusu ${dogru}.`}
             </p>
           )}
+        </div>
+      );
+    },
+  },
+);
+
+/**
+ * Ezber kartı: ön yüz soru, arka yüz cevap.
+ *
+ * Kartın metni burada, notun içinde duruyor — yazıldığı yer burası.
+ * Zamanlama (aralık, kolaylık katsayısı) ayrı tabloda; farklı veri, kopya değil.
+ * Blok yalnız "çevir" gösterir; değerlendirme tekrar sırasında yapılıyor,
+ * çünkü kartı yazarken kendini sınamak ezberi ölçmez.
+ */
+export const EzberKartiBlock = createReactBlockSpec(
+  {
+    type: "ezberKarti",
+    propSchema: {
+      cardId: { default: "" },
+      on: { default: "" },
+      arka: { default: "" },
+      unitId: { default: "" },
+      dersKodu: { default: "" },
+    },
+    content: "none",
+  },
+  {
+    render: ({ block }) => {
+      const { on, arka } = block.props;
+      const [acik, setAcik] = useState(false);
+      return (
+        <div style={{ ...kutu, borderLeft: "3px solid var(--tag-school-text)" }} data-kart={block.props.cardId}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <RotateCcw size={14} style={{ flexShrink: 0, marginTop: 3, color: "var(--tag-school-text)" }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 500, margin: 0, lineHeight: 1.45 }}>{on || "Ön yüz boş"}</p>
+              {acik ? (
+                <p style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.45, color: "var(--text-secondary)" }}>
+                  {arka || "Arka yüz boş"}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAcik(true)}
+                  style={{ fontSize: 11, marginTop: 6, padding: 0, border: "none", background: "none", cursor: "pointer", color: "var(--tag-school-text)" }}
+                >
+                  Çevir
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       );
     },

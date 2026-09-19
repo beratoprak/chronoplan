@@ -11,6 +11,14 @@ interface BlokTasiyan {
   content: string;
 }
 
+export interface EzberKarti {
+  cardId: string;
+  on: string;
+  arka: string;
+  unitId: string;
+  dersKodu: string;
+}
+
 function tumBloklar(notlar: BlokTasiyan[]): NoteBlock[] {
   const cikti: NoteBlock[] = [];
   const gez = (liste: NoteBlock[]) => {
@@ -44,6 +52,26 @@ export function cevaplananSorular(notlar: BlokTasiyan[]): Map<string, string> {
     const id = prop(b, "questionId");
     const verilen = prop(b, "verilen");
     if (typeof id === "string" && id && typeof verilen === "string" && verilen) cikti.set(id, verilen);
+  }
+  return cikti;
+}
+
+/** Notlardaki ezber kartları. Metin notun içinde yaşar; zamanlama ayrı tabloda. */
+export function ezberKartlari(notlar: BlokTasiyan[]): EzberKarti[] {
+  const cikti: EzberKarti[] = [];
+  const gorulen = new Set<string>();
+  for (const b of tumBloklar(notlar)) {
+    if (b.type !== "ezberKarti") continue;
+    const cardId = prop(b, "cardId");
+    if (typeof cardId !== "string" || !cardId || gorulen.has(cardId)) continue;
+    gorulen.add(cardId);
+    cikti.push({
+      cardId,
+      on: String(prop(b, "on") ?? ""),
+      arka: String(prop(b, "arka") ?? ""),
+      unitId: String(prop(b, "unitId") ?? ""),
+      dersKodu: String(prop(b, "dersKodu") ?? ""),
+    });
   }
   return cikti;
 }

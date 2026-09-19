@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cevaplananSorular, isaretliKazanimlar } from "./note-blocks";
+import { cevaplananSorular, ezberKartlari, isaretliKazanimlar } from "./note-blocks";
 import { bloklariYaz } from "./note-content";
 
 const notFrom = (bloklar: unknown[]) => ({ content: bloklariYaz(bloklar as never) });
@@ -45,5 +45,31 @@ describe("cevaplanan sorular", () => {
 
   it("boş içerik boş harita verir", () => {
     expect(cevaplananSorular([{ content: "" }]).size).toBe(0);
+  });
+});
+
+describe("ezber kartları", () => {
+  const kart = (id: string, on = "soru", arka = "cevap") =>
+    ({ type: "ezberKarti", props: { cardId: id, on, arka, unitId: "u1", dersKodu: "AAUF1101" } });
+
+  it("kart bloklarını toplar", () => {
+    const n = notFrom([kart("k1"), kart("k2")]);
+    expect(ezberKartlari([n]).map((k) => k.cardId)).toEqual(["k1", "k2"]);
+  });
+
+  it("aynı kart iki notta geçse bir kez sayılır", () => {
+    const a = notFrom([kart("k1")]);
+    const b = notFrom([kart("k1")]);
+    expect(ezberKartlari([a, b])).toHaveLength(1);
+  });
+
+  it("kimliksiz kart atlanır", () => {
+    expect(ezberKartlari([notFrom([kart("")])])).toHaveLength(0);
+  });
+
+  it("ön ve arka yüz taşınır", () => {
+    const [k] = ezberKartlari([notFrom([kart("k1", "Limit nedir?", "Yaklaşma değeri")])]);
+    expect(k.on).toBe("Limit nedir?");
+    expect(k.arka).toBe("Yaklaşma değeri");
   });
 });

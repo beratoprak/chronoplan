@@ -8,13 +8,14 @@ import {
   RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
+import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveCardReview, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
 import { buildStudyPlan, type StudyUnit, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
-import { isaretliKazanimlar } from "@/lib/note-blocks";
+import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
+import { degerlendir, yeniKart, zamaniGelenler, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
 import type { CalendarEvent, Task } from "@/types";
 
-const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], sessions: [], warnings: [] };
+const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], flashcards: [], sessions: [], warnings: [] };
 
 const HAL_ETIKET = { yolunda: "Yolunda", geriliyor: "Geriliyor", kritik: "Kritik" } as const;
 const DURUM_ETIKET: Record<UnitProgressState, string> = {
@@ -178,6 +179,37 @@ export function SchoolView() {
   // Kazanım ilerlemesi notlardan okunuyor: notta işaretlediğin kutucuk burada
   // aynı anda görünüyor, arada senkronlanacak ikinci bir kayıt yok.
   const isaretli = useMemo(() => isaretliKazanimlar(richNotes), [richNotes]);
+
+  // Kartın metni notta, zamanlaması tabloda. Sıra ikisinin birleşiminden çıkıyor;
+  // zamanlama kaydı olmayan kart yeni sayılıp hemen sıraya giriyor.
+  const [kartCevrildi, setKartCevrildi] = useState(false);
+  const [kartBusy, setKartBusy] = useState(false);
+  const tekrarSirasi = useMemo(() => {
+    const zamanlama = new Map(data.flashcards.map((f) => [f.id, f]));
+    const simdi = new Date().toISOString();
+    const birlesik = ezberKartlari(richNotes).map((kart) => {
+      const z = zamanlama.get(kart.cardId);
+      const durum: KartDurumu = z
+        ? { ease: Number(z.ease), interval: z.interval_days, reps: z.reps, lapses: z.lapses, dueAt: z.due_at, lastReviewedAt: z.last_reviewed_at }
+        : yeniKart(simdi);
+      return { ...kart, durum, dueAt: durum.dueAt };
+    });
+    return zamaniGelenler(birlesik, simdi);
+  }, [richNotes, data.flashcards]);
+  const aktifKart = tekrarSirasi[0];
+
+  const kartiDegerlendir = useCallback(async (deger: Deger) => {
+    if (!aktifKart || !user?.id) return;
+    setKartBusy(true);
+    try {
+      const yeni = degerlendir(aktifKart.durum, deger, new Date());
+      await saveCardReview(user.id, aktifKart.cardId, yeni, { unitId: aktifKart.unitId, dersKodu: aktifKart.dersKodu });
+      setKartCevrildi(false);
+      await load();
+    } finally {
+      setKartBusy(false);
+    }
+  }, [aktifKart, user?.id, load]);
 
   /**
    * Konu notunu açar; yoksa kazanımlar, materyal ve çıkmış sorularla dolu bir
@@ -569,6 +601,41 @@ export function SchoolView() {
               </>
             )}
           </section>
+
+          {tekrarSirasi.length > 0 && (
+            <section className="cp-card p-4 sm:p-5">
+              <SectionTitle icon={RefreshCw} title="Tekrar" detail={`${tekrarSirasi.length} kart hazır`} />
+              <div className="rounded-2xl p-4" style={{ background: "var(--surface-sunken)" }}>
+                <p className="text-[10px] mb-2" style={{ color: "var(--text-tertiary)" }}>
+                  {aktifKart.dersKodu || "Kart"}
+                </p>
+                <p className="text-[14px] font-medium leading-snug">{aktifKart.on || "Ön yüz boş"}</p>
+                {kartCevrildi ? (
+                  <>
+                    <p className="text-[12px] mt-3 leading-snug" style={{ color: "var(--text-secondary)" }}>
+                      {aktifKart.arka || "Arka yüz boş"}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {([["tekrar", "Bilemedim"], ["zor", "Zor"], ["iyi", "İyi"], ["kolay", "Kolay"]] as const).map(([deger, etiket]) => (
+                        <button
+                          key={deger}
+                          onClick={() => void kartiDegerlendir(deger)}
+                          disabled={kartBusy}
+                          className="cp-btn cp-btn-ghost min-h-9 text-[11px] disabled:opacity-40"
+                        >
+                          {etiket}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <button onClick={() => setKartCevrildi(true)} className="cp-btn cp-btn-primary min-h-9 text-[11px] mt-3">
+                    Çevir
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
 
           <section className="cp-card p-4 sm:p-5">
             <SectionTitle icon={CircleDollarSign} title="Kayıt ve ödeme" detail={totalChecklist ? `${completedChecklist}/${totalChecklist}` : undefined} />
