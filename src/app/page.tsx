@@ -16,6 +16,7 @@ import { WorkspaceModal } from "@/components/workspace/WorkspaceModal";
 import { useAppStore } from "@/lib/store";
 import { useKeyboardShortcuts } from "@/lib/useKeyboardShortcuts";
 import { GunSayfasi } from "@/components/school/GunSayfasi";
+import { DersSayfasi } from "@/components/school/DersSayfasi";
 import { useHaftalikPlanlayici } from "@/lib/useHaftalikPlanlayici";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
@@ -111,6 +112,8 @@ export default function Home() {
 
       {/* Plan v3 Faz C — takvimdeki çalışma etkinliğinden açılan gün sayfası */}
       <GunSayfasi />
+      {/* Faz D — Okul sekmesindeki dersten açılan ders sayfası */}
+      <DersSayfasi />
 
       {/* Faz 6 — Global Arama */}
       <SearchModal />

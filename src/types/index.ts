@@ -241,6 +241,10 @@ export interface AppState {
   gunSayfasiTarihi: string | null;
   openGunSayfasi: (tarih: string | null) => void;
 
+  // Ders sayfası (Faz D): bir dersin bütün konuları tam ekran. Açık dersin kodu.
+  dersSayfasiKodu: string | null;
+  openDersSayfasi: (kod: string | null) => void;
+
   // Event Delete Confirm (Faz 4)
   deletingEventId: string | null;
   openDeleteEventConfirm: (id: string) => void;

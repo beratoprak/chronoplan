@@ -23,7 +23,7 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 
 | Dosya | Ne yapar |
 |---|---|
-| `src/components/views/SchoolView.tsx` | Okul sekmesi: Bu hafta, Çalışma, Bütün konular, Tekrar |
+| `src/components/views/SchoolView.tsx` | Okul sekmesi: kritik tarih, Bu hafta (güne basınca gün sayfası), Dersler, Tekrar |
 | `src/lib/school-data.ts` | Okul tablolarını okur (12 sn zaman aşımı + önbellek), ilerleme yazar |
 | `src/lib/ilerleme.ts` | Konu checklist'i: Oku · İzle · Soru çöz · Hakimim → katsayı |
 | `src/lib/study-plan.ts` | Ders eşik hesabı (20 soruda 12) ve günün önerileri |
@@ -31,6 +31,9 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 | `src/lib/haftalik-plan-kayit.ts` | Planı `ybs_haftalik_plan`'a ve takvime yazar |
 | `src/lib/useHaftalikPlanlayici.ts` | Pazar 21:00 sonrası ilk açılışta planı kurar |
 | `src/components/school/GunSayfasi.tsx` | Gün sayfası: plan etkinliğine tıklayınca o günün iki dersi tam ekran |
+| `src/components/school/DersSayfasi.tsx` | Ders sayfası (Faz D): Okul → Dersler'de bir derse basınca; durum, vize/final konuları, not girişi |
+| `src/components/school/KonuFoyu.tsx` | Gün ve ders sayfasının ortak föyü ve `useKonuCalisma` (işaretleme, soru, konu notu, PDF) |
+| `src/lib/ders-paneli.ts` | Ders paneli hesapları: ders özeti (eşik, bu hafta), konu sırası |
 | `src/lib/gun-sayfasi.ts` | Gün sayfasının saf hesapları: konu föyü (malzeme, yönergeli adımlar, bugünkü kısım), soru sırası, tekrar günü |
 | `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü, PDF okuyucu |
 | `supabase/migration-epoche-v*.sql` | Şema değişiklikleri (Supabase SQL Editor'de elle çalıştırılır) |

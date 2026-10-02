@@ -4,30 +4,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import { tr } from "date-fns/locale";
 import {
-  AlertTriangle, ArrowUpRight, BookOpenCheck, CalendarClock, CheckCircle2,
+  AlertTriangle, ArrowUpRight, CalendarClock, CheckCircle2,
   ChevronRight, CircleDollarSign, CloudOff, GraduationCap, Loader2, NotebookPen,
   Layers, RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { AdimKolonuYok, buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, okulOnbellegi, setUnitStep, setUnitSteps, requiredFinal, saveCardReview, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
-import { buildStudyPlan, type StudyUnit, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
-import { buildUnitNote } from "@/lib/study-note";
+import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, okulOnbellegi, saveCardReview, setUnitProgress, type SchoolData } from "@/lib/school-data";
+import { buildStudyPlan, type UnitProgress } from "@/lib/study-plan";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
 import { haftaninPlani, PLAN_KAYNAGI, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
-import { MATERYAL_SIRASI, materyalEtiketi } from "@/lib/materyal";
-import { KonuChecklist } from "@/components/school/KonuChecklist";
-import { ADIM_ETIKETI, ADIMLAR, ilerlemeKatsayisi, isaretliAdimlar, mevcutAdimHaritasi, type Adim, type Adimlar } from "@/lib/ilerleme";
+import { dersOzetleri, soruSayisi, sureYazi } from "@/lib/ders-paneli";
+import { ADIMLAR, mevcutAdimHaritasi } from "@/lib/ilerleme";
 import { degerlendir, yeniKart, zamaniGelenler, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
 import type { CalendarEvent, Task } from "@/types";
 
 const EMPTY: SchoolData = { sources: [], courses: [], grades: [], announcements: [], profile: null, units: [], progress: [], outcomes: [], modules: [], questions: [], attempts: [], flashcards: [], sessions: [], warnings: [] };
 
 const HAL_ETIKET = { yolunda: "Yolunda", geriliyor: "Geriliyor", kritik: "Kritik" } as const;
-const DURUM_ETIKET: Record<UnitProgressState, string> = {
-  dokunulmadi: "Başlamadım", calisildi: "Çalıştım", test_edildi: "Test ettim", hakim: "Hakimim",
-};
-const saatce = (dakika: number) => `${(dakika / 60).toFixed(1)} sa`;
 
 function isSchoolTask(task: Task) {
   return task.isManaged || task.id.startsWith("ybs-") || task.tags.some((tag) => tag.color === "school" || tag.name.toLocaleLowerCase("tr-TR") === "okul");
@@ -65,24 +59,10 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] py-3 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
 }
 
-/** Konunun hangi durumda olduğunu tek bakışta gösterir. İşaretlemenin bir
- *  iz bırakması gerekiyor; eskiden basıp basmadığını anlamanın yolu yoktu. */
-function DurumRozeti({ durum }: { durum: UnitProgressState }) {
-  if (durum === "dokunulmadi") return null;
-  const renk = durum === "hakim"
-    ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)" }
-    : { background: "var(--tag-school-bg)", color: "var(--tag-school-text)" };
-  return (
-    <span className="rounded-full px-1.5 py-0.5 font-semibold" style={renk}>
-      {durum === "hakim" ? "hakim ✓" : DURUM_ETIKET[durum]}
-    </span>
-  );
-}
-
 export function SchoolView() {
   const {
     user, isDemoMode, events, tasks, addRichNote, setView, openTaskModal, syncStatus, updateEvent,
-    requestRichNote, richNotes,
+    richNotes, openGunSayfasi, openDersSayfasi,
   } = useAppStore();
   // Önbellek varsa ekran ilk karede dolu açılır; ağ arkadan tazeler.
   const [data, setData] = useState<SchoolData>(() => okulOnbellegi(user?.id) ?? EMPTY);
@@ -92,18 +72,7 @@ export function SchoolView() {
   const [tazeleniyor, setTazeleniyor] = useState(false);
   const [quickNote, setQuickNote] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
-  const [gradeCourse, setGradeCourse] = useState("");
-  const [midterm, setMidterm] = useState("");
-  const [finalScore, setFinalScore] = useState("");
-  const [gradeStatus, setGradeStatus] = useState<string | null>(null);
   const [ackMessage, setAckMessage] = useState<string | null>(null);
-  const [unitBusy, setUnitBusy] = useState<string | null>(null);
-  const [acikSoru, setAcikSoru] = useState<string | null>(null);
-  const [verilenCevap, setVerilenCevap] = useState<Record<string, string>>({});
-  /** Son işaretleme — geri alma bildirimi için. */
-  const [sonIslem, setSonIslem] = useState<{ unitId: string; onceki: UnitProgressState | Adimlar; mesaj: string } | null>(null);
-  /** Ders → konular listesinde açık olan ders. */
-  const [acikDers, setAcikDers] = useState<string | null>(null);
 
   /**
    * Veriyi tazeler.
@@ -195,7 +164,6 @@ export function SchoolView() {
     return Array.from(gunler.entries());
   }, [haftaSatirlari]);
 
-  const gradesByCourse = useMemo(() => new Map(data.grades.map((grade) => [grade.ders_kodu, grade])), [data.grades]);
   const activeCourses = useMemo(() => data.courses.filter((course) => course.yariyil === 1), [data.courses]);
   const completedAkts = useMemo(() => completedCredits(data.courses, data.grades), [data.courses, data.grades]);
   const staleSources = data.sources.filter((source) => isSchoolSourceStale(source));
@@ -219,14 +187,6 @@ export function SchoolView() {
   // Kazanım ilerlemesi notlardan okunuyor: notta işaretlediğin kutucuk burada
   // aynı anda görünüyor, arada senkronlanacak ikinci bir kayıt yok.
   const isaretli = useMemo(() => isaretliKazanimlar(richNotes), [richNotes]);
-
-  /** Bir konunun kazanımlarının kaçı işaretli. */
-  const kazanimOrani = useCallback((unitId: string) => {
-    const hepsi = outcomesByUnit.get(unitId) ?? [];
-    if (!hepsi.length) return null;
-    const biten = hepsi.filter((k) => isaretli.has(k.id)).length;
-    return { biten, toplam: hepsi.length, tam: biten === hepsi.length };
-  }, [outcomesByUnit, isaretli]);
 
   /**
    * Kazanımların tamamı işaretli olan, henüz dokunulmamış konular.
@@ -295,67 +255,11 @@ export function SchoolView() {
     });
   }, [data.units, data.sessions, progressMap, examEvent]);
 
-  const questionsByUnit = useMemo(() => {
-    const map = new Map<string, typeof data.questions>();
-    for (const q of data.questions) {
-      if (!q.unit_id) continue;
-      map.set(q.unit_id, [...(map.get(q.unit_id) ?? []), q]);
-    }
-    return map;
-  }, [data.questions]);
-
-  const modulesByUnit = useMemo(() => {
-    const map = new Map<string, typeof data.modules>();
-    for (const m of data.modules) {
-      map.set(m.unit_id, [...(map.get(m.unit_id) ?? []), m]);
-    }
-    for (const [k, v] of Array.from(map.entries())) {
-      map.set(k, [...v].sort((a, b) => {
-        const fark = MATERYAL_SIRASI.indexOf(materyalEtiketi(a.ad, a.tip)) - MATERYAL_SIRASI.indexOf(materyalEtiketi(b.ad, b.tip));
-        return fark !== 0 ? fark : a.ad.localeCompare(b.ad, "tr");
-      }));
-    }
-    return map;
-  }, [data.modules]);
-
-  const [acikMateryal, setAcikMateryal] = useState<string | null>(null);
-
-  /**
-   * Ders → konular.
-   *
-   * Panelde konuya dokunabildiğin tek yer günün üç öneri kartıydı: motor Türk
-   * Dili önerirken canın Matematik çalışmak istiyorsa hiçbir yolu yoktu.
-   * Öneri bir tavsiye olmalı, kapı değil — bütün konular buradan açılıyor.
-   */
-  const unitsByCourse = useMemo(() => {
-    const map = new Map<string, StudyUnit[]>();
-    for (const u of data.units as StudyUnit[]) {
-      if (u.tip === "materyal") continue; // materyal bloğu konu değil
-      map.set(u.ders_kodu, [...(map.get(u.ders_kodu) ?? []), u]);
-    }
-    const sira = { vize: 0, final: 1 } as Record<string, number>;
-    for (const [kod, liste] of Array.from(map.entries())) {
-      map.set(kod, [...liste].sort((a, b) => {
-        const d = (sira[a.dilim ?? ""] ?? 2) - (sira[b.dilim ?? ""] ?? 2);
-        return d !== 0 ? d : a.baslik.localeCompare(b.baslik, "tr");
-      }));
-    }
-    return map;
-  }, [data.units]);
-
-  const answerQuestion = useCallback(async (questionId: string, harf: string, dogru: string | null) => {
-    setVerilenCevap((onceki) => ({ ...onceki, [questionId]: harf }));
-    if (!user?.id) return;
-    await saveQuestionAttempt(user.id, questionId, harf, harf === dogru);
-    // Kartta çözülen soru da konunun "Soru çöz" adımını işaretler.
-    const unitId = data.questions.find((q) => q.id === questionId)?.unit_id;
-    if (unitId) {
-      await setUnitStep(user.id, unitId, "soru", true).catch((e) => console.error("Soru adımı yazılamadı:", e));
-      await load();
-    }
-  }, [user?.id, data.questions, load]);
-
-  const unitById = useMemo(() => new Map(data.units.map((u) => [u.id, u])), [data.units]);
+  /** Dersler bölümü: her ders bir satır, eşiğe en uzak olan üstte (Faz D). */
+  const dersOzet = useMemo(() => dersOzetleri({
+    kodlar: activeCourses.map((c) => c.kod).filter((kod) => data.units.some((u) => u.ders_kodu === kod && u.tip === "konu")),
+    units: data.units, ilerleme: progressMap, adimHaritasi, haftaSatirlari,
+  }), [activeCourses, data.units, progressMap, adimHaritasi, haftaSatirlari]);
 
   // Kartın metni notta, zamanlaması tabloda. Sıra ikisinin birleşiminden çıkıyor;
   // zamanlama kaydı olmayan kart yeni sayılıp hemen sıraya giriyor.
@@ -388,86 +292,6 @@ export function SchoolView() {
     }
   }, [aktifKart, user?.id, load]);
 
-  /**
-   * Konu notunu açar; yoksa kazanımlar, materyal ve çıkmış sorularla dolu bir
-   * şablon üretip birime bağlar. Boş bir not kutusu açmak işe yaramıyor —
-   * neyi bilmen gerektiği notun içinde durmalı.
-   */
-  const openUnitNote = useCallback(async (unitId: string) => {
-    const mevcut = progressMap.get(unitId)?.not_id;
-    if (mevcut) {
-      requestRichNote(mevcut);
-      setView("notes");
-      return;
-    }
-    const unit = unitById.get(unitId) as StudyUnit | undefined;
-    if (!unit) return;
-    setUnitBusy(unitId);
-    try {
-      const tohum = buildUnitNote(
-        unit,
-        outcomesByUnit.get(unitId) ?? [],
-        modulesByUnit.get(unitId) ?? [],
-        questionsByUnit.get(unitId) ?? [],
-      );
-      // Not konuya bağlanıyor: panel hangi konunun notu olduğunu buradan biliyor,
-      // Notlar görünümü de dersine göre gruplayabiliyor.
-      const not = addRichNote({ ...tohum, pinned: false });
-      if (user?.id) await setUnitNote(user.id, unitId, not.id);
-      requestRichNote(not.id);
-      setView("notes");
-      await load();
-    } finally {
-      setUnitBusy(null);
-    }
-  }, [progressMap, unitById, outcomesByUnit, modulesByUnit, questionsByUnit, addRichNote, requestRichNote, setView, user?.id, load]);
-
-
-  /** Checklist'te bir adımı işaretler ya da kaldırır; geri alınabilir. */
-  const [adimHatasi, setAdimHatasi] = useState<string | null>(null);
-  const adimDegistir = useCallback(async (unitId: string, adim: Adim, isaretli: boolean) => {
-    if (!user?.id) return;
-    setUnitBusy(unitId);
-    setAdimHatasi(null);
-    try {
-      const onceki = await setUnitStep(user.id, unitId, adim, isaretli);
-      const baslik = unitById.get(unitId)?.baslik ?? "Konu";
-      setSonIslem({
-        unitId,
-        onceki,
-        mesaj: `${baslik.slice(0, 36)} · ${ADIM_ETIKETI[adim]} ${isaretli ? "✓" : "kaldırıldı"}`,
-      });
-      await load();
-    } catch (e) {
-      setAdimHatasi(e instanceof AdimKolonuYok
-        ? e.message
-        : `Kaydedilemedi: ${e instanceof Error ? e.message : "bilinmeyen hata"}`);
-    } finally {
-      setUnitBusy(null);
-    }
-  }, [user?.id, load, unitById]);
-
-  const geriAl = useCallback(async () => {
-    if (!sonIslem || !user?.id) return;
-    const { unitId, onceki } = sonIslem;
-    setSonIslem(null);
-    setUnitBusy(unitId);
-    try {
-      if (typeof onceki === "string") await setUnitProgress(user.id, unitId, onceki);
-      else await setUnitSteps(user.id, unitId, onceki);
-      await load();
-    } finally {
-      setUnitBusy(null);
-    }
-  }, [sonIslem, user?.id, load]);
-
-  // Bildirim kendiliğinden kapanır; geri alma penceresi kısa ama yeterli.
-  useEffect(() => {
-    if (!sonIslem) return;
-    const t = window.setTimeout(() => setSonIslem(null), 7000);
-    return () => window.clearTimeout(t);
-  }, [sonIslem]);
-
   const acknowledge = useCallback((event: CalendarEvent) => {
     if (!event.ackRequired || event.ackedAt) return;
     updateEvent(event.id, { ackedAt: new Date().toISOString() });
@@ -496,54 +320,12 @@ export function SchoolView() {
     window.setTimeout(() => setNoteSaved(false), 2200);
   }
 
-  async function submitGrade(event: React.FormEvent) {
-    event.preventDefault();
-    if (!user?.id || !gradeCourse) return;
-    setGradeStatus("Kaydediliyor…");
-    try {
-      await saveSchoolGrade(user.id, {
-        courseCode: gradeCourse,
-        term: "2026-2027 Güz",
-        midterm: midterm === "" ? undefined : Number(midterm),
-        final: finalScore === "" ? undefined : Number(finalScore),
-      });
-      setGradeStatus("Not kaydedildi");
-      await load();
-    } catch (error) {
-      setGradeStatus(error instanceof Error ? error.message : "Not kaydedilemedi");
-    }
-  }
-
   if (loading) {
     return <div className="h-full flex items-center justify-center" aria-label="Okul verileri yükleniyor"><Loader2 className="animate-spin" style={{ color: "var(--tag-school)" }} /></div>;
   }
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in space-y-4 sm:space-y-5">
-      {/* İşaretlemenin geri bildirimi: bastığını görmek ve yanlışlıkla
-          "Hakimim" dediğinde dönebilmek için. */}
-      {adimHatasi && (
-        <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: "var(--priority-high-bg)", color: "var(--priority-high-text)" }} role="alert">
-          <AlertTriangle size={16} className="shrink-0" />
-          <p className="text-[12px] flex-1">{adimHatasi}</p>
-          <button onClick={() => setAdimHatasi(null)} className="text-[11px] font-semibold shrink-0">Kapat</button>
-        </div>
-      )}
-
-      {sonIslem && (
-        <div
-          className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-full px-4 py-2.5 shadow-lg animate-fade-in"
-          style={{ background: "var(--surface-raised)", border: "1px solid var(--border-strong)" }}
-          role="status"
-        >
-          <CheckCircle2 size={15} style={{ color: "var(--priority-low)" }} className="shrink-0" />
-          <span className="text-[12px] truncate max-w-[46vw]">{sonIslem.mesaj}</span>
-          <button onClick={() => void geriAl()} className="text-[12px] font-semibold shrink-0" style={{ color: "var(--brand-gold)" }}>
-            Geri al
-          </button>
-        </div>
-      )}
-
       {agHatasi && (
         <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }} role="alert">
           <CloudOff size={18} className="shrink-0" />
@@ -578,32 +360,6 @@ export function SchoolView() {
         </div>
         <button onClick={() => void load()} className="cp-btn cp-btn-ghost px-3" aria-label="Yenile"><RefreshCw size={15} /><span className="hidden sm:inline">Yenile</span></button>
       </header>
-
-      <section className="cp-card p-4 sm:p-5" style={{ borderColor: "color-mix(in srgb, var(--tag-school) 42%, var(--border-default))" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <NotebookPen size={18} style={{ color: "var(--tag-school)" }} />
-          <div>
-            <h2 className="text-[15px] font-semibold">Hızlı okul notu</h2>
-            <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>Ders, soru veya aklına geleni kaybetmeden yakala.</p>
-          </div>
-        </div>
-        <textarea
-          value={quickNote}
-          onChange={(event) => setQuickNote(event.target.value)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") saveQuickNote();
-          }}
-          rows={3}
-          placeholder="Örn. Matematik I için ikinci bölümü tekrar et…"
-          className="w-full resize-none rounded-xl p-3 text-[14px] outline-none"
-          style={{ background: "var(--surface-sunken)", color: "var(--text-primary)", border: "1px solid var(--border-default)" }}
-          aria-label="Hızlı okul notu"
-        />
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <button onClick={() => setView("notes")} className="text-[11px] min-h-11" style={{ color: "var(--text-tertiary)" }}>Okul notlarını aç <ChevronRight size={13} className="inline" /></button>
-          <button onClick={saveQuickNote} disabled={!quickNote.trim()} className="cp-btn cp-btn-primary min-h-11 disabled:opacity-40"><Save size={14} />{noteSaved ? "Kaydedildi" : "Nota kaydet"}</button>
-        </div>
-      </section>
 
       <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.75fr)] gap-4 sm:gap-5 items-start">
         <div className="space-y-4 sm:space-y-5 min-w-0">
@@ -664,7 +420,9 @@ export function SchoolView() {
                 const bugunMu = tarih === format(new Date(), "yyyy-MM-dd");
                 const tur = satirlar[0]?.gun_turu;
                 return (
-                  <li key={tarih} className="rounded-xl p-2.5 flex gap-3" style={{
+                  <li key={tarih}>
+                  {/* Güne basınca o günün gün sayfası (föy) açılır — takvimdeki etkinlikle aynı. */}
+                  <button onClick={() => openGunSayfasi(tarih)} className="w-full text-left rounded-xl p-2.5 flex gap-3 items-center" style={{
                     background: bugunMu ? "var(--tag-school-bg)" : "var(--surface-sunken)",
                     outline: bugunMu ? "1px solid color-mix(in srgb, var(--tag-school) 45%, transparent)" : "none",
                   }}>
@@ -682,18 +440,15 @@ export function SchoolView() {
                             <span className="font-normal" style={{ color: "var(--text-tertiary)" }}> · {s.tur === "tekrar" ? "tekrar" : `${s.dakika} dk`}</span>
                           </p>
                           {s.tur === "konu" && s.parcalar.map((p) => (
-                            <button
-                              key={`${s.id}-${p.unit_id}`}
-                              onClick={() => void openUnitNote(p.unit_id)}
-                              className="block text-left text-[11px] leading-snug underline-offset-2 hover:underline min-h-6"
-                              style={{ color: "var(--text-secondary)" }}
-                            >
+                            <span key={`${s.id}-${p.unit_id}`} className="block text-[11px] leading-snug" style={{ color: "var(--text-secondary)" }}>
                               {p.baslik}{p.devam ? " (devam)" : ""}{p.bitiyor ? " — bugün biter" : ""} · {p.dakika} dk
-                            </button>
+                            </span>
                           ))}
                         </div>
                       ))}
                     </div>
+                    <ChevronRight size={15} className="shrink-0" style={{ color: "var(--text-tertiary)" }} />
+                  </button>
                   </li>
                 );
               })}
@@ -702,312 +457,68 @@ export function SchoolView() {
 
           <section className="cp-card p-4 sm:p-5">
             <SectionTitle
-              icon={Target}
-              title="Çalışma"
-              detail={plan ? `${plan.esikteki_ders}/${plan.toplam_ders} ders eşikte` : undefined}
-            />
-            {!plan ? (
-              <EmptyState>
-                {data.units.length
-                  ? "Yaklaşan ara sınav bulunamadı; plan sınav tarihine göre hesaplanıyor."
-                  : "Ders konuları henüz yüklenmedi. Motor OYS kazısını yayınlayınca burada görünecek."}
-              </EmptyState>
-            ) : (
-              <>
-                <div className="rounded-2xl p-4" style={{ background: "var(--surface-sunken)" }}>
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <span
-                      className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                      style={{
-                        background: plan.hal === "kritik" ? "var(--priority-high-bg)" : plan.hal === "geriliyor" ? "var(--priority-medium-bg)" : "var(--priority-low-bg)",
-                        color: plan.hal === "kritik" ? "var(--priority-high-text)" : plan.hal === "geriliyor" ? "var(--priority-medium-text)" : "var(--priority-low-text)",
-                      }}
-                    >
-                      {HAL_ETIKET[plan.hal]}
-                    </span>
-                    <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-                      {countdownLabel(plan.sinav_tarihi)} · kalan {saatce(plan.kalan_dakika)}
-                    </span>
-                  </div>
-                  <p className="text-[11px] mt-2" style={{ color: "var(--text-secondary)" }}>
-                    Gereken tempo <strong>{plan.gereken_tempo} dk/gün</strong> · şu anki {plan.tempo_7g} dk/gün
-                    {plan.tempo_kaynak === "beyan" && <> <span style={{ color: "var(--text-tertiary)" }}>(ölçüm yok, beyan edilen kapasite)</span></>}
-                  </p>
-                </div>
-
-                <h3 className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--text-secondary)" }}>Bugün</h3>
-                {plan.oneriler.map((oneri) => {
-                  const kazanimlar = outcomesByUnit.get(oneri.unit_id) ?? [];
-                  return (
-                    <div key={oneri.unit_id} className="rounded-2xl p-3 mb-2" style={{ background: "var(--surface-sunken)" }}>
-                      {/* Dar ekranda üç düğme aynı satırda durunca başlık dikey bir
-                          şeride sıkışıyordu; mobilde düğmeler başlığın altına iniyor. */}
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-semibold leading-snug">{oneri.baslik}</p>
-                          <p className="text-[11px] mt-1 flex items-center gap-1.5 flex-wrap" style={{ color: "var(--text-tertiary)" }}>
-                            <span>{oneri.ders_kodu} · {oneri.dakika} dk · {oneri.kazanc} soru</span>
-                            {oneri.esik_isi && <span style={{ color: "var(--priority-medium-text)" }}>eşik işi</span>}
-                            <DurumRozeti durum={progressMap.get(oneri.unit_id)?.durum ?? "dokunulmadi"} />
-                          </p>
-                        </div>
-                        <div className="flex gap-1 shrink-0 flex-wrap">
-                          <button
-                            onClick={() => void openUnitNote(oneri.unit_id)}
-                            disabled={unitBusy === oneri.unit_id}
-                            className="cp-btn cp-btn-ghost min-h-9 text-[11px] disabled:opacity-40"
-                            title="Konu notunu aç"
-                          >
-                            <NotebookPen size={12} />Not
-                          </button>
-                        </div>
-                      </div>
-                      <div className="mt-2">
-                        <KonuChecklist
-                          kayit={progressMap.get(oneri.unit_id)}
-                          mevcut={adimHaritasi.get(oneri.unit_id) ?? ADIMLAR}
-                          mesgul={unitBusy === oneri.unit_id}
-                          onDegis={(adim, deger) => void adimDegistir(oneri.unit_id, adim, deger)}
-                        />
-                      </div>
-                      {kazanimlar.length > 0 && (() => {
-                        const biten = kazanimlar.filter((k) => isaretli.has(k.id)).length;
-                        return (
-                          <>
-                            <p className="text-[10px] mt-2 mb-1" style={{ color: "var(--text-tertiary)" }}>
-                              Kazanım {biten}/{kazanimlar.length}
-                            </p>
-                            <ul className="pl-4 space-y-1 list-disc" style={{ color: "var(--text-secondary)" }}>
-                              {kazanimlar.map((k) => (
-                                <li
-                                  key={k.id}
-                                  className="text-[11px] leading-snug"
-                                  style={isaretli.has(k.id) ? { textDecoration: "line-through", color: "var(--text-tertiary)" } : undefined}
-                                >
-                                  {k.metin}
-                                </li>
-                              ))}
-                            </ul>
-                          </>
-                        );
-                      })()}
-                      {(modulesByUnit.get(oneri.unit_id) ?? []).length > 0 && (
-                        <div className="mt-2">
-                          <button
-                            onClick={() => setAcikMateryal(acikMateryal === oneri.unit_id ? null : oneri.unit_id)}
-                            className="cp-btn cp-btn-ghost min-h-9 text-[11px]"
-                          >
-                            <BookOpenCheck size={13} />
-                            {acikMateryal === oneri.unit_id ? "Materyali kapat" : `Materyal (${(modulesByUnit.get(oneri.unit_id) ?? []).length})`}
-                          </button>
-                          {acikMateryal === oneri.unit_id && (
-                            <ul className="mt-2 space-y-1">
-                              {(modulesByUnit.get(oneri.unit_id) ?? []).map((mat) => (
-                                <li key={mat.id}>
-                                  <a
-                                    href={mat.oys_url ?? "#"}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-[11px] leading-snug"
-                                    style={{ background: "var(--surface-raised)", color: "var(--text-primary)" }}
-                                  >
-                                    <span
-                                      className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                                      style={{ background: "var(--tag-school-bg)", color: "var(--tag-school-text)" }}
-                                    >
-                                      {materyalEtiketi(mat.ad, mat.tip)}
-                                    </span>
-                                    <span className="truncate flex-1">{mat.ad}</span>
-                                    {mat.tahmini_dakika > 0 && (
-                                      <span className="shrink-0" style={{ color: "var(--text-tertiary)" }}>{mat.tahmini_dakika} dk</span>
-                                    )}
-                                    <ArrowUpRight size={12} className="shrink-0" style={{ color: "var(--text-tertiary)" }} />
-                                  </a>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                      {(questionsByUnit.get(oneri.unit_id) ?? []).length > 0 && (
-                        <div className="mt-2">
-                          <button
-                            onClick={() => setAcikSoru(acikSoru === oneri.unit_id ? null : oneri.unit_id)}
-                            className="cp-btn cp-btn-ghost min-h-9 text-[11px]"
-                          >
-                            <NotebookPen size={13} />
-                            {acikSoru === oneri.unit_id ? "Soruyu kapat" : `Çıkmış soru (${(questionsByUnit.get(oneri.unit_id) ?? []).length})`}
-                          </button>
-                          {acikSoru === oneri.unit_id && (questionsByUnit.get(oneri.unit_id) ?? []).map((soru) => {
-                            const verilen = verilenCevap[soru.id];
-                            return (
-                              <div key={soru.id} className="mt-2 rounded-xl p-3" style={{ background: "var(--surface-raised)" }}>
-                                <p className="text-[12px] leading-snug font-medium">{soru.govde}</p>
-                                <div className="mt-2 space-y-1">
-                                  {soru.secenekler.map((sik) => {
-                                    const secili = verilen === sik.harf;
-                                    const dogruSik = verilen != null && sik.harf === soru.dogru;
-                                    return (
-                                      <button
-                                        key={sik.harf}
-                                        onClick={() => void answerQuestion(soru.id, sik.harf, soru.dogru)}
-                                        disabled={verilen != null}
-                                        className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] leading-snug disabled:cursor-default"
-                                        style={{
-                                          background: dogruSik ? "var(--priority-low-bg)" : secili ? "var(--priority-high-bg)" : "var(--surface-sunken)",
-                                          color: dogruSik ? "var(--priority-low-text)" : secili ? "var(--priority-high-text)" : "var(--text-primary)",
-                                        }}
-                                      >
-                                        <strong className="mr-1.5">{sik.harf})</strong>{sik.metin}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                {verilen != null && (
-                                  <p className="text-[11px] mt-2" style={{ color: verilen === soru.dogru ? "var(--priority-low-text)" : "var(--priority-high-text)" }}>
-                                    {verilen === soru.dogru ? "Doğru." : `Yanlış — doğrusu ${soru.dogru}.`}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <h3 className="text-[12px] font-semibold mt-4 mb-2" style={{ color: "var(--text-secondary)" }}>
-                  Ders durumu <span className="font-normal" style={{ color: "var(--text-tertiary)" }}>· geçmek için 20 soruda 12</span>
-                </h3>
-                {plan.dersler.map((ders) => (
-                  <div key={ders.ders_kodu} className="flex items-center gap-3 py-2">
-                    <span className="text-[12px] w-20 shrink-0 font-medium">{ders.ders_kodu}</span>
-                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-sunken)" }}>
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${Math.min(100, (ders.kapsanan / 12) * 100)}%`,
-                          background: ders.esikte ? "var(--priority-low-text)" : "var(--tag-school-text)",
-                        }}
-                      />
-                    </div>
-                    <span className="text-[11px] w-32 text-right shrink-0" style={{ color: "var(--text-tertiary)" }}>
-                      {ders.esikte ? "eşikte ✓" : `${ders.esige_kalan} soru eksik · ${saatce(ders.kalan_dakika)}`}
-                    </span>
-                  </div>
-                ))}
-
-                {plan.risk.length > 0 && (
-                  <div className="rounded-2xl p-3 mt-3" style={{ background: "var(--priority-high-bg)" }}>
-                    <p className="text-[11px] font-semibold" style={{ color: "var(--priority-high-text)" }}>
-                      Bu tempoyla eşiğe ulaşamayan dersler
-                    </p>
-                    <p className="text-[11px] mt-1" style={{ color: "var(--priority-high-text)" }}>
-                      {plan.risk.map((r) => `${r.ders_kodu} (${saatce(r.gereken_dakika)})`).join(" · ")}
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-
-          <section className="cp-card p-4 sm:p-5">
-            <SectionTitle
               icon={Layers}
-              title="Bütün konular"
-              detail={`${Array.from(unitsByCourse.values()).reduce((t, l) => t + l.length, 0)} konu`}
+              title="Dersler"
+              detail={plan ? `Vize · ${format(parseISO(plan.sinav_tarihi), "d MMMM", { locale: tr })} · ${plan.esikteki_ders}/${plan.toplam_ders} ders eşikte` : undefined}
             />
-            <p className="text-[11px] -mt-1 mb-3" style={{ color: "var(--text-tertiary)" }}>
-              Günün önerisi bir tavsiye. Canın başka dersi çekiyorsa buradan aç.
+            {plan && (
+              <p className="text-[11px] -mt-1 mb-3 flex items-center gap-2 flex-wrap" style={{ color: "var(--text-tertiary)" }}>
+                <span
+                  className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  style={{
+                    background: plan.hal === "kritik" ? "var(--priority-high-bg)" : plan.hal === "geriliyor" ? "var(--priority-medium-bg)" : "var(--priority-low-bg)",
+                    color: plan.hal === "kritik" ? "var(--priority-high-text)" : plan.hal === "geriliyor" ? "var(--priority-medium-text)" : "var(--priority-low-text)",
+                  }}
+                >
+                  {HAL_ETIKET[plan.hal]}
+                </span>
+                <span>{countdownLabel(plan.sinav_tarihi)} · vizeye kalan iş {sureYazi(plan.kalan_dakika)} · gereken {plan.gereken_tempo} dk/gün</span>
+              </p>
+            )}
+            <p className="text-[11px] mb-2" style={{ color: "var(--text-tertiary)" }}>
+              Çubuk: vize kapsamındaki ~20 sorudan kaçını karşılıyorsun. Çizgi geçme eşiği (12). Derse basınca konuları açılır.
             </p>
-            {activeCourses.length === 0 && <EmptyState>Ders listesi henüz yüklenmedi.</EmptyState>}
-            {activeCourses.map((course) => {
-              const konular = unitsByCourse.get(course.kod) ?? [];
-              if (!konular.length) return null;
-              const acik = acikDers === course.kod;
-              const dersDurumu = plan?.dersler.find((d) => d.ders_kodu === course.kod);
-              const biten = konular.filter((u) => {
-                const d = progressMap.get(u.id)?.durum;
-                return d === "hakim" || d === "test_edildi";
-              }).length;
-              return (
-                <div key={course.kod} className="border-b last:border-b-0" style={{ borderColor: "var(--border-subtle)" }}>
-                  <button
-                    onClick={() => setAcikDers(acik ? null : course.kod)}
-                    className="w-full flex items-center gap-3 py-3 text-left min-h-14"
-                    aria-expanded={acik}
-                  >
-                    <ChevronRight
-                      size={15}
-                      className="shrink-0 transition-transform"
-                      style={{ color: "var(--text-tertiary)", transform: acik ? "rotate(90deg)" : "none" }}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-medium truncate">{course.ad}</span>
-                      <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-                        {course.kod} · {konular.length} konu · {biten} hakim
-                        {dersDurumu?.esikte && <> · <span style={{ color: "var(--priority-low-text)" }}>eşikte ✓</span></>}
+            {plan && plan.risk.length > 0 && (
+              <p className="text-[11px] mb-2 rounded-xl px-3 py-2" style={{ background: "var(--priority-high-bg)", color: "var(--priority-high-text)" }}>
+                Bu tempoyla eşiğe ulaşamayan dersler: {plan.risk.map((r) => `${dersAdi(r.ders_kodu)} (${sureYazi(r.gereken_dakika)})`).join(" · ")}
+              </p>
+            )}
+            {!dersOzet.length && (
+              <EmptyState>Ders konuları henüz yüklenmedi. Motor OYS kazısını yayınlayınca burada görünecek.</EmptyState>
+            )}
+            <ul>
+              {dersOzet.map((d) => {
+                const course = activeCourses.find((c) => c.kod === d.kod);
+                return (
+                  <li key={d.kod} style={{ borderTop: "0.5px solid var(--border-subtle)" }}>
+                    <button onClick={() => openDersSayfasi(d.kod)} className="w-full flex items-center gap-3 py-3 text-left min-h-14">
+                      <span className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-5">
+                        <span className="sm:flex-1 min-w-0">
+                          <span className="block text-[13px] font-medium truncate">{course?.ad ?? d.kod}</span>
+                          <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
+                            {d.kod}{course ? ` · ${course.akts} AKTS` : ""} · vize {d.konular.vize.length} konu
+                            {d.buHafta.length > 0 && <span style={{ color: "var(--tag-school-text)" }}> · bu hafta {d.buHafta.length} konu</span>}
+                          </span>
+                        </span>
+                        <span className="sm:w-[42%] shrink-0">
+                          <span className="relative block h-2 rounded-full" style={{ background: "var(--surface-sunken)" }}>
+                            <span
+                              className="absolute inset-y-0 left-0 rounded-full"
+                              style={{ width: `${Math.min(100, d.yuzde)}%`, background: d.esikte ? "var(--priority-low-text)" : "var(--tag-school)" }}
+                            />
+                            <span className="absolute -inset-y-1 w-0.5 rounded" style={{ left: `${d.esikYeri}%`, background: "var(--text-secondary)" }} aria-hidden />
+                          </span>
+                          <span className="block text-[10px] mt-1" style={{ color: d.esikte ? "var(--priority-low-text)" : "var(--text-tertiary)" }}>
+                            %{d.yuzde} · {d.esikte ? "eşikte ✓" : `eşiğe ${soruSayisi(d.esige_kalan)}`}
+                          </span>
+                        </span>
                       </span>
-                    </span>
-                    {dersDurumu && (
-                      <span className="w-16 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--surface-sunken)" }}>
-                        <span
-                          className="block h-full rounded-full"
-                          style={{
-                            width: `${Math.min(100, (dersDurumu.kapsanan / 12) * 100)}%`,
-                            background: dersDurumu.esikte ? "var(--priority-low-text)" : "var(--tag-school-text)",
-                          }}
-                        />
-                      </span>
-                    )}
-                  </button>
-                  {acik && (
-                    <ul className="pb-3 space-y-1.5">
-                      {konular.map((konu) => {
-                        const durum = progressMap.get(konu.id)?.durum ?? "dokunulmadi";
-                        const kaz = kazanimOrani(konu.id);
-                        return (
-                          <li key={konu.id} className="rounded-xl p-2.5" style={{ background: "var(--surface-sunken)" }}>
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-[12px] leading-snug font-medium">{konu.baslik}</p>
-                                <p className="text-[10px] mt-1 flex items-center gap-1.5 flex-wrap" style={{ color: "var(--text-tertiary)" }}>
-                                  <span className="rounded-full px-1.5 py-0.5" style={{ background: "var(--surface-raised)" }}>
-                                    {konu.dilim === "vize" ? "Vize" : konu.dilim === "final" ? "Final" : "—"}
-                                  </span>
-                                  <span>{konu.tahmini_dakika} dk</span>
-                                  <span>· {konu.soru_degeri} soru</span>
-                                  {kaz && <span>· kazanım {kaz.biten}/{kaz.toplam}</span>}
-                                  <DurumRozeti durum={durum} />
-                                </p>
-                              </div>
-                              <div className="flex gap-1 shrink-0 flex-wrap">
-                                <button
-                                  onClick={() => void openUnitNote(konu.id)}
-                                  disabled={unitBusy === konu.id}
-                                  className="cp-btn cp-btn-ghost min-h-11 text-[11px] disabled:opacity-40"
-                                >
-                                  <NotebookPen size={12} />Not
-                                </button>
-                              </div>
-                            </div>
-                            <div className="mt-2">
-                              <KonuChecklist
-                                kayit={progressMap.get(konu.id)}
-                                mevcut={adimHaritasi.get(konu.id) ?? ADIMLAR}
-                                mesgul={unitBusy === konu.id}
-                                onDegis={(adim, deger) => void adimDegistir(konu.id, adim, deger)}
-                              />
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
+                      <ChevronRight size={15} className="shrink-0" style={{ color: "var(--text-tertiary)" }} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </section>
 
           {tekrarSirasi.length > 0 ? (
@@ -1086,32 +597,35 @@ export function SchoolView() {
             )) : <EmptyState>Aksiyon gerektiren duyuru yok. Boş olması kaynakların sağlıklı olduğu anlamına gelmez; aşağıdaki sağlık bölümünü kontrol et.</EmptyState>}
           </section>
 
-          <section className="cp-card p-4 sm:p-5">
-            <SectionTitle icon={BookOpenCheck} title="Dersler ve notlar" detail={`1. yarıyıl · ${activeCourses.length} ders`} />
-            {activeCourses.map((course) => {
-              const grade = gradesByCourse.get(course.kod);
-              const required = requiredFinal(grade?.vize);
-              return (
-                <div key={course.kod} className="grid grid-cols-[1fr_auto] gap-3 py-3 border-b last:border-b-0" style={{ borderColor: "var(--border-subtle)" }}>
-                  <div className="min-w-0"><p className="text-[13px] font-medium truncate">{course.ad}</p><p className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>{course.kod} · {course.akts} AKTS</p></div>
-                  <div className="text-right"><p className="text-[12px] font-medium">{grade?.harf ?? grade?.statu ?? "—"}</p>{required != null && <p className="text-[10px] mt-1" style={{ color: required >= 65 ? "var(--priority-high-text)" : "var(--text-tertiary)" }}>Final ≥ {required}</p>}</div>
-                </div>
-              );
-            })}
-            {!activeCourses.length && <EmptyState>Aktif yarıyıl müfredatı henüz yayınlanmadı.</EmptyState>}
-            {user && activeCourses.length > 0 && (
-              <form onSubmit={submitGrade} className="grid sm:grid-cols-[1fr_86px_86px_auto] gap-2 mt-4 p-3 rounded-2xl" style={{ background: "var(--surface-sunken)" }}>
-                <select value={gradeCourse} onChange={(event) => setGradeCourse(event.target.value)} className="rounded-xl px-3 text-[12px] min-h-11" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-default)" }} aria-label="Ders seç"><option value="">Ders seç…</option>{activeCourses.map((course) => <option key={course.kod} value={course.kod}>{course.ad}</option>)}</select>
-                <input value={midterm} onChange={(event) => setMidterm(event.target.value)} type="number" min="0" max="100" placeholder="Vize" className="rounded-xl px-3 text-[12px] min-h-11" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-default)" }} aria-label="Vize notu" />
-                <input value={finalScore} onChange={(event) => setFinalScore(event.target.value)} type="number" min="0" max="100" placeholder="Final" className="rounded-xl px-3 text-[12px] min-h-11" style={{ background: "var(--surface-raised)", border: "1px solid var(--border-default)" }} aria-label="Final notu" />
-                <button type="submit" disabled={!gradeCourse} className="cp-btn cp-btn-primary min-h-11 disabled:opacity-40"><Save size={14} />Kaydet</button>
-                {gradeStatus && <p className="sm:col-span-4 text-[10px]" style={{ color: "var(--text-tertiary)" }}>{gradeStatus}</p>}
-              </form>
-            )}
-          </section>
         </div>
 
         <aside className="space-y-4 sm:space-y-5">
+        <section className="cp-card p-4 sm:p-5" style={{ borderColor: "color-mix(in srgb, var(--tag-school) 42%, var(--border-default))" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <NotebookPen size={18} style={{ color: "var(--tag-school)" }} />
+            <div>
+              <h2 className="text-[15px] font-semibold">Hızlı okul notu</h2>
+              <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>Ders, soru veya aklına geleni kaybetmeden yakala.</p>
+            </div>
+          </div>
+          <textarea
+            value={quickNote}
+            onChange={(event) => setQuickNote(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") saveQuickNote();
+            }}
+            rows={3}
+            placeholder="Örn. Matematik I için ikinci bölümü tekrar et…"
+            className="w-full resize-none rounded-xl p-3 text-[14px] outline-none"
+            style={{ background: "var(--surface-sunken)", color: "var(--text-primary)", border: "1px solid var(--border-default)" }}
+            aria-label="Hızlı okul notu"
+          />
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <button onClick={() => setView("notes")} className="text-[11px] min-h-11" style={{ color: "var(--text-tertiary)" }}>Okul notlarını aç <ChevronRight size={13} className="inline" /></button>
+            <button onClick={saveQuickNote} disabled={!quickNote.trim()} className="cp-btn cp-btn-primary min-h-11 disabled:opacity-40"><Save size={14} />{noteSaved ? "Kaydedildi" : "Nota kaydet"}</button>
+          </div>
+        </section>
+
           <section className="cp-card p-4 sm:p-5">
             <SectionTitle icon={Target} title="Haftalık strateji" detail={strategy.gabno == null ? "GABNO —" : `GABNO ${strategy.gabno.toFixed(2)}`} />
             <div className="grid grid-cols-2 gap-2 mb-3">

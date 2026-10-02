@@ -170,6 +170,8 @@ export const useAppStore = create<AppState>()(
       // ── Gün sayfası (Plan v3, Faz C) ──────────────────────────
       gunSayfasiTarihi: null,
       openGunSayfasi: (tarih) => set({ gunSayfasiTarihi: tarih }),
+      dersSayfasiKodu: null,
+      openDersSayfasi: (kod) => set({ dersSayfasiKodu: kod }),
 
       // ── Event Delete Confirm State ────────────────────────────
       deletingEventId: null,
