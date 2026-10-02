@@ -33,21 +33,38 @@ create policy "ders materyalini giris yapan okur"
 -- atıyordu. İstemci tarafı ayrıca düzeltildi; burada şema hizalanıyor.
 -- ─────────────────────────────────────────────────────────────
 
-alter table public.tasks add column if not exists due_date date;
-alter table public.tasks add column if not exists scheduled_date date;
+-- DİKKAT: Epoche'nin eski tablolarında (tasks, events, rich_notes) zaman
+-- damgaları ve tarihler METİN kolonu; v3 de kolonları metin olarak tanımlıyor.
+-- İlk sürüm burada tarih tipi varsayıp `coalesce(text, timestamptz)` hatası
+-- verdi (2 Ekim). Aşağısı v3 ile birebir aynı tipleri kullanıyor.
+
+alter table public.tasks add column if not exists due_date text;
+alter table public.tasks add column if not exists scheduled_date text;
 alter table public.tasks add column if not exists scheduled_start_time text;
 alter table public.tasks add column if not exists scheduled_end_time text;
-alter table public.tasks add column if not exists focus_date date;
-alter table public.tasks add column if not exists recurrence text default 'none';
+alter table public.tasks add column if not exists focus_date text;
+alter table public.tasks add column if not exists recurrence text not null default 'none';
+alter table public.work_sessions add column if not exists task_id text;
+
+-- v3'teki geri doldurma: eski kayıtların son tarihi `date` alanından gelir.
+update public.tasks set
+  due_date = coalesce(due_date, date),
+  scheduled_date = coalesce(scheduled_date, date)
+where due_date is null or scheduled_date is null;
 
 -- Damgası olmayan eski satırlar yazılamıyordu; varsayılan veriliyor.
-alter table public.tasks alter column updated_at set default now();
-alter table public.tasks alter column created_at set default now();
-update public.tasks set updated_at = coalesce(updated_at, created_at, now()) where updated_at is null;
+-- Uygulamanın kendi yazdığı biçimle aynı: 2026-10-02T21:00:00.000Z
+alter table public.tasks
+  alter column updated_at set default to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+  alter column created_at set default to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+update public.tasks set updated_at = coalesce(created_at, to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+where updated_at is null;
 
 -- Aynı tuzak diğer tablolarda da tekrarlanmasın.
-alter table public.events alter column updated_at set default now();
-alter table public.rich_notes alter column updated_at set default now();
+alter table public.events
+  alter column updated_at set default to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+alter table public.rich_notes
+  alter column updated_at set default to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
 
 -- ─────────────────────────────────────────────────────────────
 -- 3. Soru denemesi tablosunun kullanıcı yazımına açık olduğunun teyidi
