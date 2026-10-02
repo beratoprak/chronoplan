@@ -23,7 +23,7 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
   const [sayfa, setSayfa] = useState(1);
   const [toplam, setToplam] = useState(0);
   const [durum, setDurum] = useState<"yukleniyor" | "hazir" | "hata">("yukleniyor");
-  const [neden, setNeden] = useState<KaynakHatasi | null>(null);
+  const [neden, setNeden] = useState<KaynakHatasi | "acilamadi" | null>(null);
   const [secim, setSecim] = useState("");
 
   useEffect(() => {
@@ -36,7 +36,8 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
       // pdfjs yalnız tarayıcıda çalışıyor; sunucu derlemesine girmemesi için
       // dinamik ithal ediliyor.
       const pdfjs = await import("pdfjs-dist");
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+      // İşçi sabit adresten (scripts/pdf-worker-kopyala.mjs derlemeden önce koyar).
+      pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker-${pdfjs.version}.min.mjs`;
       try {
         const belge = await pdfjs.getDocument(url).promise;
         if (iptal) return;
@@ -44,8 +45,12 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
         setToplam(belge.numPages);
         setSayfa(1);
         setDurum("hazir");
-      } catch { if (!iptal) setDurum("hata"); }
-    })();
+      } catch { if (!iptal) { setNeden("acilamadi"); setDurum("hata"); } }
+    })().catch(() => {
+      // Beklenmeyen her hata görünür olsun: eskiden işçi adresi kurulamayınca
+      // söz yakalanmıyor, ekran "yükleniyor"da sonsuza kadar kalıyordu.
+      if (!iptal) { setNeden("acilamadi"); setDurum("hata"); }
+    });
     return () => { iptal = true; };
   }, [yol]);
 
@@ -115,6 +120,8 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
                   bir kez çalıştırıldığında açılacak.
                 </p>
               </>
+            ) : neden === "acilamadi" ? (
+              <p>Dosya indirildi ama açılamadı. Okuyucuyu kapatıp yeniden dene.</p>
             ) : neden === "ag" ? (
               <p>Bağlantı kurulamadı. İnternet gidip gelmiş olabilir; tekrar dene.</p>
             ) : (

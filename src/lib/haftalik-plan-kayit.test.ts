@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./supabase", () => ({ supabase: {}, isSupabaseConfigured: true }));
 
-import { enYakinSinav, etkinlikAciklamasi, etkinlikBasligi, planEtkinlikId } from "./haftalik-plan-kayit";
+import { enYakinSinav, etkinlikAciklamasi, etkinlikBasligi, kisalt, planEtkinlikId } from "./haftalik-plan-kayit";
 import type { CalendarEvent } from "@/types";
 import type { PlanGunu } from "./haftalik-plan";
 
@@ -42,6 +42,10 @@ describe("takvim etkinliği", () => {
     const a = etkinlikAciklamasi(gun, dersler);
     expect(a).toContain("Matematik I — 30 dk");
     expect(a).toContain("2-Dil Bilgisi — bugün biter · 30 dk");
+  });
+  it("uzun konu adı sözcük sınırında kısalır", () => {
+    expect(kisalt("1-Temel İşletmecilik Kavram ve Tanımları, İşletmenin Özellikleri", 34)).toBe("1-Temel İşletmecilik Kavram ve…");
+    expect(kisalt("3-Limit", 34)).toBe("3-Limit");
   });
   it("kimlik tarihten: yeniden planlanınca çoğalmaz", () => {
     expect(planEtkinlikId("2026-10-05")).toBe("ybs-plan-2026-10-05");

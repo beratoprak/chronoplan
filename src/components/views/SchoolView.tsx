@@ -13,7 +13,7 @@ import { AdimKolonuYok, buildSchoolDemoData, buildSchoolStrategy, completedCredi
 import { buildStudyPlan, type StudyUnit, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
-import { haftaninPlani, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { haftaninPlani, PLAN_KAYNAGI, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
 import { ADIM_ETIKETI, ADIMLAR, ilerlemeKatsayisi, isaretliAdimlar, mevcutAdimHaritasi, type Adim, type Adimlar } from "@/lib/ilerleme";
 import { degerlendir, yeniKart, zamaniGelenler, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
@@ -49,6 +49,10 @@ function isSchoolTask(task: Task) {
 }
 
 function isSchoolEvent(event: CalendarEvent) {
+  // Çalışma planı etkinlikleri de okul etiketli ve "ybs-" ile başlıyor; ama
+  // kritik tarih değiller. Ayıklanmazsa "Sıradaki kritik tarih" kartı kayıt
+  // ve sınav yerine günün çalışma planını gösteriyordu.
+  if (event.source === PLAN_KAYNAGI) return false;
   return event.isManaged || event.id.startsWith("ybs-") || event.tagColor === "school";
 }
 

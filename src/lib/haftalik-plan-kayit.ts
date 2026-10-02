@@ -53,7 +53,15 @@ export function enYakinSinav(events: CalendarEvent[], bugun: string): { tarih: s
 const kisaAd = (kod: string, dersler: SchoolCourse[]) =>
   (dersler.find((d) => d.kod === kod)?.ad ?? kod).replace(/\s+Ve\s+/g, " ve ");
 
-/** Takvimde görünen başlık: iki ders ve günün konusu. */
+/** Uzun konu adını sözcük sınırında kısaltır; tam adı açıklamada duruyor. */
+export function kisalt(metin: string, uzunluk: number): string {
+  if (metin.length <= uzunluk) return metin;
+  const kesik = metin.slice(0, uzunluk);
+  const bosluk = kesik.lastIndexOf(" ");
+  return `${(bosluk > uzunluk * 0.6 ? kesik.slice(0, bosluk) : kesik).replace(/[\s,;:·-]+$/, "")}…`;
+}
+
+/** Takvimde görünen başlık: iki ders ve günün konusu (konu adı kısaltılmış). */
 export function etkinlikBasligi(gun: PlanGunu, dersler: SchoolCourse[]): string {
   if (gun.tur === "tekrar") {
     return `🔁 Tekrar · ${gun.dersler.map((d) => kisaAd(d.ders_kodu, dersler)).join(" + ")}`;
@@ -61,7 +69,7 @@ export function etkinlikBasligi(gun: PlanGunu, dersler: SchoolCourse[]): string 
   const parca = (d: PlanDersi) => {
     const ilk = d.parcalar[0];
     if (!ilk) return kisaAd(d.ders_kodu, dersler);
-    return `${kisaAd(d.ders_kodu, dersler)} · ${ilk.baslik}${ilk.devam ? " (devam)" : ""}`;
+    return `${kisaAd(d.ders_kodu, dersler)} · ${kisalt(ilk.baslik, 34)}${ilk.devam ? " (devam)" : ""}`;
   };
   return `📘 ${gun.dersler.map(parca).join("  +  ")}`;
 }

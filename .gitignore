@@ -52,3 +52,6 @@ package 2.json
 package-lock 2.json
 
 .env*
+
+# derlemeden önce node_modules/pdfjs-dist'ten kopyalanır
+/public/pdf.worker-*.min.mjs
