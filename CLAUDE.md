@@ -31,7 +31,7 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 | `src/lib/haftalik-plan-kayit.ts` | Planı `ybs_haftalik_plan`'a ve takvime yazar |
 | `src/lib/useHaftalikPlanlayici.ts` | Pazar 21:00 sonrası ilk açılışta planı kurar |
 | `src/components/school/GunSayfasi.tsx` | Gün sayfası: plan etkinliğine tıklayınca o günün iki dersi tam ekran |
-| `src/lib/gun-sayfasi.ts` | Gün sayfasının saf hesapları: soru sırası, tekrar günü konuları, materyal |
+| `src/lib/gun-sayfasi.ts` | Gün sayfasının saf hesapları: konu föyü (malzeme, yönergeli adımlar, bugünkü kısım), soru sırası, tekrar günü |
 | `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü, PDF okuyucu |
 | `supabase/migration-epoche-v*.sql` | Şema değişiklikleri (Supabase SQL Editor'de elle çalıştırılır) |
 

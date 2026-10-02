@@ -1,10 +1,12 @@
 "use client";
 
-// Gün sayfası (Plan v3, Faz C).
+// Gün sayfası (Plan v3, Faz C; 3 Ekim'de çalışma föyü olarak yeniden düzenlendi).
 //
-// Takvimdeki çalışma etkinliğine tıklayınca açılır: o günün iki dersi tek
-// ekranda — konu, kazanımlar, kitap, podcast, video, çıkmış soru, checklist,
-// konu notu. Amaç uygulamadan çıkmadan bir konuyu baştan sona çalışabilmek.
+// Takvimdeki çalışma etkinliğine tıklayınca açılır. Üstte bugünün özeti; her
+// ders bir föy: konu → öğreneceklerin → malzemen → nasıl çalışacaksın. Her
+// adım kendi malzemesini taşır ve checklist'in bir adımını işaretler; olmayan
+// malzeme (ör. PDF'siz konu) gizlenmez, açıkça "yok" yazar. Neyin hangi sırayla
+// gösterileceği `lib/gun-sayfasi.ts`'teki `konuFoyu`'nda, burada yalnız çizim.
 // Veri `ybs_haftalik_plan`'dan; ilerleme Okul sekmesiyle aynı tablolara yazılır.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,8 +14,8 @@ import dynamic from "next/dynamic";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import {
-  ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, FileText, Headphones, Loader2,
-  NotebookPen, Pencil, RefreshCw, Video,
+  ArrowLeft, ArrowUpRight, BookOpen, Check, ChevronRight, Info, Loader2, MoreHorizontal,
+  NotebookPen, Pencil, RefreshCw,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import {
@@ -22,13 +24,14 @@ import {
 } from "@/lib/school-data";
 import type { StudyUnit, UnitProgress } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
-import { isaretliKazanimlar } from "@/lib/note-blocks";
 import { gununPlani, planEtkinlikId, planiHesapla, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import type { PlanParcasi } from "@/lib/haftalik-plan";
-import { ADIMLAR, mevcutAdimHaritasi, type Adim } from "@/lib/ilerleme";
+import { ADIMLAR, ilerlemeKatsayisi, mevcutAdimHaritasi, type Adim } from "@/lib/ilerleme";
 import { depoYolu } from "@/lib/pdf-kaynak";
-import { eksikKonular, gunMateryali, soruDurumlari, soruSirasi, tekrarSorulari } from "@/lib/gun-sayfasi";
-import { KonuChecklist } from "./KonuChecklist";
+import {
+  ADIM_ISARETI, eksikKonular, foyMalzemesi, konuAdi, konuFoyu, soruDurumlari, soruSirasi, tekrarSorulari,
+  type FoyAdimi, type FoyMalzemesi, type MalzemeTuru,
+} from "@/lib/gun-sayfasi";
 
 const PdfReader = dynamic(() => import("@/components/editor/PdfReader").then((m) => m.PdfReader), { ssr: false });
 
@@ -41,7 +44,7 @@ export function GunSayfasi() {
 
 function GunSayfasiIcerik({ tarih }: { tarih: string }) {
   const {
-    user, isDemoMode, events, richNotes, openGunSayfasi, openEventModal,
+    user, isDemoMode, events, openGunSayfasi, openEventModal,
     addRichNote, requestRichNote, setView,
   } = useAppStore();
   const kapat = useCallback(() => openGunSayfasi(null), [openGunSayfasi]);
@@ -128,7 +131,17 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
     }
     return set;
   }, [data?.outcomes, unitById]);
-  const isaretli = useMemo(() => isaretliKazanimlar(richNotes), [richNotes]);
+  /** Dersin PDF'i olan konu numaraları: PDF'siz konuda "PDF'ler şu konularda" demek için. */
+  const pdfliKonular = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const u of data?.units ?? []) {
+      if (u.tip !== "konu" || u.konu_no == null) continue;
+      const pdfli = foyMalzemesi((data?.modules ?? []).filter((m) => m.unit_id === u.id)).some((m) => m.tur === "kitap");
+      if (pdfli) map.set(u.ders_kodu, [...(map.get(u.ders_kodu) ?? []), u.konu_no]);
+    }
+    for (const l of Array.from(map.values())) l.sort((a, b) => a - b);
+    return map;
+  }, [data?.units, data?.modules]);
 
   const adimDegistir = useCallback(async (unitId: string, adim: Adim, deger: boolean) => {
     if (!user?.id || isDemoMode) return;
@@ -196,6 +209,8 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
   const dersSatirlari = (satirlar ?? []).filter((s) => s.ders_kodu);
   const toplamDakika = dersSatirlari.reduce((t, s) => t + s.dakika, 0);
   const salt = isDemoMode || !user?.id;
+  const [menu, setMenu] = useState(false);
+  const git = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   return (
     <div
@@ -212,18 +227,23 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
         <button onClick={kapat} className="cp-btn cp-btn-ghost min-h-11 px-2.5 gap-1.5 text-[13px]" aria-label="Takvime dön">
           <ArrowLeft size={18} /><span className="hidden sm:inline">Takvim</span>
         </button>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-[15px] font-semibold leading-tight truncate">
-            {format(parseISO(tarih), "d MMMM EEEE", { locale: tr })}
-          </h1>
-          <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
-            {gunTuru === "tekrar" ? "Tekrar günü" : gunTuru === "sinav" ? "Sınav günü" : toplamDakika ? `Çalışma · ~${toplamDakika} dk` : "Çalışma planı"}
-          </p>
-        </div>
+        <h1 className="min-w-0 flex-1 text-[15px] font-semibold leading-tight truncate">
+          {format(parseISO(tarih), "d MMMM EEEE", { locale: tr })}
+        </h1>
+        {/* Çalışırken işe yaramayan düzenleme, göze batmasın diye menüde. */}
         {etkinlik && !isDemoMode && (
-          <button onClick={duzenle} className="cp-btn cp-btn-ghost min-h-11 px-2.5 text-[11px] gap-1" title="Takvim etkinliğini düzenle">
-            <Pencil size={13} /><span className="hidden sm:inline">Etkinliği düzenle</span>
-          </button>
+          <div className="relative">
+            <button onClick={() => setMenu((m) => !m)} className="cp-icon-button" aria-label="Diğer" aria-expanded={menu}>
+              <MoreHorizontal size={18} />
+            </button>
+            {menu && (
+              <div className="absolute right-0 top-11 z-10 rounded-xl py-1 min-w-48" style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", boxShadow: "var(--golge-kalkik)" }}>
+                <button onClick={duzenle} className="w-full min-h-11 px-3 flex items-center gap-2 text-[13px] text-left" style={{ color: "var(--text-secondary)" }}>
+                  <Pencil size={14} />Takvim etkinliğini düzenle
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </header>
 
@@ -248,7 +268,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
           )}
 
           {data && satirlar !== null && !dersSatirlari.length && (
-            <div className="cp-card p-4 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            <div className="rounded-2xl p-4 text-[13px] leading-relaxed" style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", color: "var(--text-secondary)" }}>
               {gunTuru === "sinav"
                 ? "Bugün sınav günü. Başarılar!"
                 : gunTuru === "bos"
@@ -260,25 +280,60 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
             </div>
           )}
 
-          {data && dersSatirlari.map((satir) => {
+          {/* Bugünün özeti: kaç ders, hangileri, ne kadar. Satıra basınca derse iner. */}
+          {data && dersSatirlari.length > 0 && (
+            <div>
+              <p className="text-[18px] font-semibold leading-tight">
+                {gunTuru === "tekrar" ? "Tekrar günü" : "Bugün"} {dersSatirlari.length} ders · ~{toplamDakika} dk
+              </p>
+              <ol className="mt-2 space-y-1">
+                {dersSatirlari.map((satir, i) => {
+                  const ilk = satir.parcalar[0];
+                  const unit = ilk && unitById.get(ilk.unit_id);
+                  return (
+                    <li key={satir.id}>
+                      <button onClick={() => git(`ders-${i + 1}`)} className="w-full min-h-11 flex items-baseline gap-2 text-left text-[13px] rounded-lg px-2 -mx-2 hover:bg-[var(--surface-sunken)]">
+                        <span className="font-semibold tabular-nums" style={{ color: "var(--tag-school-text)" }}>{i + 1}.</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="font-medium">{dersAdi(satir.ders_kodu as string)}</span>
+                          <span style={{ color: "var(--text-tertiary)" }}>
+                            {satir.tur === "tekrar"
+                              ? " — tekrar"
+                              : ilk && ` — ${unit?.konu_no ? `${unit.konu_no}. konu: ` : ""}${konuAdi(ilk.baslik)}${satir.parcalar.length > 1 ? ` +${satir.parcalar.length - 1}` : ""}`}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-[12px] tabular-nums" style={{ color: "var(--text-tertiary)" }}>~{satir.dakika} dk</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          )}
+
+          {data && dersSatirlari.map((satir, i) => {
             const kod = satir.ders_kodu as string;
-            const ortak = {
-              data, ilerleme, adimHaritasi, kazanimlar, isaretli, mesgul, salt,
+            const ortak: Ortak = {
+              data, ilerleme, adimHaritasi, kazanimlar, unitById, mesgul, salt,
               kazanimVar: kazanimliDersler.has(kod),
+              pdfliKonular: pdfliKonular.get(kod) ?? [],
               onAdim: adimDegistir, onSoru: soruCoz, onNot: notuAc,
               onPdf: (yol: string, baslik: string) => setPdf({ yol, baslik }),
             };
             return (
-              <section key={satir.id} className="cp-card p-4 sm:p-5">
-                <div className="flex items-baseline justify-between gap-3 mb-3">
-                  <h2 className="text-[16px] font-semibold leading-snug">{dersAdi(kod)}</h2>
-                  <span className="text-[11px] shrink-0" style={{ color: "var(--text-tertiary)" }}>
-                    {satir.tur === "tekrar" ? "tekrar" : `~${satir.dakika} dk`}
-                  </span>
-                </div>
+              <section
+                key={satir.id}
+                id={`ders-${i + 1}`}
+                className="rounded-2xl p-4 sm:p-5 scroll-mt-3"
+                style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)" }}
+              >
+                <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                  Ders {i + 1} · {satir.tur === "tekrar" ? "tekrar" : `~${satir.dakika} dk`}
+                </p>
+                <h2 className="text-[17px] font-semibold leading-snug">{dersAdi(kod)}</h2>
                 {satir.tur === "tekrar"
                   ? <TekrarBolumu parcalar={satir.parcalar} dersKodu={kod} {...ortak} />
-                  : satir.parcalar.map((p) => <KonuBolumu key={p.unit_id} parca={p} {...ortak} />)}
+                  : satir.parcalar.map((p, j) => <KonuFoyuBolumu key={p.unit_id} parca={p} ilk={j === 0} {...ortak} />)}
               </section>
             );
           })}
@@ -303,8 +358,10 @@ interface Ortak {
   ilerleme: Map<string, UnitProgress>;
   adimHaritasi: Map<string, Adim[]>;
   kazanimlar: Map<string, { id: string; metin: string }[]>;
-  isaretli: Set<string>;
+  unitById: Map<string, StudyUnit>;
   kazanimVar: boolean;
+  /** Bu dersin PDF'i olan konularının numaraları. */
+  pdfliKonular: number[];
   mesgul: string | null;
   salt: boolean;
   onAdim: (unitId: string, adim: Adim, deger: boolean) => void;
@@ -313,30 +370,287 @@ interface Ortak {
   onPdf: (yol: string, baslik: string) => void;
 }
 
-/** Normal gün: bir konu (ya da konunun bir parçası) baştan sona. */
-function KonuBolumu({ parca, ...o }: Ortak & { parca: PlanParcasi }) {
-  const sorular = useMemo(
-    () => o.data.questions.filter((q) => q.unit_id === parca.unit_id),
-    [o.data.questions, parca.unit_id],
-  );
+/** Konunun parçası hakkında tek cümle: bugün konunun neresi yapılıyor. */
+function parcaCumlesi(p: PlanParcasi, toplam: number): string | null {
+  const tamami = toplam > 0 ? `Konunun tamamı ~${toplam} dk. ` : "";
+  if (!p.devam && p.bitiyor) return null;
+  if (!p.devam) return `${tamami}Bugün ~${p.dakika} dk'lık ilk kısmı; kalanı sonraki çalışmada.`;
+  if (!p.bitiyor) return `${tamami}Önceki günden devam; bugün ~${p.dakika} dk, kalanı sonraki çalışmada.`;
+  return `${tamami}Önceki günden devam; bugün bitiyor.`;
+}
+
+/** Normal gün: bir konu (ya da konunun bugünkü kısmı) föy olarak. */
+function KonuFoyuBolumu({ parca, ilk, ...o }: Ortak & { parca: PlanParcasi; ilk: boolean }) {
+  const unit = o.unitById.get(parca.unit_id);
   return (
-    <div className="rounded-2xl p-3 sm:p-4 mb-3 last:mb-0" style={{ background: "var(--surface-sunken)" }}>
-      <KonuBasligi parca={parca} {...o} />
-      <Kazanimlar unitId={parca.unit_id} {...o} />
-      <Materyal unitId={parca.unit_id} {...o} />
-      {sorular.length > 0 && (
-        <div className="mt-4">
-          <AltBaslik>Çıkmış soru</AltBaslik>
-          <SoruAkisi sorular={sorular} denemeler={o.data.attempts} salt={o.salt} onSoru={o.onSoru} sirala={soruSirasi} />
+    <div className={ilk ? "mt-1" : "mt-5 pt-4"} style={ilk ? undefined : { borderTop: "0.5px solid var(--border-default)" }}>
+      <KonuBasligi unitId={parca.unit_id} baslik={parca.baslik} {...o} />
+      {(() => { const c = parcaCumlesi(parca, unit?.tahmini_dakika ?? 0); return c && <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>{c}</p>; })()}
+      <Foy unitId={parca.unit_id} butce={parca.dakika} bitiyor={parca.bitiyor} {...o} />
+    </div>
+  );
+}
+
+function KonuBasligi({ unitId, baslik, ...o }: Ortak & { unitId: string; baslik: string }) {
+  const unit = o.unitById.get(unitId);
+  const yuzde = Math.round(ilerlemeKatsayisi(o.ilerleme.get(unitId), o.adimHaritasi.get(unitId) ?? ADIMLAR) * 100);
+  return (
+    <div className="flex items-baseline gap-2">
+      <h3 className="flex-1 min-w-0 text-[15px] font-medium leading-snug">
+        {unit?.konu_no ? `Konu ${unit.konu_no} — ` : ""}{konuAdi(baslik)}
+      </h3>
+      <span className="text-[11px] font-semibold tabular-nums shrink-0" style={{ color: yuzde === 100 ? "var(--priority-low-text)" : "var(--text-tertiary)" }}>
+        %{yuzde}
+      </span>
+    </div>
+  );
+}
+
+/** Föyün gövdesi: öğreneceklerin → malzemen → nasıl çalışacaksın → konu notu. */
+function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; butce: number; bitiyor: boolean }) {
+  const moduller = useMemo(() => o.data.modules.filter((m) => m.unit_id === unitId), [o.data.modules, unitId]);
+  const sorular = useMemo(() => o.data.questions.filter((q) => q.unit_id === unitId), [o.data.questions, unitId]);
+  const kazanim = o.kazanimlar.get(unitId) ?? [];
+  const kayit = o.ilerleme.get(unitId);
+  const foy = useMemo(() => konuFoyu({
+    moduller, soruSayisi: sorular.length, kazanimSayisi: kazanim.length,
+    mevcut: o.adimHaritasi.get(unitId) ?? ADIMLAR, kayit, butce, bitiyor,
+  }), [moduller, sorular.length, kazanim.length, o.adimHaritasi, unitId, kayit, butce, bitiyor]);
+  const dersKodu = o.unitById.get(unitId)?.ders_kodu ?? "";
+  const ac = (m: FoyMalzemesi) => {
+    if (m.cmid && dersKodu) o.onPdf(depoYolu(dersKodu, m.cmid), m.ad);
+    else if (m.oys_url) window.open(m.oys_url, "_blank", "noopener");
+  };
+
+  const numarali = foy.adimlar.map((a, i) => ({ a, no: i + 1 }));
+  const yapilan = numarali.filter(({ a }) => a.yapildi);
+  const bugun = numarali.filter(({ a }) => !a.yapildi && a.bugun);
+  const sonra = numarali.filter(({ a }) => !a.yapildi && !a.bugun);
+  // Konuyu bitiren gün ya da hiç bölünmemiş konu: "bugün/sonra" ayrımı gereksiz.
+  const ayir = sonra.length > 0;
+  const adimProps = {
+    unitId, sorular, ac, mesgul: o.salt || o.mesgul === unitId, onAdim: o.onAdim,
+    soruProps: { denemeler: o.data.attempts, salt: o.salt, onSoru: o.onSoru },
+  };
+
+  return (
+    <>
+      <AltBaslik>Bu konuda öğreneceklerin</AltBaslik>
+      {kazanim.length ? (
+        <ul className="pl-4 space-y-1 list-disc text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+          {kazanim.map((k) => <li key={k.id}>{k.metin}</li>)}
+        </ul>
+      ) : (
+        <Bos>
+          {o.kazanimVar ? "Bu konunun kazanım metni yok." : "Bu dersin OYS'sinde kazanım listesi yok."}
+          {foy.pdfVar && " Kitap bölümünün ana başlıkları neyi bilmen gerektiğini gösterir."}
+        </Bos>
+      )}
+
+      <AltBaslik>Malzemen</AltBaslik>
+      <MalzemeTablosu foy={foy} soruSayisi={sorular.length} pdfliKonular={o.pdfliKonular} ac={ac} />
+
+      <AltBaslik>Nasıl çalışacaksın</AltBaslik>
+      {foy.aciklama && (
+        <p className="text-[12px] leading-relaxed rounded-xl px-3 py-2 mb-1 flex gap-2" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }}>
+          <Info size={14} className="shrink-0 mt-0.5" />{foy.aciklama}
+        </p>
+      )}
+      {ayir && bugun.length > 0 && <GrupBasligi>Bugün{foy.bugunDakika ? ` · ~${foy.bugunDakika} dk` : ""}</GrupBasligi>}
+      {bugun.map(({ a, no }) => <AdimSatiri key={no} adim={a} no={no} acik {...adimProps} />)}
+      {ayir && <GrupBasligi>Sonraki çalışmada</GrupBasligi>}
+      {sonra.map(({ a, no }) => <AdimSatiri key={no} adim={a} no={no} acik={false} {...adimProps} />)}
+      {yapilan.length > 0 && <GrupBasligi>Yapıldı</GrupBasligi>}
+      {yapilan.map(({ a, no }) => <AdimSatiri key={no} adim={a} no={no} acik={false} {...adimProps} />)}
+
+      <button onClick={() => o.onNot(unitId)} disabled={o.mesgul === unitId} className="cp-btn cp-btn-ghost min-h-11 text-[12px] mt-3 disabled:opacity-40">
+        <NotebookPen size={14} />Konu notum
+      </button>
+    </>
+  );
+}
+
+const SATIR_ADI: Record<MalzemeTuru, string> = {
+  kitap: "Ders kitabı (PDF)", dosya: "Okuma dosyası", ses: "Sesli özet", video: "Video",
+  hedef: "Öğrenme hedefleri", test: "Kendini dene", diger: "Diğer",
+};
+const SATIR_SIRASI: MalzemeTuru[] = ["kitap", "dosya", "ses", "video", "hedef", "test", "diger"];
+
+function MalzemeDugmesi({ m, ac }: { m: FoyMalzemesi; ac: (m: FoyMalzemesi) => void }) {
+  if (m.cmid) {
+    return (
+      <button onClick={() => ac(m)} className="cp-btn cp-btn-primary min-h-11 px-3 text-[12px] shrink-0">
+        <BookOpen size={14} />Oku
+      </button>
+    );
+  }
+  if (!m.oys_url) return null;
+  const fiil = m.tur === "video" ? "İzle" : m.tur === "ses" ? "Dinle" : m.tur === "test" ? "Çöz" : "Aç";
+  return (
+    <a href={m.oys_url} target="_blank" rel="noreferrer" className="cp-btn cp-btn-ghost min-h-11 px-3 text-[12px] shrink-0" title="OYS'de açılır">
+      {fiil}<ArrowUpRight size={12} />
+    </a>
+  );
+}
+
+/** Konunun bütün malzemesi tür tür; olmayan PDF ve soru da satır olarak yazılır. */
+function MalzemeTablosu({ foy, soruSayisi, pdfliKonular, ac }: {
+  foy: ReturnType<typeof konuFoyu>;
+  soruSayisi: number;
+  pdfliKonular: number[];
+  ac: (m: FoyMalzemesi) => void;
+}) {
+  const satirlar: { ad: string; icerik: React.ReactNode; key: string }[] = [];
+  for (const tur of SATIR_SIRASI) {
+    const liste = foy.malzeme.filter((m) => m.tur === tur);
+    if (tur === "kitap" && !liste.length) {
+      satirlar.push({
+        key: "kitap-yok", ad: SATIR_ADI.kitap,
+        icerik: (
+          <span className="text-[12px] leading-snug" style={{ color: "var(--priority-medium-text)" }}>
+            Yok — bu konu için OYS'de okuma metni yayımlanmamış.
+            <span className="block" style={{ color: "var(--text-tertiary)" }}>
+              {pdfliKonular.length
+                ? `Bu dersin PDF'i olan konuları: ${pdfliKonular.join(", ")}.`
+                : "Bu dersin hiçbir konusunda uygulamada okunabilen PDF yok."}
+            </span>
+          </span>
+        ),
+      });
+      continue;
+    }
+    liste.forEach((m, i) => satirlar.push({
+      key: `${tur}-${i}`, ad: i === 0 ? SATIR_ADI[tur] : "",
+      icerik: (
+        <span className="w-full flex items-center gap-2 min-w-0">
+          <span className="flex-1 min-w-0 text-[13px] leading-snug">
+            {m.ad}
+            <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+              {m.dakika > 0 && ` · ${m.dakika} dk`}
+              {m.cmid ? " · uygulamada açılır" : " · OYS'de"}
+              {m.tur === "ses" && " · isteğe bağlı"}
+            </span>
+          </span>
+          <MalzemeDugmesi m={m} ac={ac} />
+        </span>
+      ),
+    }));
+  }
+  satirlar.push({
+    key: "soru", ad: "Çıkmış soru",
+    icerik: <span className="text-[13px]" style={{ color: soruSayisi ? undefined : "var(--text-tertiary)" }}>
+      {soruSayisi ? `${soruSayisi} soru · bu sayfada çözülür` : "Bu konunun çıkmış sorusu yok."}
+    </span>,
+  });
+  return (
+    <dl className="grid grid-cols-1 sm:grid-cols-[130px_minmax(0,1fr)] gap-x-3">
+      {satirlar.map((s) => (
+        <div key={s.key} className="contents">
+          <dt className={`text-[11px] sm:text-[12px] ${s.ad ? "pt-2 sm:pt-0 sm:min-h-11 sm:flex sm:items-center" : "hidden sm:block"}`} style={{ color: "var(--text-tertiary)" }}>{s.ad}</dt>
+          <dd className="py-1 sm:py-1.5 min-h-11 flex items-center">{s.icerik}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** Numaralı tek adım: yönerge, kendi malzemesi, işaret kutusu; soru adımında sorular. */
+function AdimSatiri({ adim, no, acik, unitId, sorular, ac, mesgul, onAdim, soruProps }: {
+  adim: FoyAdimi;
+  no: number;
+  /** Bugünün adımı: soru adımıysa sorular hemen açık. */
+  acik: boolean;
+  unitId: string;
+  sorular: StudyQuestion[];
+  ac: (m: FoyMalzemesi) => void;
+  mesgul: boolean;
+  onAdim: (unitId: string, adim: Adim, deger: boolean) => void;
+  soruProps: { denemeler: SchoolData["attempts"]; salt: boolean; onSoru: (soru: StudyQuestion, harf: string) => Promise<void> };
+}) {
+  const [sorularAcik, setSorularAcik] = useState(acik);
+  const soluk = adim.yapildi || !acik;
+  return (
+    <div className="py-2.5" style={{ borderTop: "0.5px solid var(--border-default)" }}>
+      <div className="flex gap-2.5 items-start">
+        <span
+          className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0 mt-0.5"
+          style={adim.yapildi
+            ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)" }
+            : acik ? { background: "var(--tag-school-bg)", color: "var(--tag-school-text)" } : { background: "var(--surface-sunken)", color: "var(--text-tertiary)" }}
+        >
+          {adim.yapildi ? <Check size={13} strokeWidth={3} /> : no}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] leading-snug" style={{ color: soluk ? "var(--text-secondary)" : "var(--text-primary)" }}>
+            {adim.metin}
+          </p>
+          <p className="text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
+            {adim.dakika > 0 && `~${adim.dakika} dk`}
+            {!adim.adim && `${adim.dakika > 0 ? " · " : ""}isteğe bağlı`}
+          </p>
+        </div>
+        {adim.adim && (
+          <IsaretKutusu
+            isaretli={Boolean(adim.yapildi)}
+            etiket={ADIM_ISARETI[adim.adim]}
+            mesgul={mesgul}
+            onDegis={(d) => onAdim(unitId, adim.adim as Adim, d)}
+          />
+        )}
+      </div>
+      {adim.malzeme.length > 0 && !adim.yapildi && (
+        <ul className="mt-1.5 ml-8 space-y-1">
+          {adim.malzeme.map((m, i) => (
+            <li key={i} className="flex items-center gap-2 text-[12px]" style={{ color: "var(--text-secondary)" }}>
+              <span className="flex-1 min-w-0 truncate">{m.ad}{m.dakika > 0 && <span style={{ color: "var(--text-tertiary)" }}> · {m.dakika} dk</span>}</span>
+              <MalzemeDugmesi m={m} ac={ac} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {adim.soru && sorular.length > 0 && (
+        <div className="mt-2 ml-8">
+          {sorularAcik
+            ? <SoruAkisi sorular={sorular} sirala={soruSirasi} {...soruProps} />
+            : (
+              <button onClick={() => setSorularAcik(true)} className="cp-btn cp-btn-ghost min-h-11 text-[12px]">
+                Soruları aç<ChevronRight size={14} />
+              </button>
+            )}
         </div>
       )}
     </div>
   );
 }
 
+function IsaretKutusu({ isaretli, etiket, mesgul, onDegis }: {
+  isaretli: boolean; etiket: string; mesgul: boolean; onDegis: (d: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={() => onDegis(!isaretli)}
+      disabled={mesgul}
+      aria-pressed={isaretli}
+      className="cp-btn min-h-11 px-2.5 text-[11px] gap-1.5 shrink-0 disabled:opacity-50"
+      style={isaretli
+        ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", border: "0.5px solid transparent" }
+        : { background: "transparent", color: "var(--text-secondary)", border: "0.5px solid var(--border-default)" }}
+    >
+      <span
+        aria-hidden
+        className="w-4 h-4 rounded-[4px] flex items-center justify-center shrink-0"
+        style={isaretli ? { background: "var(--priority-low-text)" } : { border: "1.5px solid var(--border-strong)" }}
+      >
+        {isaretli && <Check size={11} color="var(--surface-raised)" strokeWidth={3} />}
+      </span>
+      {etiket}
+    </button>
+  );
+}
+
 /**
- * Tekrar günü: dersin "Hakimim" denmemiş konuları açılır-kapanır liste
- * olarak, sorular dersin tamamından (doğru bildiklerin hariç) tek tek.
+ * Tekrar günü: dersin "Hakimim" denmemiş konuları açılır-kapanır föy olarak,
+ * sorular dersin tamamından (doğru bildiklerin hariç) tek tek.
  */
 function TekrarBolumu({ parcalar, dersKodu, ...o }: Ortak & { parcalar: PlanParcasi[]; dersKodu: string }) {
   const eksik = useMemo(() => eksikKonular(parcalar, o.ilerleme), [parcalar, o.ilerleme]);
@@ -344,142 +658,36 @@ function TekrarBolumu({ parcalar, dersKodu, ...o }: Ortak & { parcalar: PlanParc
   const [acik, setAcik] = useState<string | null>(null);
   return (
     <>
-      <AltBaslik>{eksik.length ? `Hakim olmadığın konular (${eksik.length})` : "Bütün konulara hakimsin ✓"}</AltBaslik>
+      <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>
+        Sınavdan önceki tekrar: önce hakim olmadığın konulara dön, sonra soruları çöz.
+      </p>
+      <AltBaslik>{eksik.length ? `1. Hakim olmadığın konular (${eksik.length})` : "Bütün konulara hakimsin ✓"}</AltBaslik>
       <ul className="space-y-2">
         {eksik.map((p) => (
           <li key={p.unit_id} className="rounded-2xl" style={{ background: "var(--surface-sunken)" }}>
             <button
               onClick={() => setAcik(acik === p.unit_id ? null : p.unit_id)}
               aria-expanded={acik === p.unit_id}
-              className="w-full min-h-11 flex items-center gap-2 px-3 py-2 text-left text-[13px] font-medium"
+              className="w-full min-h-11 flex items-center gap-2 px-3 py-2 text-left"
             >
               <ChevronRight size={14} className="shrink-0 transition-transform" style={{ transform: acik === p.unit_id ? "rotate(90deg)" : undefined }} />
-              <span className="flex-1">{p.baslik}</span>
+              <span className="flex-1 min-w-0"><KonuBasligi unitId={p.unit_id} baslik={p.baslik} {...o} /></span>
             </button>
-            <div className="px-3 pb-3">
-              <KonuChecklist
-                kayit={o.ilerleme.get(p.unit_id)}
-                mevcut={o.adimHaritasi.get(p.unit_id) ?? ADIMLAR}
-                mesgul={o.salt || o.mesgul === p.unit_id}
-                onDegis={(adim, deger) => o.onAdim(p.unit_id, adim, deger)}
-              />
-              {acik === p.unit_id && (
-                <>
-                  <Kazanimlar unitId={p.unit_id} {...o} />
-                  <Materyal unitId={p.unit_id} {...o} />
-                  <button onClick={() => o.onNot(p.unit_id)} disabled={o.mesgul === p.unit_id} className="cp-btn cp-btn-ghost min-h-11 text-[12px] mt-2 disabled:opacity-40">
-                    <NotebookPen size={14} />Konu notum
-                  </button>
-                </>
-              )}
-            </div>
+            {acik === p.unit_id && (
+              <div className="px-3 pb-3">
+                <Foy unitId={p.unit_id} butce={0} bitiyor {...o} />
+              </div>
+            )}
           </li>
         ))}
       </ul>
-      <div className="mt-4">
-        <AltBaslik>Çıkmış soru · çözmediklerin ve yanlışların</AltBaslik>
-        {sorular.length
-          ? <SoruAkisi sorular={sorular} denemeler={o.data.attempts} salt={o.salt} onSoru={o.onSoru} sirala={tekrarSorulari} />
-          : <Bos>Bu dersin çıkmış sorusu yok.</Bos>}
-      </div>
+      <AltBaslik>{`${eksik.length ? "2" : "1"}. Çıkmış sorular · çözmediklerin ve yanlışların`}</AltBaslik>
+      {sorular.length
+        ? <SoruAkisi sorular={sorular} denemeler={o.data.attempts} salt={o.salt} onSoru={o.onSoru} sirala={tekrarSorulari} />
+        : <Bos>Bu dersin çıkmış sorusu yok.</Bos>}
     </>
   );
 }
-
-function KonuBasligi({ parca, ...o }: Ortak & { parca: PlanParcasi }) {
-  return (
-    <>
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="text-[14px] font-semibold leading-snug">{parca.baslik}</h3>
-          <p className="text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-            ~{parca.dakika} dk
-            {parca.devam && " · önceki günden devam"}
-            {parca.bitiyor ? " · bugün biter" : " · yarın devam eder"}
-          </p>
-        </div>
-        <button
-          onClick={() => o.onNot(parca.unit_id)}
-          disabled={o.mesgul === parca.unit_id}
-          className="cp-btn cp-btn-ghost min-h-11 text-[12px] shrink-0 self-start disabled:opacity-40"
-        >
-          <NotebookPen size={14} />Konu notum
-        </button>
-      </div>
-      <div className="mt-2">
-        <KonuChecklist
-          kayit={o.ilerleme.get(parca.unit_id)}
-          mevcut={o.adimHaritasi.get(parca.unit_id) ?? ADIMLAR}
-          mesgul={o.salt || o.mesgul === parca.unit_id}
-          onDegis={(adim, deger) => o.onAdim(parca.unit_id, adim, deger)}
-        />
-      </div>
-    </>
-  );
-}
-
-function Kazanimlar({ unitId, kazanimlar, isaretli, kazanimVar }: Ortak & { unitId: string }) {
-  const liste = kazanimlar.get(unitId) ?? [];
-  return (
-    <div className="mt-4">
-      <AltBaslik>Kazanımlar{liste.length ? ` · ${liste.filter((k) => isaretli.has(k.id)).length}/${liste.length}` : ""}</AltBaslik>
-      {!liste.length ? (
-        <Bos>{kazanimVar ? "Bu konunun kazanım metni yok." : "Bu derste kazanım metni yok."}</Bos>
-      ) : (
-        <ul className="pl-4 space-y-1 list-disc" style={{ color: "var(--text-secondary)" }}>
-          {liste.map((k) => (
-            <li key={k.id} className="text-[12px] leading-snug" style={isaretli.has(k.id) ? { textDecoration: "line-through", color: "var(--text-tertiary)" } : undefined}>
-              {k.metin}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function Materyal({ unitId, data, onPdf }: Ortak & { unitId: string }) {
-  const liste = useMemo(() => gunMateryali(data.modules.filter((m) => m.unit_id === unitId)), [data.modules, unitId]);
-  const dersKodu = data.units.find((u) => u.id === unitId)?.ders_kodu ?? "";
-  if (!liste.length) return <div className="mt-4"><AltBaslik>Materyal</AltBaslik><Bos>Bu konuda materyal yok.</Bos></div>;
-  return (
-    <div className="mt-4">
-      <AltBaslik>Materyal</AltBaslik>
-      <ul className="space-y-1.5">
-        {liste.map(({ modul, etiket, cmid }) => {
-          const Ikon = etiket === "Video" ? Video : etiket === "Ses" ? Headphones : etiket === "Kitap" ? BookOpen : FileText;
-          const okunur = Boolean(cmid && dersKodu);
-          return (
-            <li key={modul.id} className="flex items-stretch gap-1.5">
-              <button
-                onClick={() => okunur ? onPdf(depoYolu(dersKodu, cmid as string), modul.ad) : modul.oys_url && window.open(modul.oys_url, "_blank", "noopener")}
-                disabled={!okunur && !modul.oys_url}
-                className="flex-1 min-w-0 min-h-11 flex items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[12px] leading-snug disabled:opacity-50"
-                style={{ background: "var(--surface-raised)", color: "var(--text-primary)" }}
-              >
-                <Ikon size={16} className="shrink-0" style={{ color: "var(--tag-school-text)" }} />
-                <span className="flex-1 min-w-0">
-                  <span className="block truncate">{modul.ad}</span>
-                  <span className="block text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                    {okunur ? "Uygulamada oku" : etiket === "Video" ? "OYS'de izle" : etiket === "Ses" ? "OYS'de dinle" : "OYS'de aç"}
-                    {modul.tahmini_dakika > 0 && ` · ${modul.tahmini_dakika} dk`}
-                  </span>
-                </span>
-                {!okunur && <ArrowUpRight size={13} className="shrink-0" style={{ color: "var(--text-tertiary)" }} />}
-              </button>
-              {okunur && modul.oys_url && (
-                <a href={modul.oys_url} target="_blank" rel="noreferrer" className="cp-btn cp-btn-ghost min-h-11 px-2.5 text-[10px] shrink-0" title="OYS'de aç">
-                  OYS<ArrowUpRight size={11} />
-                </a>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 /**
  * Sorular tek tek. Sıra açılışta bir kez kurulur: cevapladığın soru listenin
  * sonuna kaçmasın, "Sonraki soru" seni gerçekten bir sonrakine götürsün.
@@ -565,7 +773,11 @@ function SoruAkisi({ sorular, denemeler, salt, onSoru, sirala }: {
 }
 
 function AltBaslik({ children }: { children: React.ReactNode }) {
-  return <h4 className="text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--text-tertiary)" }}>{children}</h4>;
+  return <h4 className="text-[13px] font-semibold mt-5 mb-1.5">{children}</h4>;
+}
+
+function GrupBasligi({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] font-medium mt-2 mb-1" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
 }
 
 function Bos({ children }: { children: React.ReactNode }) {
