@@ -73,6 +73,8 @@ export function bloklariYaz(bloklar: NoteBlock[]): string {
   return JSON.stringify(bloklar);
 }
 
+const PROP_METINLERI = ["metin", "ad", "govde", "on", "arka"] as const;
+
 /** Arama ve önizleme için düz metin. Blok yapısı aramada işe yaramaz. */
 export function bloklardanMetin(bloklar: NoteBlock[]): string {
   const parcalar: string[] = [];
@@ -81,6 +83,16 @@ export function bloklardanMetin(bloklar: NoteBlock[]): string {
       if (Array.isArray(b.content)) {
         for (const c of b.content as { type?: string; text?: string }[]) {
           if (c && typeof c.text === "string") parcalar.push(c.text);
+        }
+      }
+      // Okul bloklarının metni `content` değil prop'larda: kazanımın cümlesi
+      // `metin`, materyalin adı `ad`, sorunun gövdesi `govde`. Alınmazsa konu
+      // notunun görünen içeriğinin neredeyse tamamı aramaya ve önizlemeye
+      // hiç girmiyor.
+      if (b.props) {
+        for (const ad of PROP_METINLERI) {
+          const deger = (b.props as Record<string, unknown>)[ad];
+          if (typeof deger === "string" && deger.trim()) parcalar.push(deger.trim());
         }
       }
       if (b.children?.length) gez(b.children);

@@ -119,6 +119,11 @@ export function Sidebar() {
               const matched = tags.find((item) => item.name === tag.label);
               if (matched) setKanbanFilter({ tagId: matched.id });
               setView("kanban");
+              // Etiket düğmeleri kapatmayı atlıyordu: mobilde çekmece açık
+              // kalıp gittiğin görünümün üstünü örtüyordu.
+              if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                useAppStore.setState({ sidebarOpen: false });
+              }
             }}
             className="flex items-center gap-2 text-xs text-left min-h-8 hover:opacity-80 transition-opacity"
             style={{ color: "var(--text-secondary)" }}

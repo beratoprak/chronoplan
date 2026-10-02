@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Quote, X } from "lucide-react";
-import { imzaliBaglanti } from "@/lib/pdf-kaynak";
+import { imzaliBaglantiDetayli, type KaynakHatasi } from "@/lib/pdf-kaynak";
 
 interface Props {
   yol: string;
@@ -23,14 +23,16 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
   const [sayfa, setSayfa] = useState(1);
   const [toplam, setToplam] = useState(0);
   const [durum, setDurum] = useState<"yukleniyor" | "hazir" | "hata">("yukleniyor");
+  const [neden, setNeden] = useState<KaynakHatasi | null>(null);
   const [secim, setSecim] = useState("");
 
   useEffect(() => {
     let iptal = false;
     (async () => {
       setDurum("yukleniyor");
-      const url = await imzaliBaglanti(yol);
-      if (!url) { if (!iptal) setDurum("hata"); return; }
+      const { url, hata } = await imzaliBaglantiDetayli(yol);
+      if (!url) { if (!iptal) { setNeden(hata ?? null); setDurum("hata"); } return; }
+      if (!iptal) setNeden(null);
       // pdfjs yalnız tarayıcıda çalışıyor; sunucu derlemesine girmemesi için
       // dinamik ithal ediliyor.
       const pdfjs = await import("pdfjs-dist");
@@ -102,7 +104,24 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
 
       <div className="flex-1 overflow-auto p-3">
         {durum === "yukleniyor" && <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>PDF yükleniyor…</p>}
-        {durum === "hata" && <p className="text-[12px]" style={{ color: "var(--priority-high-text)" }}>PDF açılamadı. Dosya yüklenmemiş olabilir.</p>}
+        {durum === "hata" && (
+          <div className="text-[12px] leading-relaxed" style={{ color: "var(--priority-high-text)" }} role="alert">
+            {neden === "izin" ? (
+              <>
+                <p className="font-semibold">Materyal klasörü kapalı.</p>
+                <p className="mt-1" style={{ color: "var(--text-secondary)" }}>
+                  Dosya depoda duruyor ama bu hesabın okuma izni yok. Supabase&apos;de{" "}
+                  <code style={{ fontFamily: "var(--font-mono)" }}>migration-epoche-v10-duzeltmeler.sql</code>{" "}
+                  bir kez çalıştırıldığında açılacak.
+                </p>
+              </>
+            ) : neden === "ag" ? (
+              <p>Bağlantı kurulamadı. İnternet gidip gelmiş olabilir; tekrar dene.</p>
+            ) : (
+              <p>Bu bölümün PDF&apos;i depoya henüz yüklenmemiş.</p>
+            )}
+          </div>
+        )}
         <canvas ref={tuvalRef} style={{ maxWidth: "100%", display: durum === "hazir" ? "block" : "none" }} />
         <div
           ref={metinKatmaniRef}

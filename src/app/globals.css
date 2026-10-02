@@ -2,8 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap");
-
 @layer base {
   :root {
     /* Surface hierarchy */
@@ -70,6 +68,20 @@
     --status-done-bg: #E1F5EE;
     --status-done-text: #0F6E56;
 
+    /* Tipografi — next/font değişkenleri layout.tsx'te tanımlanıyor.
+       Yedekler yalnız font yüklenemezse devreye girer. */
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+    /* Notun okuma ölçüsü: satır 62-72 karakter arası tutuluyor; daha uzunu
+       gözün satır başını bulmasını zorlaştırıyor. */
+    --olcu: 68ch;
+
+    /* Gölgeler — kâğıt hissi için yumuşak ve sıcak, nötr gri değil */
+    --golge-yumusak: 0 1px 2px rgba(74, 63, 47, .05), 0 4px 16px rgba(74, 63, 47, .06);
+    --golge-kalkik: 0 2px 6px rgba(74, 63, 47, .08), 0 12px 32px rgba(74, 63, 47, .10);
+
     /* Layout */
     --sidebar-width: 240px;
     --topbar-height: 56px;
@@ -135,6 +147,11 @@
     --status-active-text: #8CC2EF;
     --status-done-bg: #143327;
     --status-done-text: #6FDDAC;
+
+    /* Siyah zeminde sıcak gölge görünmez; koyu modda derinlik gölgeyle değil
+       kenarlıkla veriliyor. */
+    --golge-yumusak: 0 1px 2px rgba(0, 0, 0, .5);
+    --golge-kalkik: 0 8px 28px rgba(0, 0, 0, .6);
   }
 
   /* Açık temaya özel krem hover'lar koyu modda nötr griye döner */
@@ -154,9 +171,22 @@
   }
 
   html {
-    font-family: "DM Sans", system-ui, sans-serif;
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Rakamlar sütun sütun dizildiğinde (tarih, süre, soru sayısı) kaymasın */
+    font-variant-numeric: tabular-nums;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Başlıklar serif: panel bir tablo değil, bir defter. */
+  h1, h2, h3 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.005em;
+  }
+
+  code, kbd, pre, samp {
+    font-family: var(--font-mono);
   }
 
   body {
@@ -212,14 +242,24 @@
   .cp-card {
     background: var(--surface-raised);
     border: 0.5px solid var(--border-default);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--golge-yumusak);
     transition: border-color var(--transition-fast),
-                box-shadow var(--transition-fast);
+                box-shadow var(--transition-fast),
+                transform var(--transition-fast);
   }
 
   .cp-card:hover {
     border-color: var(--border-accent);
-    box-shadow: 0 4px 12px rgba(107, 91, 62, 0.08);
+    box-shadow: var(--golge-kalkik);
+  }
+
+  /* Hareket duyarlılığı olan kullanıcı için yükselme kapanır */
+  @media (prefers-reduced-motion: reduce) {
+    .cp-card,
+    .cp-btn {
+      transition: none;
+    }
   }
 
   /* Button variants */
@@ -231,11 +271,18 @@
     padding: 8px 16px;
     font-size: 13px;
     font-weight: 500;
-    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    border-radius: 10px;
     cursor: pointer;
     transition: all var(--transition-fast);
     border: none;
     outline: none;
+    /* Dokunma hedefi: eskiden 36px idi, parmakla ıskalanıyordu. */
+    min-height: 40px;
+  }
+
+  .cp-btn:active {
+    transform: scale(.975);
   }
 
   .cp-icon-button {
@@ -282,6 +329,13 @@
   .cp-editor-tool:hover {
     background: var(--surface-sunken);
     color: var(--text-primary);
+  }
+
+  /* Not başlığı — listede ve editörde aynı karakteri taşısın */
+  .cp-not-basligi {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
 
   .section-eyebrow {
@@ -452,12 +506,103 @@
 .epoche-block-editor .bn-container,
 .epoche-block-editor .bn-editor {
   background: transparent;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-serif);
 }
+
+/* Notun gövdesi: ölçü sınırlı, satır aralığı okumaya göre. Editör eskiden
+   arayüzün geri kalanıyla aynı 13px sans ile çiziliyordu — teknik olarak
+   doğru ama uzun metin okumak için yorucu. */
 .epoche-block-editor .bn-editor {
-  padding: 1rem 1.25rem 3rem;
+  padding: 2rem 1.5rem 6rem;
+  max-width: var(--olcu);
+  margin: 0 auto;
   color: var(--text-primary);
+  font-size: 17.5px;
+  line-height: 1.68;
+  letter-spacing: 0.002em;
 }
-.epoche-block-editor .bn-inline-content::before {
-  color: var(--text-tertiary);
+
+@media (max-width: 640px) {
+  .epoche-block-editor .bn-editor {
+    padding: 1.25rem 1rem 5rem;
+    font-size: 17px;
+  }
+}
+
+/* Boş blokların yer tutucusu. Eskiden görünmüyordu: "Özet" başlığının
+   altındaki boşluğa tıklayınca imlecin nereye gittiği belli olmuyor,
+   yazı yanlışlıkla başlığın içine giriyordu. */
+.epoche-block-editor .bn-inline-content:has(> br:only-child)::before,
+.epoche-block-editor [data-is-empty-and-focused] .bn-inline-content::before {
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: .75;
+}
+
+/* Başlık hiyerarşisi — gerçek bir ölçek, üç ayrı boy */
+.epoche-block-editor .bn-block-content[data-content-type="heading"] {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.epoche-block-editor [data-level="1"] { font-size: 1.72em; margin-top: 1.5em; }
+.epoche-block-editor [data-level="2"] { font-size: 1.34em; margin-top: 1.35em; }
+.epoche-block-editor [data-level="3"] {
+  font-size: 1.05em;
+  margin-top: 1.1em;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Alıntı — PDF okuyucudan düşen alıntılar bu biçimi alıyor */
+.epoche-block-editor .bn-block-content[data-content-type="quote"] {
+  border-left: 2.5px solid var(--brand-gold);
+  padding-left: 1rem;
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.epoche-block-editor .bn-block-content[data-content-type="codeBlock"],
+.epoche-block-editor code {
+  font-family: var(--font-mono);
+  font-size: .86em;
+  background: var(--surface-sunken);
+  border-radius: 5px;
+  padding: .1em .35em;
+}
+
+/* Listeler biraz daha nefes alsın */
+.epoche-block-editor .bn-block-content[data-content-type="bulletListItem"],
+.epoche-block-editor .bn-block-content[data-content-type="numberedListItem"],
+.epoche-block-editor .bn-block-content[data-content-type="checkListItem"] {
+  line-height: 1.6;
+}
+
+/* Okul blokları gövde metninden ayrılsın: bunlar veri, düz yazı değil.
+   Arayüz fontuyla ve biraz daha küçük çiziliyorlar. */
+.epoche-block-editor [data-content-type="kazanim"],
+.epoche-block-editor [data-content-type="materyal"],
+.epoche-block-editor [data-content-type="soru"],
+.epoche-block-editor [data-content-type="ezberKarti"] {
+  font-family: var(--font-sans);
+}
+
+/* "/" menüsü uygulamanın yüzeyleriyle aynı görünsün */
+.bn-suggestion-menu,
+.bn-container .mantine-Menu-dropdown {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--golge-kalkik) !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* Metin seçimi vurgusu — altın fazla parlak kalıyordu, yumuşatıldı */
+.epoche-block-editor .bn-editor ::selection {
+  background: color-mix(in srgb, var(--brand-gold) 26%, transparent);
+  color: inherit;
 }

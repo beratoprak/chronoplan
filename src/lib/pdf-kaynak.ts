@@ -20,8 +20,35 @@ export function depoYolu(dersKodu: string, cmid: number | string): string {
   return `${ascii}/${cmid}.pdf`;
 }
 
-export async function imzaliBaglanti(yol: string): Promise<string | null> {
+/** Neden açılamadı — okuyucu doğru cümleyi kurabilsin diye ayırt ediliyor. */
+export type KaynakHatasi = "izin" | "yok" | "ag";
+
+export interface KaynakSonucu {
+  url: string | null;
+  hata?: KaynakHatasi;
+}
+
+/**
+ * İmzalı bağlantı üretir; başarısızsa sebebini söyler.
+ *
+ * RLS, olmayan dosya ile görme hakkı olmayan dosyayı aynı şekilde saklıyor:
+ * ikisine de "NoSuchKey" diyor. Kovada okuma politikası yoksa bütün dosyalar
+ * böyle görünür — ve okuyucu "dosya yüklenmemiş olabilir" diye yanlış teşhis
+ * koyuyordu; dosya oradaydı, görme hakkı yoktu. Klasörü listeleyerek ayırt
+ * ediyoruz: liste de boşsa sorun tek dosyada değil, izinde.
+ */
+export async function imzaliBaglantiDetayli(yol: string): Promise<KaynakSonucu> {
   const { data, error } = await supabase.storage.from(KOVA).createSignedUrl(yol, SURE_SN);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  if (data?.signedUrl) return { url: data.signedUrl };
+
+  const mesaj = (error as { message?: string } | null)?.message ?? "";
+  if (/failed to fetch|network/i.test(mesaj)) return { url: null, hata: "ag" };
+
+  const klasor = yol.split("/")[0];
+  const { data: liste } = await supabase.storage.from(KOVA).list(klasor, { limit: 1 });
+  return { url: null, hata: liste && liste.length > 0 ? "yok" : "izin" };
+}
+
+export async function imzaliBaglanti(yol: string): Promise<string | null> {
+  return (await imzaliBaglantiDetayli(yol)).url;
 }

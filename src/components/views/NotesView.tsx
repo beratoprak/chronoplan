@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Edit3, Pin, PinOff, Plus, Search, Tag, Trash2, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useAppStore } from "@/lib/store";
+import { saveQuestionAttempt } from "@/lib/school-data";
 import { aranabilirMetin } from "@/lib/note-content";
 import { baglantilariCozumle, geriBaglantilar } from "@/lib/note-links";
 import { bloklariOku, bloklariYaz, type NoteBlock } from "@/lib/note-content";
@@ -44,6 +45,18 @@ export function NotesView() {
   const [tagInput, setTagInput] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Kaydetme neden ref okuyor: `saveCurrentNote` zamanlayıcıya verildiğinde o
+  // render'ın `editingContent`'ini kapatıyordu — yani daima BİR DEĞİŞİKLİK
+  // ÖNCESİNİ. Sunucuya hep bir öncekinin hâli gidiyor, son yazdığın cümle ya da
+  // son işaretlediğin kazanım kayboluyordu. Ref'ler olay anında güncelleniyor,
+  // böylece zamanlayıcı her zaman en son hâli görüyor.
+  const contentRef = useRef("");
+  const titleRef = useRef("");
+  const tagsRef = useRef<string[]>([]);
+  const selectedIdRef = useRef<string | null>(null);
+  const dirtyRef = useRef(false);
+  const baslikRef = useRef<HTMLTextAreaElement>(null);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -123,36 +136,59 @@ export function NotesView() {
   }, [requestedRichNoteId]);
 
   function openNote(note: RichNote) {
-    if (isDirty && selectedId) saveCurrentNote();
+    saveCurrentNote();
     setSelectedId(note.id);
+    selectedIdRef.current = note.id;
     setEditingTitle(note.title);
+    titleRef.current = note.title;
     setEditingContent(note.content);
+    contentRef.current = note.content;
     setEditingTags([...note.tags]);
+    tagsRef.current = [...note.tags];
     setIsDirty(false);
+    dirtyRef.current = false;
   }
 
-  function saveCurrentNote() {
-    if (!selectedId) return;
-    updateRichNote(selectedId, {
-      title: editingTitle || "Başlıksız",
-      content: editingContent,
-      tags: editingTags,
+  /** Bekleyen değişikliği hemen yazar. Her yerden çağrılabilir olmalı:
+   *  not değiştirirken, görünümden çıkarken, sekme kapanırken. */
+  const saveCurrentNote = useCallback(() => {
+    const id = selectedIdRef.current;
+    if (!id || !dirtyRef.current) return;
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    updateRichNote(id, {
+      title: titleRef.current || "Başlıksız",
+      content: contentRef.current,
+      tags: tagsRef.current,
     });
+    dirtyRef.current = false;
     setIsDirty(false);
+  }, [updateRichNote]);
+
+  // Başlık alanı içeriği kadar uzasın
+  useEffect(() => {
+    const ta = baslikRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [editingTitle, selectedId]);
+
+  function planlaKayit() {
+    dirtyRef.current = true;
+    setIsDirty(true);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveCurrentNote(), 900);
   }
 
   function handleContentChange(val: string) {
+    contentRef.current = val;
     setEditingContent(val);
-    setIsDirty(true);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveCurrentNote(), 1500);
+    planlaKayit();
   }
 
   function handleTitleChange(val: string) {
+    titleRef.current = val;
     setEditingTitle(val);
-    setIsDirty(true);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveCurrentNote(), 1500);
+    planlaKayit();
   }
 
   function handleAddTag(e: React.KeyboardEvent) {
@@ -162,6 +198,7 @@ export function NotesView() {
       if (!editingTags.includes(tag)) {
         const newTags = [...editingTags, tag];
         setEditingTags(newTags);
+        tagsRef.current = newTags;
         updateRichNote(selectedId!, { tags: newTags });
       }
       setTagInput("");
@@ -171,11 +208,12 @@ export function NotesView() {
   function removeTag(tag: string) {
     const newTags = editingTags.filter((t) => t !== tag);
     setEditingTags(newTags);
+    tagsRef.current = newTags;
     updateRichNote(selectedId!, { tags: newTags });
   }
 
   function createNote() {
-    if (isDirty && selectedId) saveCurrentNote();
+    saveCurrentNote();
     addRichNote({ title: "Yeni Not", content: "", tags: [], pinned: false });
     setTimeout(() => {
       const latest = useAppStore.getState().richNotes[0];
@@ -191,6 +229,8 @@ export function NotesView() {
   function handleDelete(id: string) {
     if (selectedId === id) {
       setSelectedId(null);
+      selectedIdRef.current = null;
+      dirtyRef.current = false;
       setIsDirty(false);
     }
     deleteRichNote(id);
@@ -206,7 +246,38 @@ export function NotesView() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  });
+  }, [saveCurrentNote]);
+
+  // Görünümden çıkarken, sekme gizlenirken ve sayfa kapanırken bekleyen
+  // değişiklik yazılır. Debounce'un ortasında kapatılan bir not eskiden
+  // sessizce kayboluyordu.
+  useEffect(() => {
+    const flush = () => saveCurrentNote();
+    const gizlendi = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", gizlendi);
+    return () => {
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", gizlendi);
+      flush();
+    };
+  }, [saveCurrentNote]);
+
+  // Not içindeki çıkmış soru cevaplandığında deneme kaydı düşer. Blok
+  // bileşeninin kullanıcıya ya da Supabase'e erişimi yok; olayla haber
+  // veriyor, kayıt tek yerden yazılıyor.
+  useEffect(() => {
+    const cevap = (e: Event) => {
+      const d = (e as CustomEvent<{ questionId: string; verilen: string; dogru: boolean }>).detail;
+      const uid = useAppStore.getState().user?.id;
+      if (!uid || !d?.questionId || !d?.verilen) return;
+      void saveQuestionAttempt(uid, d.questionId, d.verilen, d.dogru).catch((err) => {
+        console.error("Soru denemesi kaydedilemedi:", err);
+      });
+    };
+    window.addEventListener("epoche:soru-cevap", cevap);
+    return () => window.removeEventListener("epoche:soru-cevap", cevap);
+  }, []);
 
   return (
     <div
@@ -296,7 +367,7 @@ export function NotesView() {
             >
               <div className="flex items-start justify-between gap-1">
                 <span
-                  className="text-xs font-medium truncate flex-1"
+                  className="text-[13px] cp-not-basligi truncate flex-1"
                   style={{ color: "var(--text-primary)" }}
                 >
                   {note.pinned && <span style={{ color: "var(--brand-gold)" }}>📌 </span>}
@@ -319,8 +390,11 @@ export function NotesView() {
                   </button>
                 </div>
               </div>
+              {/* Önizleme ham içerikten değil düz metinden geliyor: blok
+                  tabanlı notlarda `content` bir JSON dizesi, listede olduğu
+                  gibi basınca okunmaz bir küme parantezi yığını çıkıyordu. */}
               <p className="text-[10px] line-clamp-2" style={{ color: "var(--text-muted)" }}>
-                {note.content || "Boş not"}
+                {aranabilirMetin(note.content).slice(0, 160) || "Boş not"}
               </p>
               <div className="flex items-center gap-1 flex-wrap mt-0.5">
                 {note.tags.slice(0, 3).map((t) => (
@@ -353,15 +427,20 @@ export function NotesView() {
             >
               <ChevronLeft size={14} />Notlar
             </button>
-            <input
+            {/* Başlık tek satırlık bir input'tu: konu notlarının adı uzun
+                ("AATA107 · 1-Osmanlı Devleti'nde Sosyo-Ekonomik Düzen ve…")
+                ve sağdan kesiliyordu — hangi notta olduğunu göremiyordun.
+                Kendi yüksekliğini ayarlayan bir alan olarak sarıyor. */}
+            <textarea
+              ref={baslikRef}
               value={editingTitle}
               onChange={(e) => handleTitleChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
+              rows={1}
               placeholder="Başlık..."
-              className="w-full text-xl font-semibold bg-transparent outline-none"
-              style={{
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)",
-              }}
+              className="w-full text-[26px] leading-tight cp-not-basligi bg-transparent outline-none resize-none overflow-hidden"
+              style={{ color: "var(--text-primary)" }}
+              aria-label="Not başlığı"
             />
             {/* Tags row */}
             <div className="flex items-center gap-1.5 flex-wrap mt-2">
@@ -396,12 +475,15 @@ export function NotesView() {
                 noteId={selected.id}
                 content={editingContent}
                 onChange={handleContentChange}
+                okul={{ unitId: selected.unitId, dersKodu: selected.dersKodu }}
               />
             </div>
             {pdf && (
-              // Mobilde okuyucu tam ekran: 375 pikselde notla yan yana iki sütun
-              // ikisini de okunmaz yapıyor.
-              <div className="fixed inset-0 z-50 flex bg-[var(--surface-base)] md:static md:z-auto md:w-[46%] md:max-w-[560px] md:min-w-[320px]">
+              // Okuyucu ancak gerçekten yer varken yan yana açılıyor.
+              // Eşik md (768px) iken 800 piksellik bir pencerede not sütunu
+              // 130 piksele iniyor, "Kazanımlar" başlığı hecelere bölünüyordu.
+              // 1024 pikselin altında okuyucu tam ekran.
+              <div className="fixed inset-0 z-50 flex bg-[var(--surface-base)] lg:static lg:z-auto lg:w-[46%] lg:max-w-[560px] lg:min-w-[340px]">
                 <PdfReader
                   yol={pdf.yol}
                   baslik={pdf.baslik}

@@ -137,6 +137,16 @@ export const SoruBlock = createReactBlockSpec(
       let secenekler: { harf: string; metin: string }[] = [];
       try { secenekler = JSON.parse(block.props.secenekler || "[]"); } catch { secenekler = []; }
       const cevaplandi = Boolean(verilen);
+      // Cevap notun içine yazılıyor ama deneme kaydı ayrı tabloya da düşmeli:
+      // plan motorunun "gerçekten ne kadar biliyorum" sinyali oradan besleniyor.
+      // Blok bileşeninin kullanıcıya ve Supabase'e erişimi yok — olayla haber
+      // veriyor, kayıt tek yerden (NotesView) yazılıyor.
+      const cevapla = (harf: string) => {
+        editor.updateBlock(block, { props: { verilen: harf } });
+        window.dispatchEvent(new CustomEvent("epoche:soru-cevap", {
+          detail: { questionId: block.props.questionId, verilen: harf, dogru: harf === dogru },
+        }));
+      };
       return (
         <div style={{ ...kutu }} data-soru={block.props.questionId}>
           <p style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.45, margin: "0 0 8px" }}>{govde || "Soru metni yok"}</p>
@@ -149,7 +159,7 @@ export const SoruBlock = createReactBlockSpec(
                   key={s.harf}
                   type="button"
                   disabled={cevaplandi}
-                  onClick={() => editor.updateBlock(block, { props: { verilen: s.harf } })}
+                  onClick={() => cevapla(s.harf)}
                   style={{
                     textAlign: "left", fontSize: 12, lineHeight: 1.4, padding: "6px 9px", borderRadius: 7, border: "none",
                     cursor: cevaplandi ? "default" : "pointer",
@@ -194,27 +204,74 @@ export const EzberKartiBlock = createReactBlockSpec(
     content: "none",
   },
   {
-    render: ({ block }) => {
+    render: ({ block, editor }) => {
       const { on, arka } = block.props;
+      // Yeni eklenen kart boştur; doldurulabilir olmak zorunda. Eskiden blok
+      // yalnız okunuyordu, yani kartı yazmanın hiçbir yolu yoktu ve tekrar
+      // sırası hiç dolmuyordu.
+      const [duzenle, setDuzenle] = useState(!on && !arka);
       const [acik, setAcik] = useState(false);
+      const yaz = (alan: "on" | "arka", deger: string) =>
+        editor.updateBlock(block, { props: { [alan]: deger } });
+
+      const alanStili = {
+        width: "100%", resize: "vertical" as const, minHeight: 34, padding: "6px 8px",
+        borderRadius: 7, border: "1px solid var(--border-default)",
+        background: "var(--surface-raised)", color: "var(--text-primary)",
+        fontSize: 13, lineHeight: 1.45, fontFamily: "inherit", outline: "none",
+      };
+
       return (
-        <div style={{ ...kutu, borderLeft: "3px solid var(--tag-school-text)" }} data-kart={block.props.cardId}>
+        <div
+          style={{ ...kutu, borderLeft: "3px solid var(--tag-school-text)" }}
+          data-kart={block.props.cardId}
+          // Blok içindeki form alanları editörün kendi seçim yönetimine
+          // kapılmasın: ProseMirror tıklamayı yakalarsa imleç kartın dışına atlıyor.
+          contentEditable={false}
+          suppressContentEditableWarning
+        >
           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <RotateCcw size={14} style={{ flexShrink: 0, marginTop: 3, color: "var(--tag-school-text)" }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 13, fontWeight: 500, margin: 0, lineHeight: 1.45 }}>{on || "Ön yüz boş"}</p>
-              {acik ? (
-                <p style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.45, color: "var(--text-secondary)" }}>
-                  {arka || "Arka yüz boş"}
-                </p>
+              {duzenle ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <textarea
+                    value={on}
+                    onChange={(e) => yaz("on", e.target.value)}
+                    placeholder="Ön yüz — sorulacak şey"
+                    style={alanStili}
+                    aria-label="Kartın ön yüzü"
+                  />
+                  <textarea
+                    value={arka}
+                    onChange={(e) => yaz("arka", e.target.value)}
+                    placeholder="Arka yüz — cevap"
+                    style={{ ...alanStili, fontSize: 12 }}
+                    aria-label="Kartın arka yüzü"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setDuzenle(false)}
+                    style={{ alignSelf: "flex-start", fontSize: 11, padding: "4px 10px", borderRadius: 999, border: "none", cursor: "pointer", background: "var(--tag-school-bg)", color: "var(--tag-school-text)" }}
+                  >
+                    Bitti
+                  </button>
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setAcik(true)}
-                  style={{ fontSize: 11, marginTop: 6, padding: 0, border: "none", background: "none", cursor: "pointer", color: "var(--tag-school-text)" }}
-                >
-                  Çevir
-                </button>
+                <>
+                  <p style={{ fontSize: 13, fontWeight: 500, margin: 0, lineHeight: 1.45 }}>{on || "Ön yüz boş"}</p>
+                  {acik ? (
+                    <p style={{ fontSize: 12, margin: "6px 0 0", lineHeight: 1.45, color: "var(--text-secondary)" }}>
+                      {arka || "Arka yüz boş"}
+                    </p>
+                  ) : null}
+                  <div style={{ display: "flex", gap: 12, marginTop: 6 }}>
+                    {!acik && (
+                      <button type="button" onClick={() => setAcik(true)} style={baglantiDugmesi}>Çevir</button>
+                    )}
+                    <button type="button" onClick={() => setDuzenle(true)} style={baglantiDugmesi}>Düzenle</button>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -223,3 +280,8 @@ export const EzberKartiBlock = createReactBlockSpec(
     },
   },
 );
+
+const baglantiDugmesi = {
+  fontSize: 11, padding: 0, border: "none", background: "none",
+  cursor: "pointer", color: "var(--tag-school-text)",
+} as const;

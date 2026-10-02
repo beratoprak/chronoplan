@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import {
   AlertTriangle, ArrowUpRight, BookOpenCheck, CalendarClock, CheckCircle2,
   ChevronRight, CircleDollarSign, CloudOff, GraduationCap, Loader2, NotebookPen,
-  RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
+  Layers, RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, requiredFinal, saveCardReview, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
+import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, okulOnbellegi, requiredFinal, saveCardReview, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
 import { buildStudyPlan, type StudyUnit, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
@@ -69,7 +69,21 @@ function SectionTitle({ icon: Icon, title, detail }: { icon: React.ElementType; 
 }
 
 function EmptyState({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12px] py-3" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
+  return <p className="text-[12px] py-3 leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
+}
+
+/** Konunun hangi durumda olduğunu tek bakışta gösterir. İşaretlemenin bir
+ *  iz bırakması gerekiyor; eskiden basıp basmadığını anlamanın yolu yoktu. */
+function DurumRozeti({ durum }: { durum: UnitProgressState }) {
+  if (durum === "dokunulmadi") return null;
+  const renk = durum === "hakim"
+    ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)" }
+    : { background: "var(--tag-school-bg)", color: "var(--tag-school-text)" };
+  return (
+    <span className="rounded-full px-1.5 py-0.5 font-semibold" style={renk}>
+      {durum === "hakim" ? "hakim ✓" : DURUM_ETIKET[durum]}
+    </span>
+  );
 }
 
 export function SchoolView() {
@@ -77,8 +91,12 @@ export function SchoolView() {
     user, isDemoMode, events, tasks, addRichNote, setView, openTaskModal, syncStatus, updateEvent,
     requestRichNote, richNotes,
   } = useAppStore();
-  const [data, setData] = useState<SchoolData>(EMPTY);
-  const [loading, setLoading] = useState(true);
+  // Önbellek varsa ekran ilk karede dolu açılır; ağ arkadan tazeler.
+  const [data, setData] = useState<SchoolData>(() => okulOnbellegi(user?.id) ?? EMPTY);
+  const [loading, setLoading] = useState(() => !okulOnbellegi(user?.id));
+  /** Son tazeleme düştüyse kullanıcıya söylenir; ekran yine de açık kalır. */
+  const [agHatasi, setAgHatasi] = useState<string | null>(null);
+  const [tazeleniyor, setTazeleniyor] = useState(false);
   const [quickNote, setQuickNote] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
   const [gradeCourse, setGradeCourse] = useState("");
@@ -89,14 +107,42 @@ export function SchoolView() {
   const [unitBusy, setUnitBusy] = useState<string | null>(null);
   const [acikSoru, setAcikSoru] = useState<string | null>(null);
   const [verilenCevap, setVerilenCevap] = useState<Record<string, string>>({});
+  /** Son işaretleme — geri alma bildirimi için. */
+  const [sonIslem, setSonIslem] = useState<{ unitId: string; onceki: UnitProgressState; mesaj: string } | null>(null);
+  /** Ders → konular listesinde açık olan ders. */
+  const [acikDers, setAcikDers] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setData(isDemoMode ? buildSchoolDemoData() : await fetchSchoolData(user?.id));
-    setLoading(false);
+  /**
+   * Veriyi tazeler.
+   *
+   * `ilk` yalnız ilk yüklemede true: sonraki tazelemelerde tam ekran
+   * yükleniciye geçmek bütün görünümü söküp yeniden kuruyordu, yani her
+   * işaretlemeden sonra sayfa başa sarıyor ve yerini kaybediyordun.
+   */
+  const load = useCallback(async (ilk = false) => {
+    setTazeleniyor(true);
+    try {
+      setData(isDemoMode ? buildSchoolDemoData() : await fetchSchoolData(user?.id));
+      setAgHatasi(null);
+    } catch (e) {
+      // Ağ asılı kaldı ya da koptu. Eskiden burada hiçbir şey yakalanmıyordu:
+      // yükleme bayrağı açık kalıyor, çark sonsuza dek dönüyordu.
+      setAgHatasi(e instanceof Error ? e.message : "Okul verisi alınamadı");
+    } finally {
+      if (ilk) setLoading(false);
+      setTazeleniyor(false);
+    }
   }, [isDemoMode, user?.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(true); }, [load]);
+
+  // Uygulama arka plandan dönünce sessizce tazele. Uzun uykudan sonra elde
+  // bayat veri kalmasın; tazeleme düşerse ekran açık kalır, uyarı çıkar.
+  useEffect(() => {
+    const dondu = () => { if (document.visibilityState === "visible") void load(); };
+    document.addEventListener("visibilitychange", dondu);
+    return () => document.removeEventListener("visibilitychange", dondu);
+  }, [load]);
 
   const schoolEvents = useMemo(() => {
     const found = events.filter(isSchoolEvent).filter((event) => event.date >= format(new Date(), "yyyy-MM-dd"));
@@ -124,16 +170,6 @@ export function SchoolView() {
     () => schoolEvents.find((event) => /ara s\u0131nav/i.test(event.title)),
     [schoolEvents],
   );
-  const progressMap = useMemo(
-    () => new Map<string, UnitProgress>(data.progress.map((row) => [row.unit_id, row])),
-    [data.progress],
-  );
-  const plan = useMemo(() => {
-    if (!data.units.length || !examEvent) return null;
-    return buildStudyPlan({
-      units: data.units, ilerleme: progressMap, oturumlar: data.sessions, sinavTarihi: examEvent.date,
-    });
-  }, [data.units, data.sessions, progressMap, examEvent]);
   const outcomesByUnit = useMemo(() => {
     // Kazanım bloğu kimliğe bağlanıyor, bu yüzden metin değil tam kayıt tutuluyor.
     const map = new Map<string, { id: string; metin: string }[]>();
@@ -142,6 +178,74 @@ export function SchoolView() {
     }
     return map;
   }, [data.outcomes]);
+
+  // Kazanım ilerlemesi notlardan okunuyor: notta işaretlediğin kutucuk burada
+  // aynı anda görünüyor, arada senkronlanacak ikinci bir kayıt yok.
+  const isaretli = useMemo(() => isaretliKazanimlar(richNotes), [richNotes]);
+
+  /** Bir konunun kazanımlarının kaçı işaretli. */
+  const kazanimOrani = useCallback((unitId: string) => {
+    const hepsi = outcomesByUnit.get(unitId) ?? [];
+    if (!hepsi.length) return null;
+    const biten = hepsi.filter((k) => isaretli.has(k.id)).length;
+    return { biten, toplam: hepsi.length, tam: biten === hepsi.length };
+  }, [outcomesByUnit, isaretli]);
+
+  /**
+   * Kazanımların tamamı işaretli olan, henüz dokunulmamış konular.
+   *
+   * Kazanım işaretlemek plana hiç yansımıyordu: konunun bütün hedeflerini
+   * kapatıp panele bakınca hiçbir şey yapmamış gibi görünüyordun. İşaretli
+   * kazanım beyandan daha güçlü bir kanıt — hepsi işaretliyse konu en az
+   * "çalışıldı" sayılıyor. "Hakimim" hâlâ yalnız senin diyebileceğin şey.
+   */
+  const kazanimlaTamamlananlar = useMemo(() => {
+    const kayitli = new Map(data.progress.map((row) => [row.unit_id, row.durum]));
+    const cikti: string[] = [];
+    for (const [unitId, kazanim] of Array.from(outcomesByUnit.entries())) {
+      if (!kazanim.length || !kazanim.every((k) => isaretli.has(k.id))) continue;
+      if ((kayitli.get(unitId) ?? "dokunulmadi") !== "dokunulmadi") continue;
+      cikti.push(unitId);
+    }
+    return cikti;
+  }, [data.progress, outcomesByUnit, isaretli]);
+
+  const progressMap = useMemo(() => {
+    const map = new Map<string, UnitProgress>(data.progress.map((row) => [row.unit_id, row]));
+    for (const unitId of kazanimlaTamamlananlar) {
+      map.set(unitId, { ...(map.get(unitId) ?? { unit_id: unitId }), unit_id: unitId, durum: "calisildi" } as UnitProgress);
+    }
+    return map;
+  }, [data.progress, kazanimlaTamamlananlar]);
+
+  // Bu çıkarım tabloya da yazılıyor. Yazılmazsa panel 44.2 sa derken motorun
+  // `npm run plan` çıktısı 45.1 sa derdi — iki ayrı gerçek, tam da bu projenin
+  // kaçındığı şey. Yazılan her konu bir kez işleniyor; döngüye girmiyor.
+  const yazilanKazanim = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user?.id || isDemoMode || !kazanimlaTamamlananlar.length) return;
+    const yeni = kazanimlaTamamlananlar.filter((id) => !yazilanKazanim.current.has(id));
+    if (!yeni.length) return;
+    yeni.forEach((id) => yazilanKazanim.current.add(id));
+    void (async () => {
+      for (const unitId of yeni) {
+        try {
+          await setUnitProgress(user.id, unitId, "calisildi");
+        } catch (e) {
+          yazilanKazanim.current.delete(unitId);
+          console.error("Kazanım ilerlemesi yazılamadı:", e);
+        }
+      }
+      await load();
+    })();
+  }, [kazanimlaTamamlananlar, user?.id, isDemoMode, load]);
+
+  const plan = useMemo(() => {
+    if (!data.units.length || !examEvent) return null;
+    return buildStudyPlan({
+      units: data.units, ilerleme: progressMap, oturumlar: data.sessions, sinavTarihi: examEvent.date,
+    });
+  }, [data.units, data.sessions, progressMap, examEvent]);
 
   const questionsByUnit = useMemo(() => {
     const map = new Map<string, typeof data.questions>();
@@ -168,6 +272,29 @@ export function SchoolView() {
 
   const [acikMateryal, setAcikMateryal] = useState<string | null>(null);
 
+  /**
+   * Ders → konular.
+   *
+   * Panelde konuya dokunabildiğin tek yer günün üç öneri kartıydı: motor Türk
+   * Dili önerirken canın Matematik çalışmak istiyorsa hiçbir yolu yoktu.
+   * Öneri bir tavsiye olmalı, kapı değil — bütün konular buradan açılıyor.
+   */
+  const unitsByCourse = useMemo(() => {
+    const map = new Map<string, StudyUnit[]>();
+    for (const u of data.units as StudyUnit[]) {
+      if (u.tip === "materyal") continue; // materyal bloğu konu değil
+      map.set(u.ders_kodu, [...(map.get(u.ders_kodu) ?? []), u]);
+    }
+    const sira = { vize: 0, final: 1 } as Record<string, number>;
+    for (const [kod, liste] of Array.from(map.entries())) {
+      map.set(kod, [...liste].sort((a, b) => {
+        const d = (sira[a.dilim ?? ""] ?? 2) - (sira[b.dilim ?? ""] ?? 2);
+        return d !== 0 ? d : a.baslik.localeCompare(b.baslik, "tr");
+      }));
+    }
+    return map;
+  }, [data.units]);
+
   const answerQuestion = useCallback(async (questionId: string, harf: string, dogru: string | null) => {
     setVerilenCevap((onceki) => ({ ...onceki, [questionId]: harf }));
     if (!user?.id) return;
@@ -175,10 +302,6 @@ export function SchoolView() {
   }, [user?.id]);
 
   const unitById = useMemo(() => new Map(data.units.map((u) => [u.id, u])), [data.units]);
-
-  // Kazanım ilerlemesi notlardan okunuyor: notta işaretlediğin kutucuk burada
-  // aynı anda görünüyor, arada senkronlanacak ikinci bir kayıt yok.
-  const isaretli = useMemo(() => isaretliKazanimlar(richNotes), [richNotes]);
 
   // Kartın metni notta, zamanlaması tabloda. Sıra ikisinin birleşiminden çıkıyor;
   // zamanlama kaydı olmayan kart yeni sayılıp hemen sıraya giriyor.
@@ -245,16 +368,50 @@ export function SchoolView() {
     }
   }, [progressMap, unitById, outcomesByUnit, modulesByUnit, questionsByUnit, addRichNote, requestRichNote, setView, user?.id, load]);
 
+  /**
+   * Konuyu işaretler ve geri alınabilir bırakır.
+   *
+   * Eskiden bastığında hiçbir şey olmuyordu: ne bildirim, ne düğmede durum
+   * değişikliği. Basıp basmadığını anlamanın yolu yoktu ve yanlışlıkla
+   * "Hakimim" dersen o konu önerilerden düşüp arayüzden erişilemez oluyordu.
+   */
   const markUnit = useCallback(async (unitId: string, durum: UnitProgressState) => {
     if (!user?.id) return;
+    const onceki = data.progress.find((p) => p.unit_id === unitId)?.durum ?? "dokunulmadi";
     setUnitBusy(unitId);
     try {
       await setUnitProgress(user.id, unitId, durum);
+      const baslik = unitById.get(unitId)?.baslik ?? "Konu";
+      setSonIslem({
+        unitId,
+        onceki,
+        mesaj: `${baslik.slice(0, 40)} · ${DURUM_ETIKET[durum]}`,
+      });
       await load();
     } finally {
       setUnitBusy(null);
     }
-  }, [user?.id, load]);
+  }, [user?.id, load, data.progress, unitById]);
+
+  const geriAl = useCallback(async () => {
+    if (!sonIslem || !user?.id) return;
+    const { unitId, onceki } = sonIslem;
+    setSonIslem(null);
+    setUnitBusy(unitId);
+    try {
+      await setUnitProgress(user.id, unitId, onceki);
+      await load();
+    } finally {
+      setUnitBusy(null);
+    }
+  }, [sonIslem, user?.id, load]);
+
+  // Bildirim kendiliğinden kapanır; geri alma penceresi kısa ama yeterli.
+  useEffect(() => {
+    if (!sonIslem) return;
+    const t = window.setTimeout(() => setSonIslem(null), 7000);
+    return () => window.clearTimeout(t);
+  }, [sonIslem]);
 
   const acknowledge = useCallback((event: CalendarEvent) => {
     if (!event.ackRequired || event.ackedAt) return;
@@ -308,6 +465,35 @@ export function SchoolView() {
 
   return (
     <div className="max-w-6xl mx-auto animate-fade-in space-y-4 sm:space-y-5">
+      {/* İşaretlemenin geri bildirimi: bastığını görmek ve yanlışlıkla
+          "Hakimim" dediğinde dönebilmek için. */}
+      {sonIslem && (
+        <div
+          className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-full px-4 py-2.5 shadow-lg animate-fade-in"
+          style={{ background: "var(--surface-raised)", border: "1px solid var(--border-strong)" }}
+          role="status"
+        >
+          <CheckCircle2 size={15} style={{ color: "var(--priority-low)" }} className="shrink-0" />
+          <span className="text-[12px] truncate max-w-[46vw]">{sonIslem.mesaj}</span>
+          <button onClick={() => void geriAl()} className="text-[12px] font-semibold shrink-0" style={{ color: "var(--brand-gold)" }}>
+            Geri al
+          </button>
+        </div>
+      )}
+
+      {agHatasi && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }} role="alert">
+          <CloudOff size={18} className="shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold">Bağlantı yanıt vermedi</p>
+            <p className="text-[11px] mt-0.5">{data.units.length ? "Son kaydedilen hâli gösteriliyor." : "Henüz gösterilecek veri yok."} {agHatasi}</p>
+          </div>
+          <button onClick={() => void load()} disabled={tazeleniyor} className="cp-btn cp-btn-ghost shrink-0 disabled:opacity-50">
+            <RefreshCw size={14} className={tazeleniyor ? "animate-spin" : undefined} />Tekrar dene
+          </button>
+        </div>
+      )}
+
       {(staleSources.length > 0 || data.warnings.length > 0 || syncStatus === "error") && (
         <div className="rounded-2xl px-4 py-3 flex items-start gap-3" style={{ background: "var(--priority-urgent-bg)", color: "var(--priority-urgent-text)", border: "1px solid color-mix(in srgb, var(--priority-urgent) 30%, transparent)" }} role="alert">
           <AlertTriangle size={18} className="shrink-0 mt-0.5" />
@@ -436,9 +622,10 @@ export function SchoolView() {
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
                         <div className="min-w-0">
                           <p className="text-[13px] font-semibold leading-snug">{oneri.baslik}</p>
-                          <p className="text-[11px] mt-1" style={{ color: "var(--text-tertiary)" }}>
-                            {oneri.ders_kodu} · {oneri.dakika} dk · {oneri.kazanc} soru
-                            {oneri.esik_isi && <> · <span style={{ color: "var(--priority-medium-text)" }}>eşik işi</span></>}
+                          <p className="text-[11px] mt-1 flex items-center gap-1.5 flex-wrap" style={{ color: "var(--text-tertiary)" }}>
+                            <span>{oneri.ders_kodu} · {oneri.dakika} dk · {oneri.kazanc} soru</span>
+                            {oneri.esik_isi && <span style={{ color: "var(--priority-medium-text)" }}>eşik işi</span>}
+                            <DurumRozeti durum={progressMap.get(oneri.unit_id)?.durum ?? "dokunulmadi"} />
                           </p>
                         </div>
                         <div className="flex gap-1 shrink-0 flex-wrap">
@@ -450,16 +637,23 @@ export function SchoolView() {
                           >
                             <NotebookPen size={12} />Not
                           </button>
-                          {(["calisildi", "hakim"] as const).map((durum) => (
-                            <button
-                              key={durum}
-                              onClick={() => void markUnit(oneri.unit_id, durum)}
-                              disabled={unitBusy === oneri.unit_id}
-                              className="cp-btn cp-btn-ghost min-h-9 text-[11px] disabled:opacity-40"
-                            >
-                              {unitBusy === oneri.unit_id ? <Loader2 size={12} className="animate-spin" /> : DURUM_ETIKET[durum]}
-                            </button>
-                          ))}
+                          {(["calisildi", "hakim"] as const).map((hedef) => {
+                            const durum = progressMap.get(oneri.unit_id)?.durum ?? "dokunulmadi";
+                            return (
+                              <button
+                                key={hedef}
+                                onClick={() => void markUnit(oneri.unit_id, durum === hedef ? "dokunulmadi" : hedef)}
+                                disabled={unitBusy === oneri.unit_id}
+                                aria-pressed={durum === hedef}
+                                className="cp-btn cp-btn-ghost min-h-11 text-[11px] disabled:opacity-40"
+                                style={durum === hedef
+                                  ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", borderColor: "transparent" }
+                                  : undefined}
+                              >
+                                {unitBusy === oneri.unit_id ? <Loader2 size={12} className="animate-spin" /> : DURUM_ETIKET[hedef]}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                       {kazanimlar.length > 0 && (() => {
@@ -604,7 +798,113 @@ export function SchoolView() {
             )}
           </section>
 
-          {tekrarSirasi.length > 0 && (
+          <section className="cp-card p-4 sm:p-5">
+            <SectionTitle
+              icon={Layers}
+              title="Bütün konular"
+              detail={`${Array.from(unitsByCourse.values()).reduce((t, l) => t + l.length, 0)} konu`}
+            />
+            <p className="text-[11px] -mt-1 mb-3" style={{ color: "var(--text-tertiary)" }}>
+              Günün önerisi bir tavsiye. Canın başka dersi çekiyorsa buradan aç.
+            </p>
+            {activeCourses.length === 0 && <EmptyState>Ders listesi henüz yüklenmedi.</EmptyState>}
+            {activeCourses.map((course) => {
+              const konular = unitsByCourse.get(course.kod) ?? [];
+              if (!konular.length) return null;
+              const acik = acikDers === course.kod;
+              const dersDurumu = plan?.dersler.find((d) => d.ders_kodu === course.kod);
+              const biten = konular.filter((u) => {
+                const d = progressMap.get(u.id)?.durum;
+                return d === "hakim" || d === "test_edildi";
+              }).length;
+              return (
+                <div key={course.kod} className="border-b last:border-b-0" style={{ borderColor: "var(--border-subtle)" }}>
+                  <button
+                    onClick={() => setAcikDers(acik ? null : course.kod)}
+                    className="w-full flex items-center gap-3 py-3 text-left min-h-14"
+                    aria-expanded={acik}
+                  >
+                    <ChevronRight
+                      size={15}
+                      className="shrink-0 transition-transform"
+                      style={{ color: "var(--text-tertiary)", transform: acik ? "rotate(90deg)" : "none" }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-medium truncate">{course.ad}</span>
+                      <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
+                        {course.kod} · {konular.length} konu · {biten} hakim
+                        {dersDurumu?.esikte && <> · <span style={{ color: "var(--priority-low-text)" }}>eşikte ✓</span></>}
+                      </span>
+                    </span>
+                    {dersDurumu && (
+                      <span className="w-16 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--surface-sunken)" }}>
+                        <span
+                          className="block h-full rounded-full"
+                          style={{
+                            width: `${Math.min(100, (dersDurumu.kapsanan / 12) * 100)}%`,
+                            background: dersDurumu.esikte ? "var(--priority-low-text)" : "var(--tag-school-text)",
+                          }}
+                        />
+                      </span>
+                    )}
+                  </button>
+                  {acik && (
+                    <ul className="pb-3 space-y-1.5">
+                      {konular.map((konu) => {
+                        const durum = progressMap.get(konu.id)?.durum ?? "dokunulmadi";
+                        const kaz = kazanimOrani(konu.id);
+                        return (
+                          <li key={konu.id} className="rounded-xl p-2.5" style={{ background: "var(--surface-sunken)" }}>
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[12px] leading-snug font-medium">{konu.baslik}</p>
+                                <p className="text-[10px] mt-1 flex items-center gap-1.5 flex-wrap" style={{ color: "var(--text-tertiary)" }}>
+                                  <span className="rounded-full px-1.5 py-0.5" style={{ background: "var(--surface-raised)" }}>
+                                    {konu.dilim === "vize" ? "Vize" : konu.dilim === "final" ? "Final" : "—"}
+                                  </span>
+                                  <span>{konu.tahmini_dakika} dk</span>
+                                  <span>· {konu.soru_degeri} soru</span>
+                                  {kaz && <span>· kazanım {kaz.biten}/{kaz.toplam}</span>}
+                                  <DurumRozeti durum={durum} />
+                                </p>
+                              </div>
+                              <div className="flex gap-1 shrink-0 flex-wrap">
+                                <button
+                                  onClick={() => void openUnitNote(konu.id)}
+                                  disabled={unitBusy === konu.id}
+                                  className="cp-btn cp-btn-ghost min-h-11 text-[11px] disabled:opacity-40"
+                                >
+                                  <NotebookPen size={12} />Not
+                                </button>
+                                {(["calisildi", "hakim"] as const).map((hedef) => (
+                                  <button
+                                    key={hedef}
+                                    onClick={() => void markUnit(konu.id, durum === hedef ? "dokunulmadi" : hedef)}
+                                    disabled={unitBusy === konu.id}
+                                    className="cp-btn min-h-11 text-[11px] disabled:opacity-40"
+                                    style={durum === hedef
+                                      ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", border: "0.5px solid transparent" }
+                                      : undefined}
+                                    // Aynı düğmeye tekrar basmak işareti kaldırır:
+                                    // yanlış basılan "Hakimim" geri alınabilir olmalı.
+                                    aria-pressed={durum === hedef}
+                                  >
+                                    {unitBusy === konu.id ? <Loader2 size={12} className="animate-spin" /> : DURUM_ETIKET[hedef]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+
+          {tekrarSirasi.length > 0 ? (
             <section className="cp-card p-4 sm:p-5">
               <SectionTitle icon={RefreshCw} title="Tekrar" detail={`${tekrarSirasi.length} kart hazır`} />
               <div className="rounded-2xl p-4" style={{ background: "var(--surface-sunken)" }}>
@@ -636,6 +936,17 @@ export function SchoolView() {
                   </button>
                 )}
               </div>
+            </section>
+          ) : (
+            // Bölüm kart yokken tümüyle gizleniyordu: özelliğin var olduğunu
+            // bilmenin yolu yoktu, kart eklemenin de.
+            <section className="cp-card p-4 sm:p-5">
+              <SectionTitle icon={RefreshCw} title="Tekrar" detail="0 kart" />
+              <EmptyState>
+                Zamanı gelen ezber kartı yok. Bir konu notunda <strong>/</strong> yazıp{" "}
+                <strong>Ezber kartı</strong> ekle — ön yüze soruyu, arka yüze cevabı yaz;
+                kart buraya kendiliğinden düşer.
+              </EmptyState>
             </section>
           )}
 

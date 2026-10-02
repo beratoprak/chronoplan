@@ -203,15 +203,72 @@ function missingTable(error: { code?: string; message?: string } | null): boolea
   return Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message ?? "")));
 }
 
+/** Tek bir tablo isteğinin bekleyebileceği en uzun süre. */
+const ISTEK_SURESI_MS = 12_000;
+
+/** Ağdan gelmeyen yanıt: tabloyu okuyamadık, elimizdekiyle devam ediyoruz. */
+export class OkulVerisiZamanAsimi extends Error {
+  constructor(public tablo: string) {
+    super(`${tablo} ${ISTEK_SURESI_MS / 1000} sn içinde yanıt vermedi`);
+  }
+}
+
+/**
+ * Tablo okur — zaman aşımıyla.
+ *
+ * Okul sekmesinin takılı kalmasının sebebi buydu: uygulama uzun süre arka
+ * planda kalınca (Safari web uygulaması uyutuluyor) istekler bazen hiç
+ * dönmüyor. Zaman aşımı olmadığı için 13 tablonun birini bekleyen
+ * Promise.all sonsuza dek açık kalıyor, yükleme çarkı dönüp duruyordu;
+ * uygulamayı kapatıp açmak tek çareydi. Artık istek iptal ediliyor ve bir kez
+ * daha deneniyor; yine olmazsa hata fırlatıp elimizdeki son veriye dönülüyor.
+ */
 async function readTable<T>(table: string, userId: string): Promise<{ rows: T[]; warning?: string }> {
-  const { data, error } = await supabase.from(table).select("*").eq("user_id", userId);
-  if (!error) return { rows: (data ?? []) as T[] };
-  if (missingTable(error)) return { rows: [], warning: `${table} henüz kurulmadı` };
-  return { rows: [], warning: `${table} okunamadı: ${error.message}` };
+  for (let deneme = 0; deneme < 2; deneme++) {
+    const iptal = new AbortController();
+    const zamanlayici = setTimeout(() => iptal.abort(), ISTEK_SURESI_MS);
+    try {
+      const { data, error } = await supabase.from(table).select("*").eq("user_id", userId).abortSignal(iptal.signal);
+      if (!error) return { rows: (data ?? []) as T[] };
+      if (iptal.signal.aborted) continue;
+      if (missingTable(error)) return { rows: [], warning: `${table} henüz kurulmadı` };
+      return { rows: [], warning: `${table} okunamadı: ${error.message}` };
+    } catch (e) {
+      if (!iptal.signal.aborted) throw e;
+    } finally {
+      clearTimeout(zamanlayici);
+    }
+  }
+  throw new OkulVerisiZamanAsimi(table);
+}
+
+const ONBELLEK_KEY = "epoche-okul-onbellek";
+
+/** Son başarılı okul verisi. Sekme açılırken ekran boş beklemesin diye. */
+export function okulOnbellegi(userId?: string | null): SchoolData | null {
+  if (typeof window === "undefined" || !userId) return null;
+  try {
+    const ham = localStorage.getItem(ONBELLEK_KEY);
+    if (!ham) return null;
+    const kayit = JSON.parse(ham) as { userId: string; data: SchoolData };
+    return kayit.userId === userId ? kayit.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function onbellegeYaz(userId: string, data: SchoolData): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(ONBELLEK_KEY, JSON.stringify({ userId, data }));
+  } catch { /* kota dolu — önbellek kritik değil */ }
 }
 
 export async function fetchSchoolData(userId?: string | null): Promise<SchoolData> {
   if (!userId || !isSupabaseConfigured) return EMPTY;
+  // Uyandıktan sonra erişim anahtarının süresi dolmuş olabilir; okumadan önce
+  // oturum tazelensin, yoksa her tablo "JWT expired" ile boş döner.
+  await supabase.auth.getSession().catch(() => null);
   const [sources, courses, grades, announcements, profileRows, units, progress, outcomes, modules, questions, attempts, flashcards, sessions] = await Promise.all([
     readTable<SchoolSource>("ybs_sources", userId),
     readTable<SchoolCourse>("ybs_courses", userId),
@@ -227,7 +284,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     readTable<FlashcardRow>("ybs_flashcards", userId),
     readTable<{ completed_at: string; duration_minutes: number; phase: string }>("work_sessions", userId),
   ]);
-  return {
+  const sonuc: SchoolData = {
     sources: sources.rows,
     courses: courses.rows,
     grades: grades.rows,
@@ -248,6 +305,9 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     warnings: [sources.warning, courses.warning, grades.warning, announcements.warning, profileRows.warning,
                units.warning, progress.warning, outcomes.warning, modules.warning, questions.warning, attempts.warning, flashcards.warning].filter(Boolean) as string[],
   };
+  // Yalnız eksiksiz okuma önbelleğe girer; yarım veri sonraki açılışı yanıltmasın.
+  if (!sonuc.warnings.length) onbellegeYaz(userId, sonuc);
+  return sonuc;
 }
 
 /**
@@ -262,14 +322,38 @@ export async function setUnitProgress(
   durum: UnitProgressState,
   gercekDakika?: number,
 ): Promise<void> {
-  const now = new Date().toISOString();
+  await birimIlerlemesiniBirlestir(userId, unitId, {
+    durum,
+    son_temas_at: new Date().toISOString(),
+    ...(gercekDakika != null ? { gercek_dakika: gercekDakika } : {}),
+  });
+}
+
+/**
+ * İlerleme satırını okuyup birleştirerek yazar.
+ *
+ * PostgREST'in upsert'ü satırın tamamını değiştiriyor: yalnız `durum` yazan
+ * bir çağrı `not_id`'yi, yalnız `not_id` yazan bir çağrı da `durum`u siliyordu.
+ * Notu açıp sonra "Çalıştım" demek konu-not bağını koparıyordu.
+ */
+async function birimIlerlemesiniBirlestir(
+  userId: string,
+  unitId: string,
+  yama: Record<string, unknown>,
+): Promise<void> {
+  const { data: mevcut } = await supabase
+    .from("ybs_unit_progress")
+    .select("*")
+    .eq("unit_id", unitId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
   const { error } = await supabase.from("ybs_unit_progress").upsert({
+    ...(mevcut ?? {}),
     unit_id: unitId,
     user_id: userId,
-    durum,
-    son_temas_at: now,
-    ...(gercekDakika != null ? { gercek_dakika: gercekDakika } : {}),
-    updated_at: now,
+    ...yama,
+    updated_at: new Date().toISOString(),
   }, { onConflict: "unit_id" });
   if (error) throw new Error(error.message);
 }
@@ -298,14 +382,7 @@ export async function saveQuestionAttempt(
 
 /** Konu ile notunu bağlar. İlerleme tablosu kullanıcınındır; motor buraya yazmaz. */
 export async function setUnitNote(userId: string, unitId: string, noteId: string): Promise<void> {
-  const now = new Date().toISOString();
-  const { error } = await supabase.from("ybs_unit_progress").upsert({
-    unit_id: unitId,
-    user_id: userId,
-    not_id: noteId,
-    updated_at: now,
-  }, { onConflict: "unit_id" });
-  if (error) throw new Error(error.message);
+  await birimIlerlemesiniBirlestir(userId, unitId, { not_id: noteId });
 }
 
 /** Kart değerlendirmesini kaydeder. Zamanlama tablosu kullanıcınındır. */

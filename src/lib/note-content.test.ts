@@ -68,3 +68,37 @@ describe("aranabilir metin", () => {
     expect(aranabilirMetin(bloklariYaz(metindenBloklar("# Limit")))).toBe("Limit");
   });
 });
+
+describe("okul bloklarının metni", () => {
+  // Konu notunun görünen içeriğinin neredeyse tamamı blok prop'larında duruyor.
+  // Bunlar aranabilir metne alınmazsa not listesinde ham JSON görünüyor ve
+  // kazanım cümlesiyle arama yapmak imkânsız oluyordu.
+  it("kazanım, materyal ve soru metinleri aranabilir metne girer", () => {
+    const bloklar = [
+      { type: "kazanim", props: { outcomeId: "o1", metin: "Dil bilgisi kavranacak", checked: false } },
+      { type: "materyal", props: { ad: "Kitap Bölümü", etiket: "Kitap", dakika: 35 } },
+      { type: "soru", props: { govde: "Hangi cemiyete dönüştü?", dogru: "E" } },
+      { type: "ezberKarti", props: { on: "Ön yüz", arka: "Arka yüz" } },
+    ];
+    const metin = bloklardanMetin(bloklar);
+    expect(metin).toContain("Dil bilgisi kavranacak");
+    expect(metin).toContain("Kitap Bölümü");
+    expect(metin).toContain("Hangi cemiyete dönüştü?");
+    expect(metin).toContain("Ön yüz");
+    expect(metin).toContain("Arka yüz");
+  });
+
+  it("metin olmayan prop'lar metne karışmaz", () => {
+    const metin = bloklardanMetin([
+      { type: "kazanim", props: { outcomeId: "ybs:outcome:1", checked: true, metin: "Hedef" } },
+    ]);
+    expect(metin).toBe("Hedef");
+  });
+
+  it("aranabilir metin blok JSON'ı üzerinden de çalışır", () => {
+    const icerik = bloklariYaz([
+      { type: "soru", props: { govde: "İttihad-ı Osmanî", secenekler: "[]" } },
+    ]);
+    expect(aranabilirMetin(icerik)).toContain("İttihad-ı Osmanî");
+  });
+});

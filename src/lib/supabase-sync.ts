@@ -143,8 +143,10 @@ export function taskToRow(task: Task, userId: string): TaskRow {
     scheduled_end_time: task.scheduledEndTime ?? null,
     focus_date: task.focusDate ?? null,
     recurrence: task.recurrence ?? "none",
-    created_at: task.createdAt,
-    updated_at: task.updatedAt,
+    // Eski yerel kayıtların bir kısmında bu damgalar yok; sunucuda ikisi de
+    // NOT NULL. Boş bırakılırsa satır kuyruktan bir daha çıkamıyor.
+    created_at: task.createdAt ?? new Date().toISOString(),
+    updated_at: task.updatedAt ?? task.createdAt ?? new Date().toISOString(),
     completed_at: task.completedAt ?? null,
     order: task.order,
     deleted_at: null,
@@ -376,9 +378,26 @@ interface OutboxOp {
   row: Record<string, unknown>;
   conflict?: string; // upsert onConflict (notes: "user_id,date")
   ts: number;
+  /** Üst üste kaç kez düştü. Şema yüzünden asla geçemeyecek tek bir kayıt
+   *  kuyruğu sonsuza kadar meşgul edip saniyede iki istek atıyordu. */
+  fails?: number;
+  /** Son hata metni — karantinaya alınan kaydı açıklayabilmek için. */
+  lastError?: string;
+  /** Bu zamandan önce tekrar denenmez. Geri çekilme olmadan her tuş vuruşu
+   *  bütün kuyruğu yeniden deniyordu; düşen bir kayıt saniyede iki istek
+   *  atmaya yetiyordu. */
+  nextTry?: number;
+}
+
+/** Üst üste düşen kayıt için geri çekilme: 2 sn, 8 sn, 30 sn, 2 dk, 8 dk… */
+function beklemeSuresi(fails: number): number {
+  return Math.min(8 * 60_000, 2000 * Math.pow(4, Math.max(0, fails - 1)));
 }
 
 const OUTBOX_KEY = "epoche-outbox";
+/** Bu denemeden sonra kayıt karantinaya alınır; kuyruk akmaya devam eder. */
+const MAX_DENEME = 6;
+const KARANTINA_KEY = "epoche-outbox-karantina";
 
 function readOutbox(): OutboxOp[] {
   if (typeof window === "undefined") return [];
@@ -402,20 +421,67 @@ export function outboxSize(): number {
   return readOutbox().length;
 }
 
-/** Bir satırı kuyruğa ekle ve hemen göndermeyi dene. */
-export function queueUpsert(table: SyncTable, row: Record<string, unknown>, conflict?: string): void {
-  const key = conflict ? `${table}:${row.user_id}:${row.date}` : `${table}:${row.id}`;
-  const ops = readOutbox().filter((op) => op.key !== key);
-  ops.push({ key, table, row, conflict, ts: Date.now() });
-  writeOutbox(ops);
+function readKarantina(): OutboxOp[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(KARANTINA_KEY) ?? "[]") as OutboxOp[];
+  } catch {
+    return [];
+  }
+}
+
+/** Kuyruğa geçemeyen kayıtlar. Sayfada uyarı göstermek için okunuyor. */
+export function karantinaListesi(): { table: string; error: string; ts: number }[] {
+  return readKarantina().map((op) => ({ table: op.table, error: op.lastError ?? "bilinmiyor", ts: op.ts }));
+}
+
+/** Karantinayı boşaltıp kayıtları kuyruğa geri koyar (şema düzeltildikten sonra). */
+export function karantinayiTekrarDene(): void {
+  const bekleyen = readKarantina();
+  if (!bekleyen.length) return;
+  localStorage.removeItem(KARANTINA_KEY);
+  mergeOutbox(bekleyen.map((op) => ({ ...op, fails: 0, nextTry: undefined })));
   void flushOutbox();
 }
 
+/**
+ * Kuyruğu güvenli birleştirir.
+ *
+ * Eskiden flush, döngü başında okuduğu listeyi bitince olduğu gibi geri
+ * yazıyordu; döngü sürerken eklenen bir işlem bu yazımda sessizce siliniyordu.
+ * "Kaydedildi" yazan bir not sunucuya hiç ulaşmadan kaybolabiliyordu. Artık
+ * yazma anında kuyruk yeniden okunup anahtara göre birleştiriliyor.
+ */
+function mergeOutbox(gelen: OutboxOp[]): void {
+  const mevcut = readOutbox();
+  const harita = new Map(mevcut.map((op) => [op.key, op]));
+  for (const op of gelen) harita.set(op.key, op);
+  writeOutbox(Array.from(harita.values()).sort((a, b) => a.ts - b.ts));
+}
+
+/** Bir satırı kuyruğa ekle ve hemen göndermeyi dene. */
+export function queueUpsert(table: SyncTable, row: Record<string, unknown>, conflict?: string): void {
+  const key = conflict ? `${table}:${row.user_id}:${row.date}` : `${table}:${row.id}`;
+  mergeOutbox([{ key, table, row, conflict, ts: Date.now(), fails: 0 }]);
+  void flushOutbox();
+}
+
+interface UpsertSonuc {
+  ok: boolean;
+  /** Kalıcı hata metni; kuyrukta bekleyen kayda iliştirilir. */
+  hata?: string;
+}
+
+/** PostgREST "Could not find the 'x' column" mesajından kolon adını çıkarır. */
+function eksikKolon(mesaj: string): string | null {
+  return mesaj.match(/'([a-z_]+)' column/i)?.[1] ?? null;
+}
+
 /** Migration öncesi eksik kolonları ayıklayıp yeniden dene. */
-async function tryUpsert(op: OutboxOp): Promise<boolean> {
+async function tryUpsert(op: OutboxOp): Promise<UpsertSonuc> {
   const q = op.conflict ? { onConflict: op.conflict } : undefined;
   const { error } = await supabase.from(op.table).upsert(op.row, q);
-  if (!error) return true;
+  if (!error) return { ok: true };
 
   // Kolon henüz yok (migration çalıştırılmamış) → o kolonlar olmadan gönder
   if (error.code === "PGRST204" || /column/i.test(error.message)) {
@@ -442,9 +508,14 @@ async function tryUpsert(op: OutboxOp): Promise<boolean> {
         return value !== undefined && value !== null && value !== false && value !== "none" && (!Array.isArray(value) || value.length > 0);
       }
     );
+    // `updated_at` ve `created_at` KÖRÜ KÖRÜNE silinmemeli: sunucuda bu
+    // kolonlar NOT NULL ve varsayılansız olabiliyor. Eskiden due_date yüzünden
+    // düşen bir görev, yedek yolda updated_at'i de kaybedip 23502 ile geri
+    // geliyordu; kayıt kuyruktan asla çıkamıyor, saniyede iki istek atıyordu.
+    // Artık yalnız sunucunun adını verdiği kolon ayıklanıyor.
+    const eksik = eksikKolon(error.message);
+    if (eksik && eksik in stripped) delete stripped[eksik];
     delete stripped.deleted_at;
-    delete stripped.updated_at;
-    if (op.table === "events") delete stripped.created_at;
     if (op.table === "tasks") {
       delete stripped.due_date;
       delete stripped.scheduled_date;
@@ -469,23 +540,27 @@ async function tryUpsert(op: OutboxOp): Promise<boolean> {
     }
     if (op.table === "work_sessions") delete stripped.task_id;
     // deleted_at'lı bir soft-delete'i kolon yokken göndermek anlamsız — beklet
-    if (op.row.deleted_at) return false;
+    if (op.row.deleted_at) return { ok: false, hata: error.message };
     const { error: err2 } = await supabase.from(op.table).upsert(stripped, q);
     // Eski şemaya çekirdek alanları yazabildik. Yeni alanlar varsa asıl
     // operasyonu kuyrukta tutuyoruz; v3 migration uygulandığında otomatik
     // tekrar gönderilir ve zamanlama/görev bağlantısı kaybolmaz.
-    if (!err2) return !hasExtendedData;
-    console.error(`Sync hatası (${op.table}):`, err2.message);
-    return false;
+    if (!err2) return { ok: !hasExtendedData, hata: hasExtendedData ? "migration bekleniyor" : undefined };
+    return { ok: false, hata: err2.message };
   }
 
-  console.error(`Sync hatası (${op.table}):`, error.message);
-  return false;
+  return { ok: false, hata: error.message };
 }
 
 let flushing = false;
 
-/** Kuyruktaki tüm işlemleri göndermeyi dene; başarısızlar kuyrukta kalır. */
+/**
+ * Kuyruktaki tüm işlemleri göndermeyi dene.
+ *
+ * Başarısızlar kuyrukta kalır ama sonsuza kadar değil: `MAX_DENEME` kez
+ * düşen kayıt karantinaya alınır. Böylece şemadan dolayı asla geçemeyecek
+ * tek bir satır kuyruğu tıkayıp diğer yazmaları riske atmıyor.
+ */
 export async function flushOutbox(): Promise<void> {
   if (flushing || typeof window === "undefined") return;
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
@@ -493,12 +568,37 @@ export async function flushOutbox(): Promise<void> {
   try {
     const ops = readOutbox();
     if (ops.length === 0) return;
-    const remaining: OutboxOp[] = [];
+    const simdi = Date.now();
+    const kalan: OutboxOp[] = [];
+    const karantina: OutboxOp[] = [];
+    const gonderilen = new Set<string>();
     for (const op of ops) {
-      const ok = await tryUpsert(op);
-      if (!ok) remaining.push(op);
+      // Geri çekilme süresi dolmadıysa dokunma — sırayı bozmadan bekliyor.
+      if (op.nextTry && op.nextTry > simdi) {
+        gonderilen.add(op.key);
+        kalan.push(op);
+        continue;
+      }
+      const { ok, hata } = await tryUpsert(op);
+      gonderilen.add(op.key);
+      if (ok) continue;
+      const fails = (op.fails ?? 0) + 1;
+      const guncel = { ...op, fails, lastError: hata, nextTry: Date.now() + beklemeSuresi(fails) };
+      if (fails >= MAX_DENEME) {
+        console.error(`Sync durduruldu (${op.table}) — ${fails} deneme: ${hata}`);
+        karantina.push(guncel);
+      } else {
+        kalan.push(guncel);
+      }
     }
-    writeOutbox(remaining);
+    // Döngü sürerken eklenen işlemleri ezmemek için kuyruk yeniden okunuyor.
+    const sonrakiler = readOutbox().filter((op) => !gonderilen.has(op.key));
+    writeOutbox([...kalan, ...sonrakiler].sort((a, b) => a.ts - b.ts));
+    if (karantina.length) {
+      try {
+        localStorage.setItem(KARANTINA_KEY, JSON.stringify([...readKarantina(), ...karantina]));
+      } catch { /* kota dolu — karantina kaydı kritik değil */ }
+    }
   } finally {
     flushing = false;
   }
