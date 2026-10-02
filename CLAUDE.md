@@ -35,6 +35,8 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 | `src/components/school/KonuFoyu.tsx` | Gün ve ders sayfasının ortak föyü ve `useKonuCalisma` (işaretleme, soru, konu notu, PDF) |
 | `src/lib/ders-paneli.ts` | Ders paneli hesapları: ders özeti (eşik, bu hafta), konu sırası |
 | `src/lib/gun-sayfasi.ts` | Gün sayfasının saf hesapları: konu föyü (malzeme, yönergeli adımlar, bugünkü kısım), soru sırası, tekrar günü |
+| `src/components/school/VideoOynatici.tsx` | Faz F: OYS videosunu uygulamada oynatır; %90 izlenince konunun "İzle" adımı |
+| `src/app/api/oys-video/route.ts` + `src/lib/oys-video.ts` | Video aracısı: imzalı kısa ömürlü adres, OYS'den 8 MB'lık parçalarla iletir. Vercel'de `OYS_TOKEN` ve `YBS_USER_ID` ister; anahtar tarayıcıya gitmez |
 | `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü, PDF okuyucu |
 | `supabase/migration-epoche-v*.sql` | Şema değişiklikleri (Supabase SQL Editor'de elle çalıştırılır) |
 

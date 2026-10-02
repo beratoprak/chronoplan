@@ -66,6 +66,10 @@ export interface FoyMalzemesi {
   /** Uygulama içi PDF okuyucunun depo kimliği; yalnız kitap bölümlerinde. */
   cmid: string | null;
   oys_url: string | null;
+  /** ybs_modules kimliği: video aracısı bununla imzalı adres verir. */
+  modulId: string;
+  /** Uygulamanın içinde oynatılabilir video (Faz F): motor dosya yolunu bulmuş. */
+  oynatilir: boolean;
 }
 
 export interface FoyAdimi {
@@ -122,6 +126,8 @@ export function foyMalzemesi(moduller: StudyModule[]): FoyMalzemesi[] {
       // Depoya yalnız kitap bölümleri yüklendi (<ders>/<cmid>.pdf).
       cmid: tur === "kitap" ? String(m.id).replace(/^ybs:mod:/, "") : null,
       oys_url: m.oys_url,
+      modulId: m.id,
+      oynatilir: tur === "video" && Boolean(m.yerel_dosya),
     });
   }
   return out;

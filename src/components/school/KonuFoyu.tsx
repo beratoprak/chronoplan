@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowUpRight, BookOpen, Check, ChevronRight, Info, NotebookPen } from "lucide-react";
+import { ArrowUpRight, BookOpen, Check, ChevronRight, Info, NotebookPen, Play } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import {
   AdimKolonuYok, buildSchoolDemoData, fetchSchoolData, okulOnbellegi, saveQuestionAttempt,
@@ -26,6 +26,19 @@ import {
 } from "@/lib/gun-sayfasi";
 
 const PdfReader = dynamic(() => import("@/components/editor/PdfReader").then((m) => m.PdfReader), { ssr: false });
+const VideoOynatici = dynamic(() => import("./VideoOynatici").then((m) => m.VideoOynatici), { ssr: false });
+
+/** İzlenen videolar (bu cihazda): bir konunun bütün videoları izlenince "İzle" işaretlenir. */
+const IZLENEN = "epoche-izlenen-videolar";
+function izlenenler(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(IZLENEN) ?? "[]")); } catch { return new Set(); }
+}
+function izlendiYaz(modulId: string): Set<string> {
+  const set = izlenenler();
+  set.add(modulId);
+  try { localStorage.setItem(IZLENEN, JSON.stringify(Array.from(set))); } catch { /* saklanamazsa yalnız bu oturum */ }
+  return set;
+}
 
 export interface Ortak {
   data: SchoolData;
@@ -42,6 +55,8 @@ export interface Ortak {
   onSoru: (soru: StudyQuestion, harf: string) => Promise<void>;
   onNot: (unitId: string) => void;
   onPdf: (yol: string, baslik: string) => void;
+  /** Uygulama içi video (Faz F). */
+  onVideo: (m: FoyMalzemesi, unitId: string) => void;
 }
 
 /**
@@ -57,6 +72,7 @@ export function useKonuCalisma(kapat: () => void) {
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState<string | null>(null);
   const [pdf, setPdf] = useState<{ yol: string; baslik: string } | null>(null);
+  const [video, setVideo] = useState<{ m: FoyMalzemesi; unitId: string } | null>(null);
 
   const yukle = useCallback(async () => {
     setHata(null);
@@ -70,11 +86,11 @@ export function useKonuCalisma(kapat: () => void) {
   useEffect(() => {
     const tus = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (pdf) setPdf(null); else kapat();
+      if (video) setVideo(null); else if (pdf) setPdf(null); else kapat();
     };
     window.addEventListener("keydown", tus);
     return () => window.removeEventListener("keydown", tus);
-  }, [pdf, kapat]);
+  }, [pdf, video, kapat]);
 
   useEffect(() => {
     const onceki = document.body.style.overflow;
@@ -183,11 +199,32 @@ export function useKonuCalisma(kapat: () => void) {
     pdfliKonular: pdfliKonular.get(kod) ?? [],
     onAdim: adimDegistir, onSoru: soruCoz, onNot: notuAc,
     onPdf: (yol: string, baslik: string) => setPdf({ yol, baslik }),
+    onVideo: (m: FoyMalzemesi, unitId: string) => setVideo({ m, unitId }),
   }, [data, ilerleme, adimHaritasi, kazanimlar, unitById, mesgul, salt, kazanimliDersler, pdfliKonular, adimDegistir, soruCoz, notuAc]);
+
+  /**
+   * Video %90 izlenince: bu cihazda izlendi say; konunun uygulamada oynayan
+   * bütün videoları izlendiyse "İzle" adımını işaretle (Plan v3: "videoyu
+   * bitirince İzle otomatik işaretlenir"). Zaten işaretliyse dokunma.
+   */
+  const videoIzlendi = useCallback((modulId: string, unitId: string) => {
+    const izlenen = izlendiYaz(modulId);
+    const videolar = foyMalzemesi((data?.modules ?? []).filter((x) => x.unit_id === unitId)).filter((x) => x.oynatilir);
+    const hepsi = videolar.length > 0 && videolar.every((x) => izlenen.has(x.modulId));
+    if (hepsi && !ilerleme.get(unitId)?.adimlar?.izle) void adimDegistir(unitId, "izle", true);
+  }, [data?.modules, ilerleme, adimDegistir]);
 
   return {
     data, setData, hata, setHata, yukle, salt, dersAdi, unitById, ilerleme, adimHaritasi, ortak,
-    pdfKatmani: pdf && (
+    pdfKatmani: video ? (
+      <VideoOynatici
+        modulId={video.m.modulId}
+        baslik={video.m.ad}
+        oysUrl={video.m.oys_url}
+        onKapat={() => setVideo(null)}
+        onIzlendi={() => videoIzlendi(video.m.modulId, video.unitId)}
+      />
+    ) : pdf && (
       <div className="fixed inset-0 z-50 flex justify-center" style={{ background: "var(--surface-base)" }}>
         <div className="w-full max-w-4xl flex" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
           <PdfReader yol={pdf.yol} baslik={pdf.baslik} onKapat={() => setPdf(null)} />
@@ -224,7 +261,8 @@ export function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; 
   }), [moduller, sorular.length, kazanim.length, o.adimHaritasi, unitId, kayit, butce, bitiyor]);
   const dersKodu = o.unitById.get(unitId)?.ders_kodu ?? "";
   const ac = (m: FoyMalzemesi) => {
-    if (m.cmid && dersKodu) o.onPdf(depoYolu(dersKodu, m.cmid), m.ad);
+    if (m.oynatilir) o.onVideo(m, unitId);
+    else if (m.cmid && dersKodu) o.onPdf(depoYolu(dersKodu, m.cmid), m.ad);
     else if (m.oys_url) window.open(m.oys_url, "_blank", "noopener");
   };
 
@@ -283,6 +321,13 @@ const SATIR_ADI: Record<MalzemeTuru, string> = {
 const SATIR_SIRASI: MalzemeTuru[] = ["kitap", "dosya", "ses", "video", "hedef", "test", "diger"];
 
 function MalzemeDugmesi({ m, ac }: { m: FoyMalzemesi; ac: (m: FoyMalzemesi) => void }) {
+  if (m.oynatilir) {
+    return (
+      <button onClick={() => ac(m)} className="cp-btn cp-btn-primary min-h-11 px-3 lg:px-5 text-[12px] lg:text-[14px] shrink-0">
+        <Play size={14} />İzle
+      </button>
+    );
+  }
   if (m.cmid) {
     return (
       <button onClick={() => ac(m)} className="cp-btn cp-btn-primary min-h-11 px-3 lg:px-5 text-[12px] lg:text-[14px] shrink-0">
