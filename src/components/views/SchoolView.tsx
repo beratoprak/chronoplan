@@ -167,6 +167,9 @@ export function SchoolView() {
   const activeCourses = useMemo(() => data.courses.filter((course) => course.yariyil === 1), [data.courses]);
   const completedAkts = useMemo(() => completedCredits(data.courses, data.grades), [data.courses, data.grades]);
   const staleSources = data.sources.filter((source) => isSchoolSourceStale(source));
+  // OYS mobil anahtarı reddedildiyse (süresi doldu ya da iptal) ders içeriği
+  // güncellenmiyor; genel "kaynak bayat" uyarısı ne yapılacağını söylemiyordu.
+  const oysAnahtari = staleSources.find((source) => source.id === "oys-mobil" && source.last_error === "OYS anahtarını yenile");
   const strategy = useMemo(() => buildSchoolStrategy(data.courses, data.grades), [data.courses, data.grades]);
 
   // Sinav tarihi panelin kendi uydurdugu bir sabit degil: motorun yazdigi
@@ -344,7 +347,9 @@ export function SchoolView() {
           <AlertTriangle size={18} className="shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className="text-[13px] font-semibold">Okul verisinin bir bölümü doğrulanamadı</p>
-            <p className="text-[11px] mt-1">{data.warnings[0] ?? `${staleSources.length} kaynak bayat veya hatalı. Kritik tarihi resmî bağlantıdan kontrol et.`}</p>
+            <p className="text-[11px] mt-1">{data.warnings[0] ?? (oysAnahtari && staleSources.length === 1
+              ? "OYS anahtarını yenile: ders içeriği güncellenmiyor. Bilgisayarda ybs-panel klasöründe npm run oys:kesif çalıştır."
+              : `${staleSources.length} kaynak bayat veya hatalı. Kritik tarihi resmî bağlantıdan kontrol et.`)}</p>
           </div>
           <button onClick={() => void load()} className="ml-auto cp-icon-button shrink-0" aria-label="Okul verilerini yenile"><RefreshCw size={16} /></button>
         </div>
@@ -653,7 +658,7 @@ export function SchoolView() {
               return (
                 <div key={source.id} className="flex items-center gap-2 py-2.5">
                   {healthy ? <CheckCircle2 size={15} style={{ color: "var(--priority-low)" }} /> : <CloudOff size={15} style={{ color: "var(--priority-urgent)" }} />}
-                  <div className="min-w-0 flex-1"><p className="text-[12px] truncate">{source.ad}</p><p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{source.last_ok_at ? `${format(parseISO(source.last_ok_at), "dd.MM HH:mm")} doğrulandı` : "Henüz doğrulanmadı"}</p></div>
+                  <div className="min-w-0 flex-1"><p className="text-[12px] truncate">{source.ad}</p><p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{source.last_ok_at ? `${format(parseISO(source.last_ok_at), "dd.MM HH:mm")} doğrulandı` : "Henüz doğrulanmadı"}</p>{!healthy && source.last_error && <p className="text-[10px] font-medium" style={{ color: "var(--priority-urgent)" }}>{source.last_error}</p>}</div>
                   {source.url && <a href={source.url} target="_blank" rel="noreferrer" className="cp-icon-button" aria-label={`${source.ad} kaynağını aç`}><ArrowUpRight size={13} /></a>}
                 </div>
               );
