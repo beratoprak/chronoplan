@@ -224,10 +224,10 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
         className="flex items-center gap-2 px-3 sm:px-5 pb-2 shrink-0"
         style={{ borderBottom: "0.5px solid var(--border-default)", paddingTop: "calc(8px + env(safe-area-inset-top))" }}
       >
-        <button onClick={kapat} className="cp-btn cp-btn-ghost min-h-11 px-2.5 gap-1.5 text-[13px]" aria-label="Takvime dön">
+        <button onClick={kapat} className="cp-btn cp-btn-ghost min-h-11 px-2.5 gap-1.5 text-[13px] lg:text-[15px]" aria-label="Takvime dön">
           <ArrowLeft size={18} /><span className="hidden sm:inline">Takvim</span>
         </button>
-        <h1 className="min-w-0 flex-1 text-[15px] font-semibold leading-tight truncate">
+        <h1 className="min-w-0 flex-1 text-[15px] lg:text-[19px] font-semibold leading-tight truncate">
           {format(parseISO(tarih), "d MMMM EEEE", { locale: tr })}
         </h1>
         {/* Çalışırken işe yaramayan düzenleme, göze batmasın diye menüde. */}
@@ -238,7 +238,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
             </button>
             {menu && (
               <div className="absolute right-0 top-11 z-10 rounded-xl py-1 min-w-48" style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", boxShadow: "var(--golge-kalkik)" }}>
-                <button onClick={duzenle} className="w-full min-h-11 px-3 flex items-center gap-2 text-[13px] text-left" style={{ color: "var(--text-secondary)" }}>
+                <button onClick={duzenle} className="w-full min-h-11 px-3 flex items-center gap-2 text-[13px] lg:text-[15px] text-left" style={{ color: "var(--text-secondary)" }}>
                   <Pencil size={14} />Takvim etkinliğini düzenle
                 </button>
               </div>
@@ -248,34 +248,34 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
       </header>
 
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="max-w-3xl mx-auto px-3 sm:px-5 py-4 space-y-4" style={{ paddingBottom: "calc(32px + env(safe-area-inset-bottom))" }}>
+        <div className="max-w-3xl lg:max-w-[1400px] mx-auto px-3 sm:px-5 lg:px-10 py-4 lg:py-8 space-y-4 lg:space-y-8" style={{ paddingBottom: "calc(32px + env(safe-area-inset-bottom))" }}>
           {hata && (
-            <div className="rounded-xl px-3 py-2 text-[12px] flex items-center gap-2" role="alert" style={{ background: "var(--priority-high-bg)", color: "var(--priority-high-text)" }}>
+            <div className="rounded-xl px-3 py-2 text-[12px] lg:text-[14px] flex items-center gap-2" role="alert" style={{ background: "var(--priority-high-bg)", color: "var(--priority-high-text)" }}>
               <span className="flex-1">{hata}</span>
-              <button onClick={() => void yukle()} className="cp-btn cp-btn-ghost min-h-9 text-[11px]"><RefreshCw size={12} />Tekrar dene</button>
+              <button onClick={() => void yukle()} className="cp-btn cp-btn-ghost min-h-9 text-[11px] lg:text-[13px]"><RefreshCw size={12} />Tekrar dene</button>
             </div>
           )}
           {salt && (
-            <p className="text-[11px] rounded-xl px-3 py-2" style={{ background: "var(--surface-sunken)", color: "var(--text-tertiary)" }}>
+            <p className="text-[11px] lg:text-[13px] rounded-xl px-3 py-2" style={{ background: "var(--surface-sunken)", color: "var(--text-tertiary)" }}>
               Demo: işaretlemeler ve cevaplar kaydedilmez.
             </p>
           )}
 
           {(!data || satirlar === null) && !hata && (
-            <div className="flex items-center justify-center gap-2 py-16 text-[12px]" style={{ color: "var(--text-tertiary)" }}>
+            <div className="flex items-center justify-center gap-2 py-16 text-[12px] lg:text-[14px]" style={{ color: "var(--text-tertiary)" }}>
               <Loader2 size={16} className="animate-spin" />Günün planı yükleniyor…
             </div>
           )}
 
           {data && satirlar !== null && !dersSatirlari.length && (
-            <div className="rounded-2xl p-4 text-[13px] leading-relaxed" style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", color: "var(--text-secondary)" }}>
+            <div className="rounded-2xl p-4 text-[13px] lg:text-[15px] leading-relaxed" style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", color: "var(--text-secondary)" }}>
               {gunTuru === "sinav"
                 ? "Bugün sınav günü. Başarılar!"
                 : gunTuru === "bos"
                   ? "Bu gün için çalışma planlanmadı."
                   : "Bu gün için kayıtlı plan bulunamadı. Okul → Bu hafta → \"Yeniden planla\" ile plan yeniden kurulabilir."}
               {etkinlik?.description && (
-                <pre className="mt-3 whitespace-pre-wrap text-[12px] font-sans" style={{ color: "var(--text-tertiary)" }}>{etkinlik.description}</pre>
+                <pre className="mt-3 whitespace-pre-wrap text-[12px] lg:text-[14px] font-sans" style={{ color: "var(--text-tertiary)" }}>{etkinlik.description}</pre>
               )}
             </div>
           )}
@@ -283,16 +283,16 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
           {/* Bugünün özeti: kaç ders, hangileri, ne kadar. Satıra basınca derse iner. */}
           {data && dersSatirlari.length > 0 && (
             <div>
-              <p className="text-[18px] font-semibold leading-tight">
+              <p className="text-[18px] lg:text-[26px] font-semibold leading-tight">
                 {gunTuru === "tekrar" ? "Tekrar günü" : "Bugün"} {dersSatirlari.length} ders · ~{toplamDakika} dk
               </p>
-              <ol className="mt-2 space-y-1">
+              <ol className="mt-2 lg:mt-4 space-y-1 lg:space-y-2">
                 {dersSatirlari.map((satir, i) => {
                   const ilk = satir.parcalar[0];
                   const unit = ilk && unitById.get(ilk.unit_id);
                   return (
                     <li key={satir.id}>
-                      <button onClick={() => git(`ders-${i + 1}`)} className="w-full min-h-11 flex items-baseline gap-2 text-left text-[13px] rounded-lg px-2 -mx-2 hover:bg-[var(--surface-sunken)]">
+                      <button onClick={() => git(`ders-${i + 1}`)} className="w-full min-h-11 flex items-baseline gap-2 text-left text-[13px] lg:text-[15px] rounded-lg px-2 -mx-2 hover:bg-[var(--surface-sunken)]">
                         <span className="font-semibold tabular-nums" style={{ color: "var(--tag-school-text)" }}>{i + 1}.</span>
                         <span className="flex-1 min-w-0">
                           <span className="font-medium">{dersAdi(satir.ders_kodu as string)}</span>
@@ -302,7 +302,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                               : ilk && ` — ${unit?.konu_no ? `${unit.konu_no}. konu: ` : ""}${konuAdi(ilk.baslik)}${satir.parcalar.length > 1 ? ` +${satir.parcalar.length - 1}` : ""}`}
                           </span>
                         </span>
-                        <span className="shrink-0 text-[12px] tabular-nums" style={{ color: "var(--text-tertiary)" }}>~{satir.dakika} dk</span>
+                        <span className="shrink-0 text-[12px] lg:text-[14px] tabular-nums" style={{ color: "var(--text-tertiary)" }}>~{satir.dakika} dk</span>
                       </button>
                     </li>
                   );
@@ -324,13 +324,13 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
               <section
                 key={satir.id}
                 id={`ders-${i + 1}`}
-                className="rounded-2xl p-4 sm:p-5 scroll-mt-3"
+                className="rounded-2xl p-4 sm:p-5 lg:p-10 scroll-mt-3"
                 style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)" }}
               >
-                <p className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                <p className="text-[11px] lg:text-[13px]" style={{ color: "var(--text-tertiary)" }}>
                   Ders {i + 1} · {satir.tur === "tekrar" ? "tekrar" : `~${satir.dakika} dk`}
                 </p>
-                <h2 className="text-[17px] font-semibold leading-snug">{dersAdi(kod)}</h2>
+                <h2 className="text-[17px] lg:text-[24px] font-semibold leading-snug">{dersAdi(kod)}</h2>
                 {satir.tur === "tekrar"
                   ? <TekrarBolumu parcalar={satir.parcalar} dersKodu={kod} {...ortak} />
                   : satir.parcalar.map((p, j) => <KonuFoyuBolumu key={p.unit_id} parca={p} ilk={j === 0} {...ortak} />)}
@@ -385,7 +385,7 @@ function KonuFoyuBolumu({ parca, ilk, ...o }: Ortak & { parca: PlanParcasi; ilk:
   return (
     <div className={ilk ? "mt-1" : "mt-5 pt-4"} style={ilk ? undefined : { borderTop: "0.5px solid var(--border-default)" }}>
       <KonuBasligi unitId={parca.unit_id} baslik={parca.baslik} {...o} />
-      {(() => { const c = parcaCumlesi(parca, unit?.tahmini_dakika ?? 0); return c && <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>{c}</p>; })()}
+      {(() => { const c = parcaCumlesi(parca, unit?.tahmini_dakika ?? 0); return c && <p className="text-[12px] lg:text-[14px] mt-1" style={{ color: "var(--text-tertiary)" }}>{c}</p>; })()}
       <Foy unitId={parca.unit_id} butce={parca.dakika} bitiyor={parca.bitiyor} {...o} />
     </div>
   );
@@ -396,10 +396,10 @@ function KonuBasligi({ unitId, baslik, ...o }: Ortak & { unitId: string; baslik:
   const yuzde = Math.round(ilerlemeKatsayisi(o.ilerleme.get(unitId), o.adimHaritasi.get(unitId) ?? ADIMLAR) * 100);
   return (
     <div className="flex items-baseline gap-2">
-      <h3 className="flex-1 min-w-0 text-[15px] font-medium leading-snug">
+      <h3 className="flex-1 min-w-0 text-[15px] lg:text-[19px] font-medium leading-snug">
         {unit?.konu_no ? `Konu ${unit.konu_no} — ` : ""}{konuAdi(baslik)}
       </h3>
-      <span className="text-[11px] font-semibold tabular-nums shrink-0" style={{ color: yuzde === 100 ? "var(--priority-low-text)" : "var(--text-tertiary)" }}>
+      <span className="text-[11px] lg:text-[13px] font-semibold tabular-nums shrink-0" style={{ color: yuzde === 100 ? "var(--priority-low-text)" : "var(--text-tertiary)" }}>
         %{yuzde}
       </span>
     </div>
@@ -437,7 +437,7 @@ function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; butce: 
     <>
       <AltBaslik>Bu konuda öğreneceklerin</AltBaslik>
       {kazanim.length ? (
-        <ul className="pl-4 space-y-1 list-disc text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+        <ul className="pl-4 lg:pl-6 space-y-1 lg:space-y-2.5 list-disc text-[13px] lg:text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>
           {kazanim.map((k) => <li key={k.id}>{k.metin}</li>)}
         </ul>
       ) : (
@@ -452,7 +452,7 @@ function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; butce: 
 
       <AltBaslik>Nasıl çalışacaksın</AltBaslik>
       {foy.aciklama && (
-        <p className="text-[12px] leading-relaxed rounded-xl px-3 py-2 mb-1 flex gap-2" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }}>
+        <p className="text-[12px] lg:text-[14px] leading-relaxed rounded-xl px-3 py-2 mb-1 flex gap-2" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }}>
           <Info size={14} className="shrink-0 mt-0.5" />{foy.aciklama}
         </p>
       )}
@@ -463,7 +463,7 @@ function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; butce: 
       {yapilan.length > 0 && <GrupBasligi>Yapıldı</GrupBasligi>}
       {yapilan.map(({ a, no }) => <AdimSatiri key={no} adim={a} no={no} acik={false} {...adimProps} />)}
 
-      <button onClick={() => o.onNot(unitId)} disabled={o.mesgul === unitId} className="cp-btn cp-btn-ghost min-h-11 text-[12px] mt-3 disabled:opacity-40">
+      <button onClick={() => o.onNot(unitId)} disabled={o.mesgul === unitId} className="cp-btn cp-btn-ghost min-h-11 text-[12px] lg:text-[14px] mt-3 disabled:opacity-40">
         <NotebookPen size={14} />Konu notum
       </button>
     </>
@@ -479,7 +479,7 @@ const SATIR_SIRASI: MalzemeTuru[] = ["kitap", "dosya", "ses", "video", "hedef", 
 function MalzemeDugmesi({ m, ac }: { m: FoyMalzemesi; ac: (m: FoyMalzemesi) => void }) {
   if (m.cmid) {
     return (
-      <button onClick={() => ac(m)} className="cp-btn cp-btn-primary min-h-11 px-3 text-[12px] shrink-0">
+      <button onClick={() => ac(m)} className="cp-btn cp-btn-primary min-h-11 px-3 lg:px-5 text-[12px] lg:text-[14px] shrink-0">
         <BookOpen size={14} />Oku
       </button>
     );
@@ -487,7 +487,7 @@ function MalzemeDugmesi({ m, ac }: { m: FoyMalzemesi; ac: (m: FoyMalzemesi) => v
   if (!m.oys_url) return null;
   const fiil = m.tur === "video" ? "İzle" : m.tur === "ses" ? "Dinle" : m.tur === "test" ? "Çöz" : "Aç";
   return (
-    <a href={m.oys_url} target="_blank" rel="noreferrer" className="cp-btn cp-btn-ghost min-h-11 px-3 text-[12px] shrink-0" title="OYS'de açılır">
+    <a href={m.oys_url} target="_blank" rel="noreferrer" className="cp-btn cp-btn-ghost min-h-11 px-3 lg:px-5 text-[12px] lg:text-[14px] shrink-0" title="OYS'de açılır">
       {fiil}<ArrowUpRight size={12} />
     </a>
   );
@@ -507,7 +507,7 @@ function MalzemeTablosu({ foy, soruSayisi, pdfliKonular, ac }: {
       satirlar.push({
         key: "kitap-yok", ad: SATIR_ADI.kitap,
         icerik: (
-          <span className="text-[12px] leading-snug" style={{ color: "var(--priority-medium-text)" }}>
+          <span className="text-[12px] lg:text-[14px] leading-snug" style={{ color: "var(--priority-medium-text)" }}>
             Yok — bu konu için OYS'de okuma metni yayımlanmamış.
             <span className="block" style={{ color: "var(--text-tertiary)" }}>
               {pdfliKonular.length
@@ -522,10 +522,10 @@ function MalzemeTablosu({ foy, soruSayisi, pdfliKonular, ac }: {
     liste.forEach((m, i) => satirlar.push({
       key: `${tur}-${i}`, ad: i === 0 ? SATIR_ADI[tur] : "",
       icerik: (
-        <span className="w-full flex items-center gap-2 min-w-0">
-          <span className="flex-1 min-w-0 text-[13px] leading-snug">
+        <span className="w-full flex items-center gap-2 lg:gap-8 min-w-0">
+          <span className="flex-1 min-w-0 text-[13px] lg:text-[15px] leading-snug">
             {m.ad}
-            <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+            <span className="text-[11px] lg:text-[13px]" style={{ color: "var(--text-tertiary)" }}>
               {m.dakika > 0 && ` · ${m.dakika} dk`}
               {m.cmid ? " · uygulamada açılır" : " · OYS'de"}
               {m.tur === "ses" && " · isteğe bağlı"}
@@ -538,16 +538,16 @@ function MalzemeTablosu({ foy, soruSayisi, pdfliKonular, ac }: {
   }
   satirlar.push({
     key: "soru", ad: "Çıkmış soru",
-    icerik: <span className="text-[13px]" style={{ color: soruSayisi ? undefined : "var(--text-tertiary)" }}>
+    icerik: <span className="text-[13px] lg:text-[15px]" style={{ color: soruSayisi ? undefined : "var(--text-tertiary)" }}>
       {soruSayisi ? `${soruSayisi} soru · bu sayfada çözülür` : "Bu konunun çıkmış sorusu yok."}
     </span>,
   });
   return (
-    <dl className="grid grid-cols-1 sm:grid-cols-[130px_minmax(0,1fr)] gap-x-3">
+    <dl className="grid grid-cols-1 sm:grid-cols-[130px_minmax(0,1fr)] lg:grid-cols-[220px_minmax(0,1fr)] gap-x-3 lg:gap-x-6">
       {satirlar.map((s) => (
         <div key={s.key} className="contents">
-          <dt className={`text-[11px] sm:text-[12px] ${s.ad ? "pt-2 sm:pt-0 sm:min-h-11 sm:flex sm:items-center" : "hidden sm:block"}`} style={{ color: "var(--text-tertiary)" }}>{s.ad}</dt>
-          <dd className="py-1 sm:py-1.5 min-h-11 flex items-center">{s.icerik}</dd>
+          <dt className={`text-[11px] lg:text-[13px] sm:text-[12px] ${s.ad ? "pt-2 sm:pt-0 sm:min-h-11 sm:flex sm:items-center" : "hidden sm:block"}`} style={{ color: "var(--text-tertiary)" }}>{s.ad}</dt>
+          <dd className="py-1 sm:py-1.5 lg:py-3 min-h-11 flex items-center">{s.icerik}</dd>
         </div>
       ))}
     </dl>
@@ -570,10 +570,10 @@ function AdimSatiri({ adim, no, acik, unitId, sorular, ac, mesgul, onAdim, soruP
   const [sorularAcik, setSorularAcik] = useState(acik);
   const soluk = adim.yapildi || !acik;
   return (
-    <div className="py-2.5" style={{ borderTop: "0.5px solid var(--border-default)" }}>
-      <div className="flex gap-2.5 items-start">
+    <div className="py-2.5 lg:py-6" style={{ borderTop: "0.5px solid var(--border-default)" }}>
+      <div className="flex gap-2.5 lg:gap-5 items-start">
         <span
-          className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-semibold shrink-0 mt-0.5"
+          className="w-6 h-6 lg:w-8 lg:h-8 rounded-full flex items-center justify-center text-[12px] lg:text-[14px] font-semibold shrink-0 mt-0.5"
           style={adim.yapildi
             ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)" }
             : acik ? { background: "var(--tag-school-bg)", color: "var(--tag-school-text)" } : { background: "var(--surface-sunken)", color: "var(--text-tertiary)" }}
@@ -581,10 +581,10 @@ function AdimSatiri({ adim, no, acik, unitId, sorular, ac, mesgul, onAdim, soruP
           {adim.yapildi ? <Check size={13} strokeWidth={3} /> : no}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] leading-snug" style={{ color: soluk ? "var(--text-secondary)" : "var(--text-primary)" }}>
+          <p className="text-[13px] lg:text-[16px] leading-snug lg:leading-relaxed" style={{ color: soluk ? "var(--text-secondary)" : "var(--text-primary)" }}>
             {adim.metin}
           </p>
-          <p className="text-[11px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
+          <p className="text-[11px] lg:text-[13px] mt-0.5 lg:mt-1.5" style={{ color: "var(--text-tertiary)" }}>
             {adim.dakika > 0 && `~${adim.dakika} dk`}
             {!adim.adim && `${adim.dakika > 0 ? " · " : ""}isteğe bağlı`}
           </p>
@@ -599,9 +599,9 @@ function AdimSatiri({ adim, no, acik, unitId, sorular, ac, mesgul, onAdim, soruP
         )}
       </div>
       {adim.malzeme.length > 0 && !adim.yapildi && (
-        <ul className="mt-1.5 ml-8 space-y-1">
+        <ul className="mt-1.5 ml-8 lg:mt-4 lg:ml-[52px] space-y-1 lg:space-y-3">
           {adim.malzeme.map((m, i) => (
-            <li key={i} className="flex items-center gap-2 text-[12px]" style={{ color: "var(--text-secondary)" }}>
+            <li key={i} className="flex items-center gap-2 lg:gap-8 text-[12px] lg:text-[14px]" style={{ color: "var(--text-secondary)" }}>
               <span className="flex-1 min-w-0 truncate">{m.ad}{m.dakika > 0 && <span style={{ color: "var(--text-tertiary)" }}> · {m.dakika} dk</span>}</span>
               <MalzemeDugmesi m={m} ac={ac} />
             </li>
@@ -609,11 +609,11 @@ function AdimSatiri({ adim, no, acik, unitId, sorular, ac, mesgul, onAdim, soruP
         </ul>
       )}
       {adim.soru && sorular.length > 0 && (
-        <div className="mt-2 ml-8">
+        <div className="mt-2 ml-8 lg:mt-4 lg:ml-[52px]">
           {sorularAcik
             ? <SoruAkisi sorular={sorular} sirala={soruSirasi} {...soruProps} />
             : (
-              <button onClick={() => setSorularAcik(true)} className="cp-btn cp-btn-ghost min-h-11 text-[12px]">
+              <button onClick={() => setSorularAcik(true)} className="cp-btn cp-btn-ghost min-h-11 text-[12px] lg:text-[14px]">
                 Soruları aç<ChevronRight size={14} />
               </button>
             )}
@@ -631,7 +631,7 @@ function IsaretKutusu({ isaretli, etiket, mesgul, onDegis }: {
       onClick={() => onDegis(!isaretli)}
       disabled={mesgul}
       aria-pressed={isaretli}
-      className="cp-btn min-h-11 px-2.5 text-[11px] gap-1.5 shrink-0 disabled:opacity-50"
+      className="cp-btn min-h-11 px-2.5 lg:px-4 text-[11px] lg:text-[13px] gap-1.5 shrink-0 disabled:opacity-50"
       style={isaretli
         ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", border: "0.5px solid transparent" }
         : { background: "transparent", color: "var(--text-secondary)", border: "0.5px solid var(--border-default)" }}
@@ -658,7 +658,7 @@ function TekrarBolumu({ parcalar, dersKodu, ...o }: Ortak & { parcalar: PlanParc
   const [acik, setAcik] = useState<string | null>(null);
   return (
     <>
-      <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>
+      <p className="text-[12px] lg:text-[14px] mt-1" style={{ color: "var(--text-tertiary)" }}>
         Sınavdan önceki tekrar: önce hakim olmadığın konulara dön, sonra soruları çöz.
       </p>
       <AltBaslik>{eksik.length ? `1. Hakim olmadığın konular (${eksik.length})` : "Bütün konulara hakimsin ✓"}</AltBaslik>
@@ -709,7 +709,7 @@ function SoruAkisi({ sorular, denemeler, salt, onSoru, sirala }: {
   if (!sira.length) return <Bos>Çözülecek soru kalmadı ✓</Bos>;
   if (i >= sira.length) {
     return (
-      <div className="rounded-xl p-3 text-[12px]" style={{ background: "var(--surface-raised)" }}>
+      <div className="rounded-xl p-3 text-[12px] lg:text-[14px]" style={{ background: "var(--surface-raised)" }}>
         Sorular bitti. <button onClick={() => setI(0)} className="underline underline-offset-2" style={{ color: "var(--tag-school-text)" }}>Baştan</button>
       </div>
     );
@@ -728,12 +728,12 @@ function SoruAkisi({ sorular, denemeler, salt, onSoru, sirala }: {
 
   return (
     <div className="rounded-xl p-3" style={{ background: "var(--surface-raised)" }}>
-      <p className="text-[10px] mb-1.5" style={{ color: "var(--text-tertiary)" }}>
+      <p className="text-[10px] lg:text-[12px] mb-1.5" style={{ color: "var(--text-tertiary)" }}>
         Soru {i + 1}/{sira.length} · {cozulmemis} çözülmedi
         {once === "yanlis" && !cevap && " · daha önce yanlış yaptın"}
         {once === "dogru" && !cevap && " · daha önce doğru bildin"}
       </p>
-      <p className="text-[13px] leading-snug font-medium whitespace-pre-wrap">{soru.govde}</p>
+      <p className="text-[13px] lg:text-[15px] leading-snug font-medium whitespace-pre-wrap">{soru.govde}</p>
       <div className="mt-2 space-y-1.5">
         {soru.secenekler.map((sik) => {
           const secili = cevap === sik.harf;
@@ -743,7 +743,7 @@ function SoruAkisi({ sorular, denemeler, salt, onSoru, sirala }: {
               key={sik.harf}
               onClick={() => void sec(sik.harf)}
               disabled={cevap != null}
-              className="w-full min-h-11 text-left rounded-lg px-3 py-2 text-[12px] leading-snug disabled:cursor-default"
+              className="w-full min-h-11 text-left rounded-lg px-3 py-2 text-[12px] lg:text-[14px] leading-snug disabled:cursor-default"
               style={{
                 background: dogruSik ? "var(--priority-low-bg)" : secili ? "var(--priority-high-bg)" : "var(--surface-sunken)",
                 color: dogruSik ? "var(--priority-low-text)" : secili ? "var(--priority-high-text)" : "var(--text-primary)",
@@ -756,30 +756,30 @@ function SoruAkisi({ sorular, denemeler, salt, onSoru, sirala }: {
       </div>
       {cevap != null && (
         <div className="mt-2 flex items-center gap-2 flex-wrap">
-          <p className="text-[12px] flex-1" style={{ color: cevap === soru.dogru ? "var(--priority-low-text)" : "var(--priority-high-text)" }}>
+          <p className="text-[12px] lg:text-[14px] flex-1" style={{ color: cevap === soru.dogru ? "var(--priority-low-text)" : "var(--priority-high-text)" }}>
             {soru.dogru == null ? "Cevap anahtarı yok." : cevap === soru.dogru ? "Doğru." : `Yanlış — doğrusu ${soru.dogru}.`}
             {kaydediliyor && " Kaydediliyor…"}
           </p>
-          <button onClick={() => setI(i + 1)} className="cp-btn cp-btn-primary min-h-11 text-[12px]">
+          <button onClick={() => setI(i + 1)} className="cp-btn cp-btn-primary min-h-11 text-[12px] lg:text-[14px]">
             Sonraki soru<ChevronRight size={14} />
           </button>
         </div>
       )}
       {cevap == null && i + 1 < sira.length && (
-        <button onClick={() => setI(i + 1)} className="mt-2 text-[11px] min-h-9" style={{ color: "var(--text-tertiary)" }}>Bu soruyu geç</button>
+        <button onClick={() => setI(i + 1)} className="mt-2 text-[11px] lg:text-[13px] min-h-9" style={{ color: "var(--text-tertiary)" }}>Bu soruyu geç</button>
       )}
     </div>
   );
 }
 
 function AltBaslik({ children }: { children: React.ReactNode }) {
-  return <h4 className="text-[13px] font-semibold mt-5 mb-1.5">{children}</h4>;
+  return <h4 className="text-[13px] lg:text-[18px] font-semibold mt-5 mb-1.5 lg:mt-10 lg:mb-4">{children}</h4>;
 }
 
 function GrupBasligi({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] font-medium mt-2 mb-1" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
+  return <p className="text-[11px] lg:text-[13px] font-medium mt-2 mb-1 lg:mt-6 lg:mb-2" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
 }
 
 function Bos({ children }: { children: React.ReactNode }) {
-  return <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
+  return <p className="text-[12px] lg:text-[14px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>{children}</p>;
 }
