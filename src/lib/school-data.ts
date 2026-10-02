@@ -485,9 +485,30 @@ export function buildSchoolDemoData(): SchoolData {
       { id: "demo:u2", ders_kodu: "AAUF1105", baslik: "1-Temel Bilgiler", tip: "konu", dilim: "vize", katman: "cekirdek", tahmini_dakika: 75, soru_degeri: 5, konu_no: 1 },
     ],
     progress: [],
-    outcomes: [],
-    modules: [],
-    questions: [],
+    // Gün sayfası demoda boş görünmesin diye birkaç örnek kazanım, materyal ve soru.
+    outcomes: [
+      { id: "demo:k1", unit_id: "demo:u1", sira: 1, metin: "İktisadın temel kavramlarını açıklayabilecek" },
+      { id: "demo:k2", unit_id: "demo:u1", sira: 2, metin: "Kıtlık ve seçim ilişkisini örneklerle tartışabilecek" },
+    ],
+    modules: [
+      { id: "ybs:mod:demo1", unit_id: "demo:u1", ad: "Kitap Bölümü", tip: "resource", oys_url: "https://oys.ankuzef.ankara.edu.tr", tahmini_dakika: 30, yerel_dosya: null },
+      { id: "ybs:mod:demo2", unit_id: "demo:u1", ad: "Bölüm Özeti Ses Metni (Podcast)", tip: "resource", oys_url: "https://oys.ankuzef.ankara.edu.tr", tahmini_dakika: 10, yerel_dosya: null },
+      { id: "ybs:mod:demo3", unit_id: "demo:u2", ad: "Temel Bilgiler — video anlatım", tip: "hvp", oys_url: "https://oys.ankuzef.ankara.edu.tr", tahmini_dakika: 15, yerel_dosya: null },
+    ],
+    questions: [
+      {
+        id: "demo:q1", ders_kodu: "AAUF1101", unit_id: "demo:u1", soru_no: 1, bolum_no: 1,
+        govde: "Sınırsız ihtiyaçlar karşısında kaynakların kıt olması iktisatta hangi kavramla ifade edilir?",
+        secenekler: [{ harf: "A", metin: "Kıtlık" }, { harf: "B", metin: "Enflasyon" }, { harf: "C", metin: "Fayda" }, { harf: "D", metin: "Talep" }, { harf: "E", metin: "Arz" }],
+        dogru: "A",
+      },
+      {
+        id: "demo:q2", ders_kodu: "AAUF1101", unit_id: "demo:u1", soru_no: 2, bolum_no: 1,
+        govde: "Bir seçim yapılırken vazgeçilen en iyi alternatifin değerine ne ad verilir?",
+        secenekler: [{ harf: "A", metin: "Marjinal fayda" }, { harf: "B", metin: "Fırsat maliyeti" }, { harf: "C", metin: "Toplam maliyet" }, { harf: "D", metin: "Sabit maliyet" }, { harf: "E", metin: "Batık maliyet" }],
+        dogru: "B",
+      },
+    ],
     attempts: [],
     flashcards: [],
     sessions: [],

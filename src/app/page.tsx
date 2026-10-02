@@ -15,6 +15,7 @@ import { SettingsPanel } from "@/components/shared/SettingsPanel";
 import { WorkspaceModal } from "@/components/workspace/WorkspaceModal";
 import { useAppStore } from "@/lib/store";
 import { useKeyboardShortcuts } from "@/lib/useKeyboardShortcuts";
+import { GunSayfasi } from "@/components/school/GunSayfasi";
 import { useHaftalikPlanlayici } from "@/lib/useHaftalikPlanlayici";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
@@ -107,6 +108,9 @@ export default function Home() {
       {/* Faz 4 — Etkinlik Modal'ları */}
       <EventModal />
       <DeleteEventConfirmDialog />
+
+      {/* Plan v3 Faz C — takvimdeki çalışma etkinliğinden açılan gün sayfası */}
+      <GunSayfasi />
 
       {/* Faz 6 — Global Arama */}
       <SearchModal />

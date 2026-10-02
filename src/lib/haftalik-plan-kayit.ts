@@ -123,6 +123,18 @@ export async function haftaninPlani(userId: string, hafta: string): Promise<Plan
   return (data ?? []) as PlanSatiri[];
 }
 
+/** Tek günün plan satırları (gün sayfası). Hafta değil tarih: geçmiş haftanın günü de açılabilsin. */
+export async function gununPlani(userId: string, tarih: string): Promise<PlanSatiri[]> {
+  const { data, error } = await supabase
+    .from("ybs_haftalik_plan")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("tarih", tarih)
+    .order("sira");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PlanSatiri[];
+}
+
 /** Planı hesaplar — yazmaz. Test ve önizleme için ayrı. */
 export function planiHesapla(data: SchoolData, events: CalendarEvent[], simdi: Date): { hafta: string; plan: HaftalikPlan } | null {
   const hedef = hedefHafta(simdi);

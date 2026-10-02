@@ -30,6 +30,8 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 | `src/lib/haftalik-plan.ts` | Haftalık planlayıcı (saf, teste bağlı) |
 | `src/lib/haftalik-plan-kayit.ts` | Planı `ybs_haftalik_plan`'a ve takvime yazar |
 | `src/lib/useHaftalikPlanlayici.ts` | Pazar 21:00 sonrası ilk açılışta planı kurar |
+| `src/components/school/GunSayfasi.tsx` | Gün sayfası: plan etkinliğine tıklayınca o günün iki dersi tam ekran |
+| `src/lib/gun-sayfasi.ts` | Gün sayfasının saf hesapları: soru sırası, tekrar günü konuları, materyal |
 | `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü, PDF okuyucu |
 | `supabase/migration-epoche-v*.sql` | Şema değişiklikleri (Supabase SQL Editor'de elle çalıştırılır) |
 
@@ -37,6 +39,8 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 
 - `ilerleme.ts` motordaki `ybs-panel/src/lib/ilerleme.js`'in ikizi. Birini değiştirirsen
   diğerini ve iki repodaki `ilerleme-vakalari.json` kopyalarını da değiştir.
+- Plan etkinliğine tıklama `store.openEventModal`'da gün sayfasına yönlendiriliyor;
+  düzenleme penceresi yalnız `{ duzenle: true }` ile açılır.
 - Motorun yazdığı kayıtlar `is_managed = true`. Plan etkinlikleri `source = 'ybs-haftalik-plan'`,
   kimlik `ybs-plan-<tarih>`. Kullanıcının kendi kayıtlarının üzerine yazma.
 - Eski tablolarda (`tasks`, `events`, `rich_notes`) zaman damgaları **metin** kolonu.

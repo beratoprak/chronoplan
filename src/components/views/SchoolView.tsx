@@ -15,6 +15,8 @@ import { buildUnitNote } from "@/lib/study-note";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
 import { haftaninPlani, PLAN_KAYNAGI, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
+import { MATERYAL_SIRASI, materyalEtiketi } from "@/lib/materyal";
+import { KonuChecklist } from "@/components/school/KonuChecklist";
 import { ADIM_ETIKETI, ADIMLAR, ilerlemeKatsayisi, isaretliAdimlar, mevcutAdimHaritasi, type Adim, type Adimlar } from "@/lib/ilerleme";
 import { degerlendir, yeniKart, zamaniGelenler, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
 import type { CalendarEvent, Task } from "@/types";
@@ -26,23 +28,6 @@ const DURUM_ETIKET: Record<UnitProgressState, string> = {
   dokunulmadi: "Başlamadım", calisildi: "Çalıştım", test_edildi: "Test ettim", hakim: "Hakimim",
 };
 const saatce = (dakika: number) => `${(dakika / 60).toFixed(1)} sa`;
-
-/** Modül etiketi: tipten çok adı belirleyici — aynı "resource" hem kitap hem ses olabiliyor. */
-function materyalEtiketi(ad: string, tip: string) {
-  if (/e-?pub/i.test(ad)) return "E-Pub";
-  if (/podcast|ses metni/i.test(ad)) return "Ses";
-  if (/çıkmış|örnek soru/i.test(ad)) return "Çıkmış soru";
-  if (/kitap|ders notu/i.test(ad)) return "Kitap";
-  if (tip === "hvp") return "Video";
-  if (tip === "quiz") return "Test";
-  if (tip === "page") return "Sayfa";
-  if (tip === "folder") return "Klasör";
-  if (tip === "resource") return "Dosya";
-  return tip;
-}
-
-/** Çalışma sırası: önce oku, sonra izle, sonra kendini dene. */
-const MATERYAL_SIRASI = ["Kitap", "Ses", "Video", "Sayfa", "Test", "Çıkmış soru", "Dosya", "Klasör", "E-Pub"];
 
 function isSchoolTask(task: Task) {
   return task.isManaged || task.id.startsWith("ybs-") || task.tags.some((tag) => tag.color === "school" || tag.name.toLocaleLowerCase("tr-TR") === "okul");
@@ -91,54 +76,6 @@ function DurumRozeti({ durum }: { durum: UnitProgressState }) {
     <span className="rounded-full px-1.5 py-0.5 font-semibold" style={renk}>
       {durum === "hakim" ? "hakim ✓" : DURUM_ETIKET[durum]}
     </span>
-  );
-}
-
-/**
- * Konunun dört adımlı checklist'i: Oku · İzle · Soru çöz · Hakimim.
- * Konuda olmayan adım (videosuz, sorusuz) hiç gösterilmez. Her adım ayrı
- * işaretlenir ve ayrı kaldırılır; yanında konunun yüzdesi durur.
- */
-function KonuChecklist({ kayit, mevcut, mesgul, onDegis }: {
-  kayit?: UnitProgress;
-  mevcut: Adim[];
-  mesgul: boolean;
-  onDegis: (adim: Adim, isaretli: boolean) => void;
-}) {
-  const isaretli = new Set(isaretliAdimlar(kayit, mevcut));
-  const yuzde = Math.round(ilerlemeKatsayisi(kayit, mevcut) * 100);
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Konu adımları">
-      {mevcut.map((adim) => {
-        const acik = isaretli.has(adim);
-        return (
-          <button
-            key={adim}
-            onClick={() => onDegis(adim, !acik)}
-            disabled={mesgul}
-            aria-pressed={acik}
-            className="cp-btn min-h-11 px-3 text-[11px] gap-1.5 disabled:opacity-50"
-            style={acik
-              ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", border: "0.5px solid transparent" }
-              : { background: "transparent", color: "var(--text-secondary)", border: "0.5px solid var(--border-default)" }}
-          >
-            <span
-              aria-hidden
-              className="w-3.5 h-3.5 rounded-[4px] flex items-center justify-center shrink-0"
-              style={acik
-                ? { background: "var(--priority-low-text)" }
-                : { border: "1.5px solid var(--border-strong)" }}
-            >
-              {acik && <CheckCircle2 size={10} color="var(--surface-raised)" strokeWidth={3} />}
-            </span>
-            {ADIM_ETIKETI[adim]}
-          </button>
-        );
-      })}
-      <span className="text-[11px] font-semibold tabular-nums ml-1" style={{ color: yuzde === 100 ? "var(--priority-low-text)" : "var(--text-tertiary)" }}>
-        %{yuzde}
-      </span>
-    </div>
   );
 }
 

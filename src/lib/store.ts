@@ -154,11 +154,22 @@ export const useAppStore = create<AppState>()(
       isEventModalOpen: false,
       editingEvent: null,
       eventDraft: null,
-      openEventModal: (event, draft) => {
+      openEventModal: (event, draft, secenek) => {
+        // Çalışma planı etkinliği düzenlenecek bir randevu değil, o günün
+        // çalışma masası: tıklanınca gün sayfası açılıyor. Pencerenin kendisi
+        // ancak gün sayfasındaki "Etkinliği düzenle" ile açılır.
+        if (event?.source === "ybs-haftalik-plan" && !secenek?.duzenle) {
+          set({ gunSayfasiTarihi: event.date });
+          return;
+        }
         if (get().isDemoMode) { get().showDemoToast("Demo modunda etkinlik düzenlenemez"); return; }
         set({ isEventModalOpen: true, editingEvent: event ?? null, eventDraft: draft ?? null });
       },
       closeEventModal: () => set({ isEventModalOpen: false, editingEvent: null, eventDraft: null }),
+
+      // ── Gün sayfası (Plan v3, Faz C) ──────────────────────────
+      gunSayfasiTarihi: null,
+      openGunSayfasi: (tarih) => set({ gunSayfasiTarihi: tarih }),
 
       // ── Event Delete Confirm State ────────────────────────────
       deletingEventId: null,

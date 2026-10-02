@@ -233,8 +233,13 @@ export interface AppState {
   isEventModalOpen: boolean;
   editingEvent: CalendarEvent | null;
   eventDraft: Partial<CalendarEvent> | null;
-  openEventModal: (event?: CalendarEvent, draft?: Partial<CalendarEvent>) => void;
+  /** Plan etkinliği gün sayfasını açar; `duzenle` ile düzenleme penceresi açılır. */
+  openEventModal: (event?: CalendarEvent, draft?: Partial<CalendarEvent>, secenek?: { duzenle?: boolean }) => void;
   closeEventModal: () => void;
+
+  // Gün sayfası: o günün çalışma planı tam ekran. Açık olan günün tarihi.
+  gunSayfasiTarihi: string | null;
+  openGunSayfasi: (tarih: string | null) => void;
 
   // Event Delete Confirm (Faz 4)
   deletingEventId: string | null;

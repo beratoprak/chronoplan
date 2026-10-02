@@ -13,7 +13,8 @@ interface Props {
   yol: string;
   baslik: string;
   onKapat: () => void;
-  onAlinti: (metin: string, sayfa: number) => void;
+  /** Yoksa "Nota al" çubuğu çıkmaz (gün sayfasında açık bir not yok). */
+  onAlinti?: (metin: string, sayfa: number) => void;
 }
 
 export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
@@ -95,7 +96,7 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti }: Props) {
         <button onClick={onKapat} className="cp-btn cp-btn-ghost min-h-8 px-2"><X size={14} /></button>
       </div>
 
-      {secim && (
+      {secim && onAlinti && (
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: "var(--tag-school-bg)" }}>
           <span className="text-[11px] truncate flex-1" style={{ color: "var(--tag-school-text)" }}>{secim.slice(0, 80)}</span>
           <button
