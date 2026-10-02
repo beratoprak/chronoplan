@@ -10,6 +10,8 @@
 // 60'ın altında kalan ders sayısını sıfırlamak. Bu yüzden her ders 12/20
 // eşiğine taşınmaya çalışılır; eşiği geçen derste marjinal değer kırpılır.
 
+import { ADIMLAR, DURUM_KATSAYISI, ilerlemeKatsayisi, type Adim, type Adimlar } from "./ilerleme";
+
 export type UnitProgressState = "dokunulmadi" | "calisildi" | "test_edildi" | "hakim";
 export type PlanState = "yolunda" | "geriliyor" | "kritik";
 
@@ -32,6 +34,10 @@ export interface UnitProgress {
   gercek_dakika: number;
   /** Konuya bağlı not; Faz F köprüsü. */
   not_id?: string | null;
+  /** Dört adımlı checklist: adım → işaretlenme zamanı (Plan v3, Faz A). */
+  adimlar?: Adimlar | null;
+  /** Konuda var olan adımlar; panel modül/soru listesinden doldurur. Tabloda yok. */
+  mevcut?: Adim[];
 }
 
 export interface StudyOutcome {
@@ -63,12 +69,8 @@ export interface Suggestion {
   esik_isi: boolean;
 }
 
-export const DURUM_KATSAYISI: Record<UnitProgressState, number> = {
-  dokunulmadi: 0,
-  calisildi: 0.7,
-  test_edildi: 0.85,
-  hakim: 1,
-};
+// Katsayı hesabı ilerleme.ts'te: dört adımlı checklist, eski kayıtlarla uyumlu.
+export { DURUM_KATSAYISI };
 
 export const ESIK_SORU = 12;
 export const TOPLAM_SORU = 20;
@@ -76,7 +78,8 @@ export const TOPLAM_SORU = 20;
 export const TABAN_TEMPO = 52;
 const FAZLALIK_KATSAYISI = 0.25;
 
-const katsayi = (durum?: UnitProgressState) => (durum ? DURUM_KATSAYISI[durum] ?? 0 : 0);
+/** Kayıt `mevcut` taşıyorsa (videosuz/sorusuz konu) ona göre, yoksa dört adımla hesaplanır. */
+const katsayi = (kayit?: UnitProgress) => ilerlemeKatsayisi(kayit, kayit?.mevcut ?? ADIMLAR);
 
 export function dersDurumlari(units: StudyUnit[], ilerleme: Map<string, UnitProgress>): CourseStatus[] {
   const harita = new Map<string, CourseStatus>();
@@ -86,7 +89,7 @@ export function dersDurumlari(units: StudyUnit[], ilerleme: Map<string, UnitProg
       ders_kodu: u.ders_kodu, katman: u.katman, kapsanan: 0, toplam: 0,
       kalan_dakika: 0, birim: 0, dokunulmamis: 0, esikte: false, esige_kalan: ESIK_SORU,
     };
-    const k = katsayi(ilerleme.get(u.id)?.durum);
+    const k = katsayi(ilerleme.get(u.id));
     d.kapsanan += u.soru_degeri * k;
     d.toplam += u.soru_degeri;
     d.birim += 1;
@@ -106,7 +109,7 @@ export function dersDurumlari(units: StudyUnit[], ilerleme: Map<string, UnitProg
 }
 
 export function birimDegeri(unit: StudyUnit, durum: CourseStatus, ilerleme: Map<string, UnitProgress>): Suggestion | null {
-  const k = katsayi(ilerleme.get(unit.id)?.durum);
+  const k = katsayi(ilerleme.get(unit.id));
   if (k >= 1) return null;
   const kazanc = unit.soru_degeri * (1 - k);
   const dakika = Math.max(1, Math.round(unit.tahmini_dakika * (1 - k)));

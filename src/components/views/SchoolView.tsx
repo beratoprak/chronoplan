@@ -2,16 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
+import { tr } from "date-fns/locale";
 import {
   AlertTriangle, ArrowUpRight, BookOpenCheck, CalendarClock, CheckCircle2,
   ChevronRight, CircleDollarSign, CloudOff, GraduationCap, Loader2, NotebookPen,
   Layers, RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, okulOnbellegi, requiredFinal, saveCardReview, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
+import { AdimKolonuYok, buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, okulOnbellegi, setUnitStep, setUnitSteps, requiredFinal, saveCardReview, saveQuestionAttempt, saveSchoolGrade, setUnitNote, setUnitProgress, type SchoolData } from "@/lib/school-data";
 import { buildStudyPlan, type StudyUnit, type UnitProgress, type UnitProgressState } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
+import { haftaninPlani, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { hedefHafta } from "@/lib/haftalik-plan";
+import { ADIM_ETIKETI, ADIMLAR, ilerlemeKatsayisi, isaretliAdimlar, mevcutAdimHaritasi, type Adim, type Adimlar } from "@/lib/ilerleme";
 import { degerlendir, yeniKart, zamaniGelenler, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
 import type { CalendarEvent, Task } from "@/types";
 
@@ -86,6 +90,54 @@ function DurumRozeti({ durum }: { durum: UnitProgressState }) {
   );
 }
 
+/**
+ * Konunun dört adımlı checklist'i: Oku · İzle · Soru çöz · Hakimim.
+ * Konuda olmayan adım (videosuz, sorusuz) hiç gösterilmez. Her adım ayrı
+ * işaretlenir ve ayrı kaldırılır; yanında konunun yüzdesi durur.
+ */
+function KonuChecklist({ kayit, mevcut, mesgul, onDegis }: {
+  kayit?: UnitProgress;
+  mevcut: Adim[];
+  mesgul: boolean;
+  onDegis: (adim: Adim, isaretli: boolean) => void;
+}) {
+  const isaretli = new Set(isaretliAdimlar(kayit, mevcut));
+  const yuzde = Math.round(ilerlemeKatsayisi(kayit, mevcut) * 100);
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Konu adımları">
+      {mevcut.map((adim) => {
+        const acik = isaretli.has(adim);
+        return (
+          <button
+            key={adim}
+            onClick={() => onDegis(adim, !acik)}
+            disabled={mesgul}
+            aria-pressed={acik}
+            className="cp-btn min-h-11 px-3 text-[11px] gap-1.5 disabled:opacity-50"
+            style={acik
+              ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", border: "0.5px solid transparent" }
+              : { background: "transparent", color: "var(--text-secondary)", border: "0.5px solid var(--border-default)" }}
+          >
+            <span
+              aria-hidden
+              className="w-3.5 h-3.5 rounded-[4px] flex items-center justify-center shrink-0"
+              style={acik
+                ? { background: "var(--priority-low-text)" }
+                : { border: "1.5px solid var(--border-strong)" }}
+            >
+              {acik && <CheckCircle2 size={10} color="var(--surface-raised)" strokeWidth={3} />}
+            </span>
+            {ADIM_ETIKETI[adim]}
+          </button>
+        );
+      })}
+      <span className="text-[11px] font-semibold tabular-nums ml-1" style={{ color: yuzde === 100 ? "var(--priority-low-text)" : "var(--text-tertiary)" }}>
+        %{yuzde}
+      </span>
+    </div>
+  );
+}
+
 export function SchoolView() {
   const {
     user, isDemoMode, events, tasks, addRichNote, setView, openTaskModal, syncStatus, updateEvent,
@@ -108,7 +160,7 @@ export function SchoolView() {
   const [acikSoru, setAcikSoru] = useState<string | null>(null);
   const [verilenCevap, setVerilenCevap] = useState<Record<string, string>>({});
   /** Son işaretleme — geri alma bildirimi için. */
-  const [sonIslem, setSonIslem] = useState<{ unitId: string; onceki: UnitProgressState; mesaj: string } | null>(null);
+  const [sonIslem, setSonIslem] = useState<{ unitId: string; onceki: UnitProgressState | Adimlar; mesaj: string } | null>(null);
   /** Ders → konular listesinde açık olan ders. */
   const [acikDers, setAcikDers] = useState<string | null>(null);
 
@@ -136,6 +188,42 @@ export function SchoolView() {
 
   useEffect(() => { void load(true); }, [load]);
 
+  // ── Bu hafta ──────────────────────────────────────────────────
+  // Planı kendiliğinden kuran kanca app düzeyinde (useHaftalikPlanlayici);
+  // burada yalnız gösteriliyor ve elle yeniden kurulabiliyor.
+  const [haftaSatirlari, setHaftaSatirlari] = useState<PlanSatiri[]>([]);
+  const [planMesgul, setPlanMesgul] = useState(false);
+  const [planHatasi, setPlanHatasi] = useState<string | null>(null);
+  const hafta = hedefHafta(new Date()).hafta;
+  const haftayiOku = useCallback(async () => {
+    if (!user?.id || isDemoMode) return;
+    try {
+      setHaftaSatirlari(await haftaninPlani(user.id, hafta));
+    } catch (e) {
+      setPlanHatasi(/ybs_haftalik_plan/.test(String(e))
+        ? "Haftalık plan için veritabanı güncellemesi bekleniyor (migration-epoche-v12)."
+        : `Plan okunamadı: ${e instanceof Error ? e.message : e}`);
+    }
+  }, [user?.id, isDemoMode, hafta]);
+  useEffect(() => { void haftayiOku(); }, [haftayiOku, events.length]);
+
+  const yenidenPlanla = useCallback(async () => {
+    if (!user?.id) return;
+    setPlanMesgul(true);
+    setPlanHatasi(null);
+    try {
+      const sonuc = await planiKurVeYaz(user.id, events, { zorla: true });
+      if (sonuc.durum === "sinav-yok") setPlanHatasi("Takvimde yaklaşan sınav bulunamadı; plan sınav tarihine göre kuruluyor.");
+      else if (sonuc.durum === "veri-yok") setPlanHatasi("Ders konuları henüz yüklenmedi.");
+      await useAppStore.getState().syncFromSupabase();
+      await haftayiOku();
+    } catch (e) {
+      setPlanHatasi(`Plan kurulamadı: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setPlanMesgul(false);
+    }
+  }, [user?.id, events, haftayiOku]);
+
   // Uygulama arka plandan dönünce sessizce tazele. Uzun uykudan sonra elde
   // bayat veri kalmasın; tazeleme düşerse ekran açık kalır, uyarı çıkar.
   useEffect(() => {
@@ -157,6 +245,14 @@ export function SchoolView() {
   const registrationTask = schoolTasks.find((task) => /kayıt|ödeme/i.test(task.title)) ?? schoolTasks[0];
   const completedChecklist = registrationTask?.checklist.filter((item) => item.completed).length ?? 0;
   const totalChecklist = registrationTask?.checklist.length ?? 0;
+
+  const haftaHesabi = useMemo(() => planiHesapla(data, events, new Date()), [data, events]);
+  const dersAdi = useCallback((kod: string | null) => data.courses.find((c) => c.kod === kod)?.ad ?? kod ?? "", [data.courses]);
+  const haftaGunleri = useMemo(() => {
+    const gunler = new Map<string, PlanSatiri[]>();
+    for (const satir of haftaSatirlari) gunler.set(satir.tarih, [...(gunler.get(satir.tarih) ?? []), satir]);
+    return Array.from(gunler.entries());
+  }, [haftaSatirlari]);
 
   const gradesByCourse = useMemo(() => new Map(data.grades.map((grade) => [grade.ders_kodu, grade])), [data.grades]);
   const activeCourses = useMemo(() => data.courses.filter((course) => course.yariyil === 1), [data.courses]);
@@ -210,13 +306,24 @@ export function SchoolView() {
     return cikti;
   }, [data.progress, outcomesByUnit, isaretli]);
 
+  /** Konuda hangi adımlar var: videosuz konuda İzle, sorusuz konuda Soru çöz yok. */
+  const adimHaritasi = useMemo(
+    () => mevcutAdimHaritasi(data.units, data.modules, data.questions),
+    [data.units, data.modules, data.questions],
+  );
+
   const progressMap = useMemo(() => {
     const map = new Map<string, UnitProgress>(data.progress.map((row) => [row.unit_id, row]));
     for (const unitId of kazanimlaTamamlananlar) {
       map.set(unitId, { ...(map.get(unitId) ?? { unit_id: unitId }), unit_id: unitId, durum: "calisildi" } as UnitProgress);
     }
+    // Plan motoru adım listesini kayıttan okuyor; motorun `npm run plan`
+    // çıktısıyla aynı rakamı vermesi bu zenginleştirmeye bağlı.
+    for (const [unitId, kayit] of Array.from(map.entries())) {
+      map.set(unitId, { ...kayit, mevcut: adimHaritasi.get(unitId) ?? ADIMLAR });
+    }
     return map;
-  }, [data.progress, kazanimlaTamamlananlar]);
+  }, [data.progress, kazanimlaTamamlananlar, adimHaritasi]);
 
   // Bu çıkarım tabloya da yazılıyor. Yazılmazsa panel 44.2 sa derken motorun
   // `npm run plan` çıktısı 45.1 sa derdi — iki ayrı gerçek, tam da bu projenin
@@ -299,7 +406,13 @@ export function SchoolView() {
     setVerilenCevap((onceki) => ({ ...onceki, [questionId]: harf }));
     if (!user?.id) return;
     await saveQuestionAttempt(user.id, questionId, harf, harf === dogru);
-  }, [user?.id]);
+    // Kartta çözülen soru da konunun "Soru çöz" adımını işaretler.
+    const unitId = data.questions.find((q) => q.id === questionId)?.unit_id;
+    if (unitId) {
+      await setUnitStep(user.id, unitId, "soru", true).catch((e) => console.error("Soru adımı yazılamadı:", e));
+      await load();
+    }
+  }, [user?.id, data.questions, load]);
 
   const unitById = useMemo(() => new Map(data.units.map((u) => [u.id, u])), [data.units]);
 
@@ -368,30 +481,30 @@ export function SchoolView() {
     }
   }, [progressMap, unitById, outcomesByUnit, modulesByUnit, questionsByUnit, addRichNote, requestRichNote, setView, user?.id, load]);
 
-  /**
-   * Konuyu işaretler ve geri alınabilir bırakır.
-   *
-   * Eskiden bastığında hiçbir şey olmuyordu: ne bildirim, ne düğmede durum
-   * değişikliği. Basıp basmadığını anlamanın yolu yoktu ve yanlışlıkla
-   * "Hakimim" dersen o konu önerilerden düşüp arayüzden erişilemez oluyordu.
-   */
-  const markUnit = useCallback(async (unitId: string, durum: UnitProgressState) => {
+
+  /** Checklist'te bir adımı işaretler ya da kaldırır; geri alınabilir. */
+  const [adimHatasi, setAdimHatasi] = useState<string | null>(null);
+  const adimDegistir = useCallback(async (unitId: string, adim: Adim, isaretli: boolean) => {
     if (!user?.id) return;
-    const onceki = data.progress.find((p) => p.unit_id === unitId)?.durum ?? "dokunulmadi";
     setUnitBusy(unitId);
+    setAdimHatasi(null);
     try {
-      await setUnitProgress(user.id, unitId, durum);
+      const onceki = await setUnitStep(user.id, unitId, adim, isaretli);
       const baslik = unitById.get(unitId)?.baslik ?? "Konu";
       setSonIslem({
         unitId,
         onceki,
-        mesaj: `${baslik.slice(0, 40)} · ${DURUM_ETIKET[durum]}`,
+        mesaj: `${baslik.slice(0, 36)} · ${ADIM_ETIKETI[adim]} ${isaretli ? "✓" : "kaldırıldı"}`,
       });
       await load();
+    } catch (e) {
+      setAdimHatasi(e instanceof AdimKolonuYok
+        ? e.message
+        : `Kaydedilemedi: ${e instanceof Error ? e.message : "bilinmeyen hata"}`);
     } finally {
       setUnitBusy(null);
     }
-  }, [user?.id, load, data.progress, unitById]);
+  }, [user?.id, load, unitById]);
 
   const geriAl = useCallback(async () => {
     if (!sonIslem || !user?.id) return;
@@ -399,7 +512,8 @@ export function SchoolView() {
     setSonIslem(null);
     setUnitBusy(unitId);
     try {
-      await setUnitProgress(user.id, unitId, onceki);
+      if (typeof onceki === "string") await setUnitProgress(user.id, unitId, onceki);
+      else await setUnitSteps(user.id, unitId, onceki);
       await load();
     } finally {
       setUnitBusy(null);
@@ -467,6 +581,14 @@ export function SchoolView() {
     <div className="max-w-6xl mx-auto animate-fade-in space-y-4 sm:space-y-5">
       {/* İşaretlemenin geri bildirimi: bastığını görmek ve yanlışlıkla
           "Hakimim" dediğinde dönebilmek için. */}
+      {adimHatasi && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: "var(--priority-high-bg)", color: "var(--priority-high-text)" }} role="alert">
+          <AlertTriangle size={16} className="shrink-0" />
+          <p className="text-[12px] flex-1">{adimHatasi}</p>
+          <button onClick={() => setAdimHatasi(null)} className="text-[11px] font-semibold shrink-0">Kapat</button>
+        </div>
+      )}
+
       {sonIslem && (
         <div
           className="fixed bottom-24 md:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-full px-4 py-2.5 shadow-lg animate-fade-in"
@@ -578,6 +700,66 @@ export function SchoolView() {
           </section>
 
           <section className="cp-card p-4 sm:p-5">
+            <div className="flex items-end justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <CalendarClock size={17} style={{ color: "var(--tag-school)" }} />
+                <h2 className="text-[15px] font-semibold">Bu hafta</h2>
+              </div>
+              <button onClick={() => void yenidenPlanla()} disabled={planMesgul || !user} className="cp-btn cp-btn-ghost text-[11px] shrink-0 disabled:opacity-50">
+                <RefreshCw size={13} className={planMesgul ? "animate-spin" : undefined} />Yeniden planla
+              </button>
+            </div>
+            <p className="text-[11px] -mt-1 mb-3" style={{ color: "var(--text-tertiary)" }}>
+              Her gün 2 ders, ~1 saat. Plan her pazar 21:00'den sonra ilerlemene göre yeniden kurulur;
+              takvimde her gün bir etkinlik olarak durur.
+            </p>
+            {planHatasi && <p className="text-[11px] mb-2" role="alert" style={{ color: "var(--priority-high-text)" }}>{planHatasi}</p>}
+            {haftaHesabi?.plan.uyarilar.map((u) => (
+              <p key={u} className="text-[11px] mb-2 rounded-xl px-3 py-2" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }}>{u}</p>
+            ))}
+            {!haftaGunleri.length && !planHatasi && <EmptyState>Bu haftanın planı henüz kurulmadı. "Yeniden planla"ya bas.</EmptyState>}
+            <ol className="space-y-1.5">
+              {haftaGunleri.map(([tarih, satirlar]) => {
+                const bugunMu = tarih === format(new Date(), "yyyy-MM-dd");
+                const tur = satirlar[0]?.gun_turu;
+                return (
+                  <li key={tarih} className="rounded-xl p-2.5 flex gap-3" style={{
+                    background: bugunMu ? "var(--tag-school-bg)" : "var(--surface-sunken)",
+                    outline: bugunMu ? "1px solid color-mix(in srgb, var(--tag-school) 45%, transparent)" : "none",
+                  }}>
+                    <div className="w-12 shrink-0 text-center">
+                      <p className="text-[10px] uppercase" style={{ color: "var(--text-tertiary)" }}>{format(parseISO(tarih), "EEE", { locale: tr })}</p>
+                      <p className="text-[15px] font-semibold leading-tight">{format(parseISO(tarih), "d")}</p>
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      {tur === "sinav" && <p className="text-[12px] font-semibold" style={{ color: "var(--priority-high-text)" }}>Sınav günü</p>}
+                      {tur === "bos" && <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>Plan yok</p>}
+                      {satirlar.filter((s) => s.ders_kodu).map((s) => (
+                        <div key={s.id}>
+                          <p className="text-[12px] font-semibold leading-snug">
+                            {dersAdi(s.ders_kodu)}
+                            <span className="font-normal" style={{ color: "var(--text-tertiary)" }}> · {s.tur === "tekrar" ? "tekrar" : `${s.dakika} dk`}</span>
+                          </p>
+                          {s.tur === "konu" && s.parcalar.map((p) => (
+                            <button
+                              key={`${s.id}-${p.unit_id}`}
+                              onClick={() => void openUnitNote(p.unit_id)}
+                              className="block text-left text-[11px] leading-snug underline-offset-2 hover:underline min-h-6"
+                              style={{ color: "var(--text-secondary)" }}
+                            >
+                              {p.baslik}{p.devam ? " (devam)" : ""}{p.bitiyor ? " — bugün biter" : ""} · {p.dakika} dk
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+
+          <section className="cp-card p-4 sm:p-5">
             <SectionTitle
               icon={Target}
               title="Çalışma"
@@ -637,24 +819,15 @@ export function SchoolView() {
                           >
                             <NotebookPen size={12} />Not
                           </button>
-                          {(["calisildi", "hakim"] as const).map((hedef) => {
-                            const durum = progressMap.get(oneri.unit_id)?.durum ?? "dokunulmadi";
-                            return (
-                              <button
-                                key={hedef}
-                                onClick={() => void markUnit(oneri.unit_id, durum === hedef ? "dokunulmadi" : hedef)}
-                                disabled={unitBusy === oneri.unit_id}
-                                aria-pressed={durum === hedef}
-                                className="cp-btn cp-btn-ghost min-h-11 text-[11px] disabled:opacity-40"
-                                style={durum === hedef
-                                  ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", borderColor: "transparent" }
-                                  : undefined}
-                              >
-                                {unitBusy === oneri.unit_id ? <Loader2 size={12} className="animate-spin" /> : DURUM_ETIKET[hedef]}
-                              </button>
-                            );
-                          })}
                         </div>
+                      </div>
+                      <div className="mt-2">
+                        <KonuChecklist
+                          kayit={progressMap.get(oneri.unit_id)}
+                          mevcut={adimHaritasi.get(oneri.unit_id) ?? ADIMLAR}
+                          mesgul={unitBusy === oneri.unit_id}
+                          onDegis={(adim, deger) => void adimDegistir(oneri.unit_id, adim, deger)}
+                        />
                       </div>
                       {kazanimlar.length > 0 && (() => {
                         const biten = kazanimlar.filter((k) => isaretli.has(k.id)).length;
@@ -876,23 +1049,15 @@ export function SchoolView() {
                                 >
                                   <NotebookPen size={12} />Not
                                 </button>
-                                {(["calisildi", "hakim"] as const).map((hedef) => (
-                                  <button
-                                    key={hedef}
-                                    onClick={() => void markUnit(konu.id, durum === hedef ? "dokunulmadi" : hedef)}
-                                    disabled={unitBusy === konu.id}
-                                    className="cp-btn min-h-11 text-[11px] disabled:opacity-40"
-                                    style={durum === hedef
-                                      ? { background: "var(--priority-low-bg)", color: "var(--priority-low-text)", border: "0.5px solid transparent" }
-                                      : undefined}
-                                    // Aynı düğmeye tekrar basmak işareti kaldırır:
-                                    // yanlış basılan "Hakimim" geri alınabilir olmalı.
-                                    aria-pressed={durum === hedef}
-                                  >
-                                    {unitBusy === konu.id ? <Loader2 size={12} className="animate-spin" /> : DURUM_ETIKET[hedef]}
-                                  </button>
-                                ))}
                               </div>
+                            </div>
+                            <div className="mt-2">
+                              <KonuChecklist
+                                kayit={progressMap.get(konu.id)}
+                                mevcut={adimHaritasi.get(konu.id) ?? ADIMLAR}
+                                mesgul={unitBusy === konu.id}
+                                onDegis={(adim, deger) => void adimDegistir(konu.id, adim, deger)}
+                              />
                             </div>
                           </li>
                         );

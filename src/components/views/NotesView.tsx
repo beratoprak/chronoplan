@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Edit3, Pin, PinOff, Plus, Search, Tag, Trash2, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useAppStore } from "@/lib/store";
-import { saveQuestionAttempt } from "@/lib/school-data";
+import { saveQuestionAttempt, setUnitStep } from "@/lib/school-data";
 import { aranabilirMetin } from "@/lib/note-content";
 import { baglantilariCozumle, geriBaglantilar } from "@/lib/note-links";
 import { bloklariOku, bloklariYaz, type NoteBlock } from "@/lib/note-content";
@@ -269,11 +269,19 @@ export function NotesView() {
   useEffect(() => {
     const cevap = (e: Event) => {
       const d = (e as CustomEvent<{ questionId: string; verilen: string; dogru: boolean }>).detail;
-      const uid = useAppStore.getState().user?.id;
+      const { user, richNotes: notlar } = useAppStore.getState();
+      const uid = user?.id;
       if (!uid || !d?.questionId || !d?.verilen) return;
-      void saveQuestionAttempt(uid, d.questionId, d.verilen, d.dogru).catch((err) => {
-        console.error("Soru denemesi kaydedilemedi:", err);
-      });
+      // Konu notundaysa çözülen soru o konunun "Soru çöz" adımını işaretler.
+      const unitId = notlar.find((n) => n.id === selectedIdRef.current)?.unitId;
+      void (async () => {
+        try {
+          await saveQuestionAttempt(uid, d.questionId, d.verilen, d.dogru);
+          if (unitId) await setUnitStep(uid, unitId, "soru", true);
+        } catch (err) {
+          console.error("Soru denemesi kaydedilemedi:", err);
+        }
+      })();
     };
     window.addEventListener("epoche:soru-cevap", cevap);
     return () => window.removeEventListener("epoche:soru-cevap", cevap);

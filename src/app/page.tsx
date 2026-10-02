@@ -15,6 +15,7 @@ import { SettingsPanel } from "@/components/shared/SettingsPanel";
 import { WorkspaceModal } from "@/components/workspace/WorkspaceModal";
 import { useAppStore } from "@/lib/store";
 import { useKeyboardShortcuts } from "@/lib/useKeyboardShortcuts";
+import { useHaftalikPlanlayici } from "@/lib/useHaftalikPlanlayici";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 export default function Home() {
@@ -23,6 +24,8 @@ export default function Home() {
 
   // Faz 7 — Keyboard shortcuts
   useKeyboardShortcuts();
+  // Haftalık çalışma planını takvime kendiliğinden kurar (pazar 21:00 sonrası ilk açılış).
+  useHaftalikPlanlayici();
 
   // Faz 7 — Dark mode: tema uygula
   useEffect(() => {

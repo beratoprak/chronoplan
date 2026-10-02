@@ -1,0 +1,174 @@
+{
+  "_aciklama": "Motor (src/lib/ilerleme.js) ve Epoche (src/lib/ilerleme.ts) bu vakaları birebir aynı sonuçla geçmeli. Değiştirirsen chronoplan/src/lib/__fixtures__/ilerleme-vakalari.json kopyasını da değiştir. 'durum' null ise adım yoktur; eski kayıtta durum alanına dokunulmaz.",
+  "vakalar": [
+    {
+      "ad": "kayıt yok",
+      "kayit": null,
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0,
+      "durum": "dokunulmadi"
+    },
+    {
+      "ad": "eski kayıt: çalışıldı",
+      "kayit": {
+        "durum": "calisildi"
+      },
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0.7,
+      "durum": null
+    },
+    {
+      "ad": "eski kayıt: hakim",
+      "kayit": {
+        "durum": "hakim"
+      },
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 1,
+      "durum": null
+    },
+    {
+      "ad": "yalnız oku",
+      "kayit": {
+        "adimlar": {
+          "oku": "2026-10-03"
+        }
+      },
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0.35,
+      "durum": "calisildi"
+    },
+    {
+      "ad": "oku + izle",
+      "kayit": {
+        "adimlar": {
+          "oku": "x",
+          "izle": "x"
+        }
+      },
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0.6,
+      "durum": "calisildi"
+    },
+    {
+      "ad": "oku + izle + soru",
+      "kayit": {
+        "adimlar": {
+          "oku": "x",
+          "izle": "x",
+          "soru": "x"
+        }
+      },
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0.75,
+      "durum": "test_edildi"
+    },
+    {
+      "ad": "yalnız hakim",
+      "kayit": {
+        "adimlar": {
+          "hakim": "x"
+        }
+      },
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 1,
+      "durum": "hakim"
+    },
+    {
+      "ad": "videosuz konuda oku + soru tavana varır",
+      "kayit": {
+        "adimlar": {
+          "oku": "x",
+          "soru": "x"
+        }
+      },
+      "mevcut": [
+        "oku",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0.75,
+      "durum": "test_edildi"
+    },
+    {
+      "ad": "videosuz ve sorusuz konuda oku tavana varır",
+      "kayit": {
+        "adimlar": {
+          "oku": "x"
+        }
+      },
+      "mevcut": [
+        "oku",
+        "hakim"
+      ],
+      "katsayi": 0.75,
+      "durum": "calisildi"
+    },
+    {
+      "ad": "konuda olmayan adım sayılmaz",
+      "kayit": {
+        "adimlar": {
+          "izle": "x"
+        }
+      },
+      "mevcut": [
+        "oku",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0,
+      "durum": "calisildi"
+    },
+    {
+      "ad": "kaldırılmış adım (null) sayılmaz",
+      "kayit": {
+        "durum": "calisildi",
+        "adimlar": {
+          "oku": null
+        }
+      },
+      "mevcut": [
+        "oku",
+        "izle",
+        "soru",
+        "hakim"
+      ],
+      "katsayi": 0.7,
+      "durum": "dokunulmadi"
+    }
+  ]
+}

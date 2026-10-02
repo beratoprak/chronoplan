@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./supabase";
 import type { StudyUnit, UnitProgress, UnitProgressState, StudyOutcome } from "./study-plan";
+import { durumuTuret, type Adim, type Adimlar } from "./ilerleme";
 
 export interface SchoolSource {
   id: string;
@@ -327,6 +328,53 @@ export async function setUnitProgress(
     son_temas_at: new Date().toISOString(),
     ...(gercekDakika != null ? { gercek_dakika: gercekDakika } : {}),
   });
+}
+
+/** Şema henüz güncellenmemişse (v11 çalıştırılmadıysa) anlaşılır bir hata. */
+export class AdimKolonuYok extends Error {
+  constructor() {
+    super("Checklist için veritabanı güncellemesi bekleniyor (migration-epoche-v11-adimlar.sql).");
+  }
+}
+
+/**
+ * Konunun checklist'inde bir adımı işaretler ya da kaldırır.
+ *
+ * `durum` da adımlardan türetilip birlikte yazılır: durum okuyan eski
+ * sürümler ve motorun eski kopyası bozulmadan çalışmaya devam etsin.
+ * Önceki adımları döndürür ki çağıran "geri al" sunabilsin.
+ */
+export async function setUnitStep(
+  userId: string,
+  unitId: string,
+  adim: Adim,
+  isaretli: boolean,
+): Promise<Adimlar> {
+  const { data: mevcut, error: okumaHatasi } = await supabase
+    .from("ybs_unit_progress")
+    .select("*")
+    .eq("unit_id", unitId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (okumaHatasi) throw new Error(okumaHatasi.message);
+  const onceki: Adimlar = { ...((mevcut as { adimlar?: Adimlar } | null)?.adimlar ?? {}) };
+  const yeni: Adimlar = { ...onceki, [adim]: isaretli ? new Date().toISOString() : null };
+  await setUnitSteps(userId, unitId, yeni);
+  return onceki;
+}
+
+/** Adımların tamamını yazar (geri al için). */
+export async function setUnitSteps(userId: string, unitId: string, adimlar: Adimlar): Promise<void> {
+  try {
+    await birimIlerlemesiniBirlestir(userId, unitId, {
+      adimlar,
+      durum: durumuTuret(adimlar),
+      son_temas_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    if (e instanceof Error && /adimlar/.test(e.message)) throw new AdimKolonuYok();
+    throw e;
+  }
 }
 
 /**
