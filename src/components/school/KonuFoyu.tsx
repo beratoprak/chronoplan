@@ -20,6 +20,7 @@ import type { StudyUnit, UnitProgress } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
 import { ADIMLAR, ilerlemeKatsayisi, mevcutAdimHaritasi, type Adim } from "@/lib/ilerleme";
 import { depoYolu } from "@/lib/pdf-kaynak";
+import { KUTLAMA } from "@/lib/figurler";
 import { ZorlukRozeti } from "./GeminiParcalari";
 import {
   ADIM_ISARETI, foyMalzemesi, konuAdi, konuFoyu, soruDurumlari, soruSirasi,
@@ -143,6 +144,8 @@ export function useKonuCalisma(kapat: () => void) {
     setHata(null);
     try {
       await setUnitStep(user.id, unitId, adim, deger);
+      // Konu bitti: köşedeki figürler sevinsin.
+      if (adim === "hakim" && deger) window.dispatchEvent(new Event(KUTLAMA));
       await yukle();
     } catch (e) {
       setHata(e instanceof AdimKolonuYok ? e.message : `Kaydedilemedi: ${e instanceof Error ? e.message : e}`);

@@ -8,6 +8,7 @@ import { outboxSize, flushOutbox } from "@/lib/supabase-sync";
 import { formatRelativeTime } from "@/lib/dates";
 import { disablePush, enablePush, getPushStatus, type PushStatus } from "@/lib/push-notifications";
 import type { ThemeMode } from "@/types";
+import { Figurlerim } from "./Figurlerim";
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: React.ElementType }[] = [
   { value: "light", label: "Acik", icon: Sun },
@@ -227,6 +228,13 @@ export function SettingsPanel() {
               </div>
             </div>
           )}
+
+          <div>
+            <h3 className="text-[11px] font-medium uppercase tracking-wider mb-3" style={{ color: "var(--text-tertiary)" }}>
+              Figürlerim
+            </h3>
+            <Figurlerim />
+          </div>
 
           {user && !isDemoMode && (
             <div>

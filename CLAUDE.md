@@ -41,6 +41,7 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 | `supabase/migration-epoche-v13-gemini.sql` | Faz G tabloları: `ybs_unit_tahmin`, `ybs_haftalik_aciklama`, `ybs_modules.tur_tahmini` (motor yazar) |
 | `src/components/school/SinavProgrami.tsx` + `src/lib/sinav-programi.ts` | Faz H: Okul → Sınav programı; derslerin sınav günü ve oturumu topluca (`ybs_sinav_oturum`, v14) |
 | `src/components/school/EzberTekrari.tsx` | Faz H: sınav haftası tekrar gününde dersin ezber kartları |
+| `src/components/shared/SallananFigurler.tsx` + `Figurlerim.tsx` + `src/lib/figurler.ts` | Takvim köşesinde sallanan figürler; Ayarlar → Figürlerim'den kullanıcı kendi resmini yükler (`epoche_figurler`, v15). Hazır figürler `public/figurler` (MIT, Fluent Emoji) |
 | `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü, PDF okuyucu |
 | `supabase/migration-epoche-v*.sql` | Şema değişiklikleri (Supabase SQL Editor'de elle çalıştırılır) |
 

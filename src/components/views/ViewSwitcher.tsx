@@ -9,12 +9,15 @@ import { NotesView } from "./NotesView";
 import { MediaView } from "./MediaView";
 import { PomodoroView } from "./PomodoroView";
 import { SchoolView } from "./SchoolView";
+import { SallananFigurler } from "@/components/shared/SallananFigurler";
 
 export function ViewSwitcher() {
   const { currentView } = useAppStore();
 
   return (
     <div className="flex-1 p-3 pb-24 sm:p-5 md:pb-5 overflow-y-auto">
+      {/* Takvim görünümlerinin köşesinde sallanan figürler (Ayarlar → Figürlerim). */}
+      {(currentView === "daily" || currentView === "weekly" || currentView === "monthly") && <SallananFigurler />}
       {currentView === "daily" && <DailyView />}
       {currentView === "weekly" && <WeeklyView />}
       {currentView === "monthly" && <MonthlyView />}
