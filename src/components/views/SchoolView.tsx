@@ -1,5 +1,6 @@
 "use client";
 
+import { SinavProgrami } from "@/components/school/SinavProgrami";
 import { AciklamaKarti, haftaninAciklamasi } from "@/components/school/GeminiParcalari";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
@@ -13,7 +14,7 @@ import { useAppStore } from "@/lib/store";
 import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, okulOnbellegi, saveCardReview, setUnitProgress, type SchoolData } from "@/lib/school-data";
 import { buildStudyPlan, type UnitProgress } from "@/lib/study-plan";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
-import { haftaninPlani, PLAN_KAYNAGI, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { enYakinSinav, haftaninPlani, PLAN_KAYNAGI, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
 import { dersOzetleri, soruSayisi, sureYazi } from "@/lib/ders-paneli";
 import { ADIMLAR, mevcutAdimHaritasi } from "@/lib/ilerleme";
@@ -175,10 +176,11 @@ export function SchoolView() {
 
   // Sinav tarihi panelin kendi uydurdugu bir sabit degil: motorun yazdigi
   // yonetilen olaydan okunuyor. Kaynak tarihi degistirirse plan da kayar.
-  const examEvent = useMemo(
-    () => schoolEvents.find((event) => /ara s\u0131nav/i.test(event.title)),
-    [schoolEvents],
-  );
+  // Faz H: vizeden sonra kendiliğinden final; planlayıcıyla aynı seçim.
+  // Demoda sınav etkinliği takvimde değil, örnek listede duruyor.
+  const aktifSinav = useMemo(() => enYakinSinav(isDemoMode ? schoolEvents : events, format(new Date(), "yyyy-MM-dd")), [events, isDemoMode, schoolEvents]);
+  const examEvent = aktifSinav ? { date: aktifSinav.tarih } : undefined;
+  const dilimAdi = aktifSinav?.dilim === "final" ? "Final" : "Vize";
   const outcomesByUnit = useMemo(() => {
     // Kazanım bloğu kimliğe bağlanıyor, bu yüzden metin değil tam kayıt tutuluyor.
     const map = new Map<string, { id: string; metin: string }[]>();
@@ -256,14 +258,15 @@ export function SchoolView() {
     if (!data.units.length || !examEvent) return null;
     return buildStudyPlan({
       units: data.units, ilerleme: progressMap, oturumlar: data.sessions, sinavTarihi: examEvent.date,
+      dilim: aktifSinav?.dilim ?? "vize",
     });
-  }, [data.units, data.sessions, progressMap, examEvent]);
+  }, [data.units, data.sessions, progressMap, examEvent?.date, aktifSinav?.dilim]);
 
   /** Dersler bölümü: her ders bir satır, eşiğe en uzak olan üstte (Faz D). */
   const dersOzet = useMemo(() => dersOzetleri({
     kodlar: activeCourses.map((c) => c.kod).filter((kod) => data.units.some((u) => u.ders_kodu === kod && u.tip === "konu")),
-    units: data.units, ilerleme: progressMap, adimHaritasi, haftaSatirlari,
-  }), [activeCourses, data.units, progressMap, adimHaritasi, haftaSatirlari]);
+    units: data.units, ilerleme: progressMap, adimHaritasi, haftaSatirlari, dilim: aktifSinav?.dilim ?? "vize",
+  }), [activeCourses, data.units, progressMap, adimHaritasi, haftaSatirlari, aktifSinav?.dilim]);
 
   // Kartın metni notta, zamanlaması tabloda. Sıra ikisinin birleşiminden çıkıyor;
   // zamanlama kaydı olmayan kart yeni sayılıp hemen sıraya giriyor.
@@ -462,11 +465,23 @@ export function SchoolView() {
             </ol>
           </section>
 
+          {/* Faz H: sınav giriş belgesi çıkınca derslerin gün ve oturumu, topluca. */}
+          {aktifSinav && (
+            <SinavProgrami
+              sinav={aktifSinav}
+              dersler={activeCourses}
+              oturumlar={data.oturumlar ?? []}
+              userId={isDemoMode ? null : user?.id ?? null}
+              // Tekrar günleri oturumlara göre dizildiği için plan hemen yeniden kurulur.
+              onKaydedildi={() => { void load(); void yenidenPlanla(); }}
+            />
+          )}
+
           <section className="cp-card p-4 sm:p-5">
             <SectionTitle
               icon={Layers}
               title="Dersler"
-              detail={plan ? `Vize · ${format(parseISO(plan.sinav_tarihi), "d MMMM", { locale: tr })} · ${plan.esikteki_ders}/${plan.toplam_ders} ders eşikte` : undefined}
+              detail={plan ? `${dilimAdi} · ${format(parseISO(plan.sinav_tarihi), "d MMMM", { locale: tr })} · ${plan.esikteki_ders}/${plan.toplam_ders} ders eşikte` : undefined}
             />
             {plan && (
               <p className="text-[11px] -mt-1 mb-3 flex items-center gap-2 flex-wrap" style={{ color: "var(--text-tertiary)" }}>
@@ -479,7 +494,7 @@ export function SchoolView() {
                 >
                   {HAL_ETIKET[plan.hal]}
                 </span>
-                <span>{countdownLabel(plan.sinav_tarihi)} · vizeye kalan iş {sureYazi(plan.kalan_dakika)} · gereken {plan.gereken_tempo} dk/gün</span>
+                <span>{countdownLabel(plan.sinav_tarihi)} · {dilimAdi === "Final" ? "finale" : "vizeye"} kalan iş {sureYazi(plan.kalan_dakika)} · gereken {plan.gereken_tempo} dk/gün</span>
               </p>
             )}
             <p className="text-[11px] mb-2" style={{ color: "var(--text-tertiary)" }}>

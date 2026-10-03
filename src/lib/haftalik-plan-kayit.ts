@@ -138,14 +138,18 @@ export async function gununPlani(userId: string, tarih: string): Promise<PlanSat
 /** Planı hesaplar — yazmaz. Test ve önizleme için ayrı. */
 export function planiHesapla(data: SchoolData, events: CalendarEvent[], simdi: Date): { hafta: string; plan: HaftalikPlan } | null {
   const hedef = hedefHafta(simdi);
-  const sinav = enYakinSinav(events, format(simdi, "yyyy-MM-dd"));
+  // Sınav, planın kurulduğu haftanın ilk gününe göre seçilir (Faz H). Bugüne
+  // göre seçilseydi vizeden sonraki pazar akşamı (15 Kasım) ara sınav hâlâ
+  // "yaklaşan" sayılır, 16 Kasım haftası geçmiş vizeye göre kurulurdu.
+  const sinav = enYakinSinav(events, hedef.baslangic);
   if (!sinav || !data.units.length) return null;
   const adimlar = mevcutAdimHaritasi(data.units, data.modules, data.questions);
   const ilerleme = new Map<string, UnitProgress>(
     data.progress.map((p) => [p.unit_id, { ...p, mevcut: adimlar.get(p.unit_id) ?? ADIMLAR }]),
   );
+  const oturumlar = new Map((data.oturumlar ?? []).filter((o) => o.dilim === sinav.dilim).map((o) => [o.ders_kodu, { tarih: o.tarih, oturum: o.oturum }]));
   const plan = haftalikPlanKur({
-    units: data.units, ilerleme, sinavTarihi: sinav.tarih, dilim: sinav.dilim,
+    units: data.units, ilerleme, sinavTarihi: sinav.tarih, dilim: sinav.dilim, oturumlar,
     baslangic: hedef.baslangic, bitis: hedef.bitis,
   });
   return { hafta: hedef.hafta, plan };

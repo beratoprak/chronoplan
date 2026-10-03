@@ -41,6 +41,12 @@ export interface PlanGirdisi {
   tekrarGunu?: number;
   /** Sınav kaç gün sürüyor (Cmt+Paz = 2). */
   sinavGunSayisi?: number;
+  /**
+   * Ders → sınav anı (Faz H, oturum dağılımı ilan edilince). Varsa tekrar
+   * günlerinde aynı oturumdaki dersler aynı güne konur ve sınavı en erken
+   * olan oturum en son (sınava en yakın) tekrar edilir.
+   */
+  oturumlar?: Map<string, { tarih: string; oturum: number }>;
 }
 
 export interface PlanParcasi {
@@ -190,10 +196,33 @@ function dersSec(dersler: DersHali[], dun: Set<string>, adet: number): DersHali[
   return [...taze, ...tekrar].slice(0, adet);
 }
 
-/** Tekrar günleri: en az kapsanan dersler sırayla, her gün farklı ikili. */
-function tekrarDersleri(units: StudyUnit[], ilerleme: Map<string, UnitProgress>, sira: number, adet: number, pay: number): PlanDersi[] {
+/**
+ * Tekrar sırası: en az kapsanan dersler önce. Oturumlar biliniyorsa (Faz H)
+ * tekrar günlerine sığan dersler sınav anına göre dizilir: en geç sınav ilk
+ * tekrar gününe, en erken sınav son güne; aynı oturum yan yana, yani aynı gün.
+ */
+export function tekrarSirasi(
+  units: StudyUnit[], ilerleme: Map<string, UnitProgress>,
+  oturumlar?: Map<string, { tarih: string; oturum: number }>, sigan = Infinity,
+): string[] {
   const durumlar = dersDurumlari(units, ilerleme)
-    .sort((a, b) => a.kapsanan / ESIK_SORU - b.kapsanan / ESIK_SORU || a.ders_kodu.localeCompare(b.ders_kodu));
+    .sort((a, b) => a.kapsanan / ESIK_SORU - b.kapsanan / ESIK_SORU || a.ders_kodu.localeCompare(b.ders_kodu))
+    .map((d) => d.ders_kodu);
+  if (!oturumlar?.size) return durumlar;
+  const an = (kod: string) => {
+    const o = oturumlar.get(kod);
+    return o ? `${o.tarih}#${String(o.oturum).padStart(2, "0")}` : "";
+  };
+  const secilen = durumlar.slice(0, sigan);
+  const disarda = durumlar.slice(sigan);
+  // Oturumu bilinmeyen ders en başa (sınavı en uzak sayılır); stabil sıralama kapsanmayı korur.
+  return [...secilen].sort((a, b) => (an(b) || "~").localeCompare(an(a) || "~")).concat(disarda);
+}
+
+/** Tekrar günleri: sıradaki dersler, her gün farklı ikili. */
+function tekrarDersleri(units: StudyUnit[], ilerleme: Map<string, UnitProgress>, sira: number, adet: number, pay: number, siralama?: string[]): PlanDersi[] {
+  const kodlar = siralama ?? tekrarSirasi(units, ilerleme);
+  const durumlar = kodlar.map((ders_kodu) => ({ ders_kodu }));
   if (!durumlar.length) return [];
   const secilen: PlanDersi[] = [];
   for (let i = 0; i < adet && i < durumlar.length; i++) {
@@ -231,7 +260,8 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
 
   const gunler: PlanGunu[] = [];
   let dun = new Set<string>();
-  let tekrarSirasi = 0;
+  let bitenTekrar = 0;
+  const sinavTekrari = tekrarSirasi(units, g.ilerleme, g.oturumlar, tekrarGunu * dersPerGun);
   for (let d = ilk; d <= son; d = addDays(d, 1)) {
     const tarih = tarihStr(d);
     const sinavaGun = differenceInCalendarDays(sinav, d);
@@ -246,14 +276,15 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
       continue;
     }
     if (sinavaGun <= tekrarGunu) {
-      gunler.push({ tarih, tur: "tekrar", dersler: tekrarDersleri(units, g.ilerleme, tekrarSirasi++, dersPerGun, pay) });
+      // Gün sırası sınava uzaklıktan: hafta ortasında yeniden planlansa da aynı gün aynı dersler.
+      gunler.push({ tarih, tur: "tekrar", dersler: tekrarDersleri(units, g.ilerleme, tekrarGunu - sinavaGun, dersPerGun, pay, sinavTekrari) });
       dun = new Set();
       continue;
     }
     const secilen = dersSec(dersler, dun, dersPerGun);
     if (!secilen.length) {
       // Bütün konular bitti: kalan günler tekrar.
-      gunler.push({ tarih, tur: "tekrar", dersler: tekrarDersleri(units, g.ilerleme, tekrarSirasi++, dersPerGun, pay) });
+      gunler.push({ tarih, tur: "tekrar", dersler: tekrarDersleri(units, g.ilerleme, bitenTekrar++, dersPerGun, pay) });
       dun = new Set();
       continue;
     }

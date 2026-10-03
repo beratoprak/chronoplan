@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronRight, Loader2, RefreshCw, Save } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { requiredFinal, saveSchoolGrade } from "@/lib/school-data";
-import { haftaninPlani, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { enYakinSinav, haftaninPlani, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
 import { ADIMLAR, ilerlemeKatsayisi } from "@/lib/ilerleme";
 import type { StudyUnit } from "@/lib/study-plan";
@@ -30,7 +30,9 @@ export function DersSayfasi() {
 }
 
 function DersSayfasiIcerik({ kod }: { kod: string }) {
-  const { user, openDersSayfasi } = useAppStore();
+  const { user, openDersSayfasi, events } = useAppStore();
+  // Faz H: vizeden sonra eşik hesabı final konularına göre.
+  const dilim = useMemo(() => enYakinSinav(events, new Date().toLocaleDateString("sv-SE"))?.dilim ?? "vize", [events]);
   const kapat = useCallback(() => openDersSayfasi(null), [openDersSayfasi]);
   const k = useKonuCalisma(kapat);
   const { data, hata, salt } = k;
@@ -48,8 +50,8 @@ function DersSayfasiIcerik({ kod }: { kod: string }) {
 
   const course = data?.courses.find((c) => c.kod === kod);
   const ozet = useMemo(() => data && dersOzetleri({
-    kodlar: [kod], units: data.units, ilerleme: k.ilerleme, adimHaritasi: k.adimHaritasi, haftaSatirlari,
-  })[0], [data, kod, k.ilerleme, k.adimHaritasi, haftaSatirlari]);
+    kodlar: [kod], units: data.units, ilerleme: k.ilerleme, adimHaritasi: k.adimHaritasi, haftaSatirlari, dilim,
+  })[0], [data, kod, k.ilerleme, k.adimHaritasi, haftaSatirlari, dilim]);
   const ortak = k.ortak(kod);
   const grade = data?.grades.find((g) => g.ders_kodu === kod);
   const konuSayisi = ozet ? ozet.konular.vize.length + ozet.konular.final.length : 0;

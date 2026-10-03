@@ -9,6 +9,8 @@
 // mantığı `KonuFoyu.tsx`'te (ders sayfası da aynısını kullanıyor).
 // Veri `ybs_haftalik_plan`'dan; ilerleme Okul sekmesiyle aynı tablolara yazılır.
 
+import { EzberTekrari } from "./EzberTekrari";
+import { oturumGruplari } from "@/lib/sinav-programi";
 import { AciklamaKarti, haftaninAciklamasi } from "./GeminiParcalari";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
@@ -137,7 +139,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
           {data && satirlar !== null && !dersSatirlari.length && (
             <div className="rounded-2xl p-4 text-[13px] lg:text-[15px] leading-relaxed" style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", color: "var(--text-secondary)" }}>
               {gunTuru === "sinav"
-                ? "Bugün sınav günü. Başarılar!"
+                ? <SinavGunu tarih={tarih} oturumlar={data.oturumlar ?? []} dersAdi={dersAdi} />
                 : gunTuru === "bos"
                   ? "Bu gün için çalışma planlanmadı."
                   : "Bu gün için kayıtlı plan bulunamadı. Okul → Bu hafta → \"Yeniden planla\" ile plan yeniden kurulabilir."}
@@ -269,6 +271,28 @@ function TekrarBolumu({ parcalar, dersKodu, ...o }: Ortak & { parcalar: PlanParc
       {sorular.length
         ? <SoruAkisi sorular={sorular} denemeler={o.data.attempts} salt={o.salt} onSoru={o.onSoru} sirala={tekrarSorulari} />
         : <Bos>Bu dersin çıkmış sorusu yok.</Bos>}
+      {/* Faz H: sınav haftası — tekrar + çıkmış sorular + ezber kartları. */}
+      <AltBaslik>{`${eksik.length ? "3" : "2"}. Ezber kartları`}</AltBaslik>
+      <EzberTekrari dersKodu={dersKodu} zamanlama={o.data.flashcards} salt={o.salt} />
     </>
+  );
+}
+
+/** Sınav günü: o günün oturumları (Okul → Sınav programı'ndan). Girilmediyse kısa not. */
+function SinavGunu({ tarih, oturumlar, dersAdi }: { tarih: string; oturumlar: { dilim: string; ders_kodu: string; tarih: string; oturum: number }[]; dersAdi: (kod: string) => string }) {
+  const bugun = oturumGruplari(oturumlar.filter((o) => o.tarih === tarih) as never)[0]?.[1] ?? [];
+  return (
+    <span className="block">
+      <span className="block text-[15px] lg:text-[18px] font-semibold" style={{ color: "var(--text-primary)" }}>Bugün sınav günü — Konya. Başarılar!</span>
+      {bugun.length ? (
+        <span className="block mt-2 space-y-1">
+          {bugun.map(([oturum, kodlar]) => (
+            <span key={oturum} className="block"><strong>{oturum}. oturum:</strong> {kodlar.map(dersAdi).join(" · ")}</span>
+          ))}
+        </span>
+      ) : (
+        <span className="block mt-1 text-[12px] lg:text-[14px]">Hangi dersin hangi oturumda olduğunu Okul → Sınav programı'na girersen burada görünür. Kimliğini ve sınav giriş belgeni unutma.</span>
+      )}
+    </span>
   );
 }

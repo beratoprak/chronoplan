@@ -75,6 +75,14 @@ export interface UnitTahmin {
   gerekce: string | null;
 }
 
+/** Bir dersin sınav anı (Faz H, `ybs_sinav_oturum`). */
+export interface SinavOturumu {
+  dilim: "vize" | "final";
+  ders_kodu: string;
+  tarih: string;
+  oturum: number;
+}
+
 /** Haftanın açıklaması (Faz G, `ybs_haftalik_aciklama`). */
 export interface HaftalikAciklama {
   hafta: string;
@@ -135,6 +143,8 @@ export interface SchoolData {
   sessions: StudySession[];
   /** Faz G; tablo kurulmadıysa boş. */
   aciklamalar?: HaftalikAciklama[];
+  /** Faz H; sınav giriş belgesi girilince dolar. */
+  oturumlar?: SinavOturumu[];
   warnings: string[];
 }
 
@@ -317,9 +327,10 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     readTable<{ completed_at: string; duration_minutes: number; phase: string }>("work_sessions", userId),
   ]);
   // Faz G tabloları isteğe bağlı: migration v13 çalışmadıysa uyarı vermeden boş geçer.
-  const [tahminler, aciklamalar] = await Promise.all([
+  const [tahminler, aciklamalar, oturumlar] = await Promise.all([
     readTable<UnitTahmin>("ybs_unit_tahmin", userId),
     readTable<HaftalikAciklama>("ybs_haftalik_aciklama", userId),
+    readTable<SinavOturumu>("ybs_sinav_oturum", userId),
   ]);
   const sonuc: SchoolData = {
     sources: sources.rows,
@@ -340,6 +351,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
       .filter((row) => row.phase === "work")
       .map((row) => ({ tarih: row.completed_at, dakika: row.duration_minutes })),
     aciklamalar: aciklamalar.rows,
+    oturumlar: oturumlar.rows.map((o) => ({ ...o, tarih: String(o.tarih).slice(0, 10) })),
     warnings: [sources.warning, courses.warning, grades.warning, announcements.warning, profileRows.warning,
                units.warning, progress.warning, outcomes.warning, modules.warning, questions.warning, attempts.warning, flashcards.warning].filter(Boolean) as string[],
   };
@@ -575,4 +587,17 @@ export async function saveSchoolGrade(
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id,ders_kodu,donem" });
   if (error) throw new Error(error.message);
+}
+
+/** Bir dilimin oturumlarını topluca kaydeder; listede olmayan dersin kaydı silinir. */
+export async function sinavProgramiKaydet(userId: string, dilim: "vize" | "final", satirlar: { ders_kodu: string; tarih: string; oturum: number }[]): Promise<void> {
+  const kayitlar = satirlar.map((x) => ({ id: `${userId}:${dilim}:${x.ders_kodu}`, user_id: userId, dilim, ...x }));
+  if (kayitlar.length) {
+    const { error } = await supabase.from("ybs_sinav_oturum").upsert(kayitlar, { onConflict: "id" });
+    if (error) throw new Error(/ybs_sinav_oturum/.test(error.message) ? "Veritabanı güncellemesi bekleniyor (migration-epoche-v14-sinav-oturum.sql)" : error.message);
+  }
+  const kalan = new Set(kayitlar.map((k) => k.id));
+  const { data: eski } = await supabase.from("ybs_sinav_oturum").select("id").eq("user_id", userId).eq("dilim", dilim);
+  const silinecek = (eski ?? []).map((x: { id: string }) => x.id).filter((id: string) => !kalan.has(id));
+  if (silinecek.length) await supabase.from("ybs_sinav_oturum").delete().in("id", silinecek).eq("user_id", userId);
 }

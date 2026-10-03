@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./supabase", () => ({ supabase: {}, isSupabaseConfigured: true }));
 
-import { enYakinSinav, etkinlikAciklamasi, etkinlikBasligi, kisalt, planEtkinlikId } from "./haftalik-plan-kayit";
+import { enYakinSinav, etkinlikAciklamasi, etkinlikBasligi, kisalt, planEtkinlikId, planiHesapla } from "./haftalik-plan-kayit";
 import type { CalendarEvent } from "@/types";
 import type { PlanGunu } from "./haftalik-plan";
 
@@ -49,5 +49,30 @@ describe("takvim etkinliği", () => {
   });
   it("kimlik tarihten: yeniden planlanınca çoğalmaz", () => {
     expect(planEtkinlikId("2026-10-05")).toBe("ybs-plan-2026-10-05");
+  });
+});
+
+describe("vizeden sonra finale geçiş (Faz H)", () => {
+  const takvim = [ev("Güz ara sınav", "2026-11-14"), ev("Güz final", "2027-01-09")];
+  const data = {
+    units: [
+      { id: "v1", ders_kodu: "AAUF1105", baslik: "1-Temel", tip: "konu", dilim: "vize", katman: "cekirdek", tahmini_dakika: 60, soru_degeri: 5, konu_no: 1 },
+      { id: "f1", ders_kodu: "AAUF1105", baslik: "5-Türev", tip: "konu", dilim: "final", katman: "cekirdek", tahmini_dakika: 60, soru_degeri: 5, konu_no: 5 },
+    ],
+    modules: [], questions: [], progress: [],
+  } as never;
+
+  it("vize pazarı akşamı kurulan plan final konularıyla", () => {
+    const sonuc = planiHesapla(data, takvim, new Date(2026, 10, 15, 21, 30));
+    expect(sonuc?.hafta).toBe("2026-11-16");
+    const konular = sonuc!.plan.gunler.flatMap((g) => g.dersler.flatMap((d) => d.parcalar.map((p) => p.unit_id)));
+    expect(konular).toContain("f1");
+    expect(konular).not.toContain("v1");
+  });
+
+  it("vize haftası içinde hâlâ vize konuları", () => {
+    const sonuc = planiHesapla(data, takvim, new Date(2026, 10, 9, 10, 0));
+    const konular = sonuc!.plan.gunler.flatMap((g) => g.dersler.flatMap((d) => d.parcalar.map((p) => p.unit_id)));
+    expect(konular).not.toContain("f1");
   });
 });

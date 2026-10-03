@@ -108,3 +108,30 @@ describe("hedef hafta", () => {
     expect(hedefHafta(new Date(2026, 9, 11, 21, 0))).toEqual({ hafta: "2026-10-12", baslangic: "2026-10-12", bitis: "2026-10-18" });
   });
 });
+
+describe("sınav haftası ve oturumlar (Faz H)", () => {
+  const sekiz = ["A", "B", "C", "D", "E", "F", "G", "H"].flatMap((d) => [u(`${d}1`, d, 1, 60)]);
+  const haftasi = (ek: Partial<PlanGirdisi> = {}) => haftalikPlanKur(temel(sekiz, { baslangic: "2026-11-09", bitis: "2026-11-15", ...ek }));
+
+  it("son 4 gün tekrar, sınav günleri boş", () => {
+    const p = haftasi();
+    expect(p.gunler.map((g) => g.tur)).toEqual(["calisma", "tekrar", "tekrar", "tekrar", "tekrar", "sinav", "sinav"]);
+  });
+
+  it("aynı oturumdaki dersler aynı tekrar gününde; en erken oturum en son gün", () => {
+    const oturumlar = new Map([
+      ["A", { tarih: "2026-11-14", oturum: 1 }], ["E", { tarih: "2026-11-14", oturum: 1 }],
+      ["B", { tarih: "2026-11-14", oturum: 2 }], ["F", { tarih: "2026-11-14", oturum: 2 }],
+      ["C", { tarih: "2026-11-15", oturum: 1 }], ["G", { tarih: "2026-11-15", oturum: 1 }],
+      ["D", { tarih: "2026-11-15", oturum: 2 }], ["H", { tarih: "2026-11-15", oturum: 2 }],
+    ]);
+    const tekrar = haftasi({ oturumlar }).gunler.filter((g) => g.tur === "tekrar").map((g) => g.dersler.map((d) => d.ders_kodu).sort().join(""));
+    expect(tekrar).toEqual(["DH", "CG", "BF", "AE"]);
+  });
+
+  it("hafta ortasında yeniden planlansa da tekrar günleri aynı dersleri alır", () => {
+    const tam = haftasi().gunler.filter((g) => g.tarih >= "2026-11-12");
+    const yarim = haftasi({ baslangic: "2026-11-12" }).gunler;
+    expect(yarim.map((g) => g.dersler.map((d) => d.ders_kodu))).toEqual(tam.map((g) => g.dersler.map((d) => d.ders_kodu)));
+  });
+});
