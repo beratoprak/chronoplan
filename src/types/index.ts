@@ -4,7 +4,7 @@
 
 import type { User } from "@supabase/supabase-js";
 
-export type ViewType = "daily" | "weekly" | "monthly" | "kanban" | "notes" | "media" | "pomodoro" | "school";
+export type ViewType = "daily" | "weekly" | "monthly" | "kanban" | "notes" | "media" | "pomodoro" | "school" | "okul-notlari";
 
 export type Priority = "urgent" | "high" | "medium" | "low";
 
@@ -286,6 +286,9 @@ export interface AppState {
   closeSearch: () => void;
   requestedRichNoteId: string | null;
   requestRichNote: (id: string | null) => void;
+  /** Okul notları görünümünde açılması istenen not (konu notu düğmesi, Okul sekmesi). */
+  istenenOkulNotu: string | null;
+  okulNotunuAc: (id: string | null) => void;
 
   // ── Kanban Filter (Faz 6) ─────────────────────────────────
   kanbanFilter: KanbanFilter;

@@ -18,6 +18,7 @@ import {
 } from "@/lib/school-data";
 import type { StudyUnit, UnitProgress } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
+import { konuBaglami, konuNotunuBul, notKur } from "@/lib/okul-notlari";
 import { ADIMLAR, ilerlemeKatsayisi, mevcutAdimHaritasi, type Adim } from "@/lib/ilerleme";
 import { depoYolu } from "@/lib/pdf-kaynak";
 import { KUTLAMA } from "@/lib/figurler";
@@ -56,7 +57,7 @@ export interface Ortak {
   onAdim: (unitId: string, adim: Adim, deger: boolean) => void;
   onSoru: (soru: StudyQuestion, harf: string) => Promise<void>;
   onNot: (unitId: string) => void;
-  onPdf: (yol: string, baslik: string) => void;
+  onPdf: (yol: string, baslik: string, unitId: string) => void;
   /** Uygulama içi video (Faz F). */
   onVideo: (m: FoyMalzemesi, unitId: string) => void;
 }
@@ -67,13 +68,13 @@ export interface Ortak {
  * açıkken arkadaki sayfa kaymaz.
  */
 export function useKonuCalisma(kapat: () => void) {
-  const { user, isDemoMode, addRichNote, requestRichNote, setView } = useAppStore();
+  const { user, isDemoMode, okulNotunuAc } = useAppStore();
   const salt = isDemoMode || !user?.id;
   // Okul sekmesiyle aynı önbellek: sayfa ilk karede dolu açılır, ağ arkadan tazeler.
   const [data, setData] = useState<SchoolData | null>(() => (salt ? null : okulOnbellegi(user?.id)));
   const [hata, setHata] = useState<string | null>(null);
   const [mesgul, setMesgul] = useState<string | null>(null);
-  const [pdf, setPdf] = useState<{ yol: string; baslik: string } | null>(null);
+  const [pdf, setPdf] = useState<{ yol: string; baslik: string; unitId: string } | null>(null);
   const [video, setVideo] = useState<{ m: FoyMalzemesi; unitId: string } | null>(null);
 
   const yukle = useCallback(async () => {
@@ -166,35 +167,36 @@ export function useKonuCalisma(kapat: () => void) {
     }
   }, [user?.id, isDemoMode, yukle]);
 
-  /** Konu notunu açar; yoksa kazanım, materyal ve sorularla dolu bir şablonla kurar. */
+  /**
+   * Konu notunu Okul notları'nda açar; yoksa kazanım, materyal ve sorularla dolu
+   * bir şablonla kurar (Ders notlarım → Ders → Konu). Genel notlara karışmaz.
+   */
   const notuAc = useCallback(async (unitId: string) => {
     if (!data) return;
-    const mevcut = ilerleme.get(unitId)?.not_id;
-    if (mevcut) {
-      requestRichNote(mevcut);
-      setView("notes");
-      kapat();
-      return;
-    }
-    const unit = unitById.get(unitId);
-    if (!unit) return;
+    if (!user?.id || isDemoMode) { okulNotunuAc(null); kapat(); return; }
     setMesgul(unitId);
+    setHata(null);
     try {
+      const mevcut = await konuNotunuBul(user.id, unitId, ilerleme.get(unitId)?.not_id);
+      if (mevcut) { okulNotunuAc(mevcut.id); kapat(); return; }
+      const unit = unitById.get(unitId);
+      if (!unit) return;
       const tohum = buildUnitNote(
         unit,
         kazanimlar.get(unitId) ?? [],
         data.modules.filter((m) => m.unit_id === unitId),
         data.questions.filter((q) => q.unit_id === unitId),
       );
-      const not = addRichNote({ ...tohum, pinned: false });
-      if (user?.id && !isDemoMode) await setUnitNote(user.id, unitId, not.id);
-      requestRichNote(not.id);
-      setView("notes");
+      const not = await notKur(user.id, { baslik: tohum.title, icerik: tohum.content, tur: "konu" }, konuBaglami(data, unitId));
+      await setUnitNote(user.id, unitId, not.id);
+      okulNotunuAc(not.id);
       kapat();
+    } catch (e) {
+      setHata(`Konu notu açılamadı: ${e instanceof Error ? e.message : e}`);
     } finally {
       setMesgul(null);
     }
-  }, [data, ilerleme, unitById, kazanimlar, addRichNote, requestRichNote, setView, kapat, user?.id, isDemoMode]);
+  }, [data, ilerleme, unitById, kazanimlar, okulNotunuAc, kapat, user?.id, isDemoMode]);
 
   /** Bir dersin föy bileşenlerine verilecek ortak değerler. */
   const ortak = useCallback((kod: string): Ortak | null => data && {
@@ -202,7 +204,7 @@ export function useKonuCalisma(kapat: () => void) {
     kazanimVar: kazanimliDersler.has(kod),
     pdfliKonular: pdfliKonular.get(kod) ?? [],
     onAdim: adimDegistir, onSoru: soruCoz, onNot: notuAc,
-    onPdf: (yol: string, baslik: string) => setPdf({ yol, baslik }),
+    onPdf: (yol: string, baslik: string, unitId: string) => setPdf({ yol, baslik, unitId }),
     onVideo: (m: FoyMalzemesi, unitId: string) => setVideo({ m, unitId }),
   }, [data, ilerleme, adimHaritasi, kazanimlar, unitById, mesgul, salt, kazanimliDersler, pdfliKonular, adimDegistir, soruCoz, notuAc]);
 
@@ -232,7 +234,7 @@ export function useKonuCalisma(kapat: () => void) {
       <div className="fixed inset-0 z-50 flex justify-center" style={{ background: "var(--surface-base)" }}>
         {/* Tam genişlik: PDF ile not alanı yan yana, aradaki çizgi sürüklenir. */}
         <div className="w-full flex" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-          <PdfReader yol={pdf.yol} baslik={pdf.baslik} onKapat={() => setPdf(null)} />
+          <PdfReader yol={pdf.yol} baslik={pdf.baslik} onKapat={() => setPdf(null)} baglam={data ? konuBaglami(data, pdf.unitId) : null} />
         </div>
       </div>
     ),
@@ -268,7 +270,7 @@ export function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; 
   const dersKodu = o.unitById.get(unitId)?.ders_kodu ?? "";
   const ac = (m: FoyMalzemesi) => {
     if (m.oynatilir) o.onVideo(m, unitId);
-    else if (m.cmid && dersKodu) o.onPdf(depoYolu(dersKodu, m.cmid), m.ad);
+    else if (m.cmid && dersKodu) o.onPdf(depoYolu(dersKodu, m.cmid), m.ad, unitId);
     else if (m.oys_url) window.open(m.oys_url, "_blank", "noopener");
   };
 

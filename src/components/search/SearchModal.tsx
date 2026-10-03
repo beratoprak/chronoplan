@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { Search, X, CheckSquare, Calendar, FileText, ArrowRight } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { eskiOkulNotuMu } from "@/lib/okul-notlari";
 import { getPriorityLabel, getTagColorLabel } from "@/lib/utils";
 import type { SearchResult } from "@/types";
 
@@ -100,6 +101,8 @@ export function SearchModal() {
 
     // Bağımsız notlar
     for (const note of richNotes) {
+      // Okul notları ayrı bölümde; eski kopyaları aramada çıkmasın.
+      if (eskiOkulNotuMu(note)) continue;
       if (
         note.title.toLowerCase().includes(q) ||
         note.content.toLowerCase().includes(q) ||

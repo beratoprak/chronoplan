@@ -9,6 +9,7 @@ import { aranabilirMetin } from "@/lib/note-content";
 import { baglantilariCozumle, geriBaglantilar } from "@/lib/note-links";
 import { bloklariOku, bloklariYaz, type NoteBlock } from "@/lib/note-content";
 import { depoYolu } from "@/lib/pdf-kaynak";
+import { eskiOkulNotuMu } from "@/lib/okul-notlari";
 
 const PdfReader = dynamic(() => import("@/components/editor/PdfReader").then((m) => m.PdfReader), { ssr: false });
 
@@ -34,7 +35,10 @@ function generateTagColor(tag: string): string {
 }
 
 export function NotesView() {
-  const { richNotes, addRichNote, updateRichNote, deleteRichNote, requestedRichNoteId, requestRichNote } = useAppStore();
+  const { richNotes: tumNotlar, addRichNote, updateRichNote, deleteRichNote, requestedRichNoteId, requestRichNote } = useAppStore();
+
+  // Okul notları ayrı bölümde (Okul notları, v17); genel notlara karışmaz.
+  const richNotes = useMemo(() => tumNotlar.filter((n) => !eskiOkulNotuMu(n)), [tumNotlar]);
 
   const [search, setSearch] = useState("");
   const [filterTag, setFilterTag] = useState<string | null>(null);

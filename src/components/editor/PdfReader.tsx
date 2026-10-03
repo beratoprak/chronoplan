@@ -8,7 +8,9 @@
 // akar; pdf.js metin katmanı sayesinde metin seçilir ve kopyalanır; seçilen yer
 // vurgulanır ya da altı çizilir; PDF'in yanında serbest not alanı ve vurgu
 // listesi durur (kullanıcı notların PDF'in üstünde kutu olarak değil, yanda
-// olmasını istedi). Vurgu ve notlar hesaba kaydedilir (migration v16).
+// olmasını istedi). Vurgular hesaba kaydedilir (migration v16). Yandaki not,
+// okul notlarında bu PDF'in notudur (v17): PDF notlarım → Ders → Konu altında
+// kendiliğinden yerini alır, Okul notları'nda açılıp düzenlenebilir.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -16,11 +18,12 @@ import { Copy, Highlighter, Minus, NotebookPen, Plus, Quote, Trash2, Underline, 
 import { useAppStore } from "@/lib/store";
 import { imzaliBaglantiDetayli, type KaynakHatasi } from "@/lib/pdf-kaynak";
 import {
-  RENKLER, isaretEkle, isaretSil, isaretleriGetir, kutulariHesapla, notuGetir, notuKaydet,
+  RENKLER, isaretEkle, isaretSil, isaretleriGetir, kutulariHesapla, notuGetir,
   type Isaret, type IsaretTuru, type Kutu,
 } from "@/lib/pdf-calisma";
 import { bloklariOku, bloklariYaz, type NoteBlock } from "@/lib/note-content";
 import { pdfPolyfill } from "@/lib/pdf-polyfill";
+import { notIcerikYaz, notKur, pdfNotunuBul, type DersBaglami } from "@/lib/okul-notlari";
 
 // Not alanı Word gibi biçimli: Epoche'nin blok editörü (başlık, liste, kalın, "/" menüsü).
 const BlockEditor = dynamic(() => import("./BlockEditor").then((m) => m.BlockEditor), { ssr: false });
@@ -33,6 +36,10 @@ interface Props {
   onAlinti?: (metin: string, sayfa: number) => void;
   /** Yandaki not alanı; Notlar görünümünde zaten bir not açık olduğu için kapalı. */
   notAlani?: boolean;
+  /** PDF'in dersi ve konusu: notu ilk yazılınca okul notlarında doğru klasöre düşer. */
+  baglam?: DersBaglami | null;
+  /** Açılınca gidilecek sayfa (okul notlarında bir vurguya basınca). */
+  ilkSayfa?: number;
 }
 
 type PdfSayfasi = {
@@ -48,7 +55,7 @@ interface Secim { sayfa: number; metin: string; kutular: Kutu[]; x: number; y: n
 const YAKINLIK = "epoche-pdf-yakinlik";
 const BOLUNME = "epoche-pdf-bolunme";
 
-export function PdfReader({ yol, baslik, onKapat, onAlinti, notAlani = true }: Props) {
+export function PdfReader({ yol, baslik, onKapat, onAlinti, notAlani = true, baglam = null, ilkSayfa }: Props) {
   const user = useAppStore((s) => s.user);
   const isDemoMode = useAppStore((s) => s.isDemoMode);
   const kayitli = Boolean(user?.id) && !isDemoMode;
@@ -78,6 +85,9 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti, notAlani = true }: P
   const [secim, setSecim] = useState<Secim | null>(null);
   const [kopyalandi, setKopyalandi] = useState(false);
   const kayitZamani = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Okul notlarındaki karşılığı; ilk yazışta kurulur. */
+  const notIdRef = useRef<string | null>(null);
+  const kuruluyor = useRef<Promise<void> | null>(null);
 
   // ── Belgeyi aç ────────────────────────────────────────────────
   useEffect(() => {
@@ -106,9 +116,27 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti, notAlani = true }: P
   // ── Vurgular ve not ───────────────────────────────────────────
   useEffect(() => {
     if (!kayitli || !user?.id) return;
+    notIdRef.current = null;
     isaretleriGetir(user.id, yol).then(setIsaretler).catch((e) => setHata(e.message));
-    notuGetir(user.id, yol).then(setNot).catch((e) => setHata(e.message));
+    pdfNotunuBul(user.id, yol)
+      .then(async (n) => {
+        if (n) { notIdRef.current = n.id; setNot(n.icerik); return; }
+        // v17'den önce alınıp taşınmamış eski not varsa onu göster; ilk yazışta okul notuna geçer.
+        setNot(await notuGetir(user.id, yol).catch(() => ""));
+      })
+      .catch((e) => setHata(e.message));
   }, [kayitli, user?.id, yol]);
+
+  /** Notu okul notlarına yazar; yoksa PDF notlarım → Ders → Konu altında kurar. */
+  const notuKaydet = useCallback(async (metin: string) => {
+    if (!user?.id) return;
+    if (kuruluyor.current) await kuruluyor.current;
+    if (notIdRef.current) { await notIcerikYaz(user.id, notIdRef.current, { icerik: metin }); return; }
+    const kur = notKur(user.id, { baslik, icerik: metin, tur: "pdf", kaynak: yol }, baglam)
+      .then((n) => { notIdRef.current = n.id; });
+    kuruluyor.current = kur;
+    try { await kur; } finally { kuruluyor.current = null; }
+  }, [user?.id, baslik, yol, baglam]);
 
   const notuYaz = (metin: string) => {
     setNot(metin);
@@ -116,15 +144,18 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti, notAlani = true }: P
     setNotDurumu("yaziliyor");
     if (kayitZamani.current) clearTimeout(kayitZamani.current);
     kayitZamani.current = setTimeout(() => {
-      notuKaydet(user.id, yol, metin).then(() => setNotDurumu("kaydedildi")).catch((e) => { setHata(e.message); setNotDurumu(""); });
+      kayitZamani.current = null;
+      notuKaydet(metin).then(() => setNotDurumu("kaydedildi")).catch((e) => { setHata(e.message); setNotDurumu(""); });
     }, 800);
   };
   // Kapatırken bekleyen kayıt kaybolmasın.
   const notRefDeger = useRef(not);
   notRefDeger.current = not;
+  const kaydetRef = useRef(notuKaydet);
+  kaydetRef.current = notuKaydet;
   useEffect(() => () => {
-    if (kayitZamani.current && user?.id && kayitli) { clearTimeout(kayitZamani.current); void notuKaydet(user.id, yol, notRefDeger.current); }
-  }, [user?.id, kayitli, yol]);
+    if (kayitZamani.current && kayitli) { clearTimeout(kayitZamani.current); void kaydetRef.current(notRefDeger.current).catch(() => {}); }
+  }, [kayitli, yol]);
 
   // ── Ölçü ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -173,6 +204,12 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti, notAlani = true }: P
   const sayfayaGit = (n: number) => {
     akisRef.current?.querySelector(`[data-sayfa="${n}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+  // Okul notlarında bir vurguya basılarak açıldıysa o sayfaya git.
+  useEffect(() => {
+    if (durum !== "hazir" || !ilkSayfa || ilkSayfa < 2) return;
+    const t = setTimeout(() => akisRef.current?.querySelector(`[data-sayfa="${ilkSayfa}"]`)?.scrollIntoView({ block: "start" }), 120);
+    return () => clearTimeout(t);
+  }, [durum, ilkSayfa]);
 
   // ── Seçim ─────────────────────────────────────────────────────
   const secimiOku = useCallback(() => {
@@ -298,7 +335,7 @@ export function PdfReader({ yol, baslik, onKapat, onAlinti, notAlani = true }: P
             <div className="flex items-center gap-2 px-4 py-2 shrink-0" style={{ borderBottom: "0.5px solid var(--border-default)" }}>
               <h3 className="text-[13px] font-semibold flex-1">Notlarım</h3>
               <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                {!kayitli ? "Giriş yapınca kaydedilir" : notDurumu === "yaziliyor" ? "Kaydediliyor…" : notDurumu === "kaydedildi" ? "Kaydedildi" : "Yazdıkça kaydedilir"}
+                {!kayitli ? "Giriş yapınca kaydedilir" : notDurumu === "yaziliyor" ? "Kaydediliyor…" : notDurumu === "kaydedildi" ? "Okul notlarına kaydedildi" : "Yazdıkça okul notlarına kaydedilir"}
               </span>
               {!genis && <button onClick={() => setPanel(false)} className="cp-btn cp-btn-ghost min-h-9 px-2 text-[12px]">PDF'e dön</button>}
             </div>

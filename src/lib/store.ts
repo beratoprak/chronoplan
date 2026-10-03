@@ -637,6 +637,8 @@ export const useAppStore = create<AppState>()(
       closeSearch: () => set({ isSearchOpen: false }),
       requestedRichNoteId: null,
       requestRichNote: (id) => set({ requestedRichNoteId: id }),
+      istenenOkulNotu: null,
+      okulNotunuAc: (id) => set({ istenenOkulNotu: id, ...(id ? { currentView: "okul-notlari" as const } : {}) }),
 
       // ── Kanban Filter State (Faz 6) ───────────────────────────
       kanbanFilter: { priority: "all", tagId: "all" },

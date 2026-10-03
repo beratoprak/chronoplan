@@ -54,7 +54,7 @@ export function Topbar() {
   const { selectedDate, setSelectedDate, currentView, setView, toggleSidebar, openTaskModal, openEventModal, openSearch, user, syncStatus, hasSyncedOnce, signOut, theme, setTheme, isDemoMode } = useAppStore();
   const date = parseISO(selectedDate);
   const dayOfWeek = DAY_NAMES_TR[(date.getDay() + 6) % 7]; // Monday-first
-  const isSchoolView = currentView === "school";
+  const isSchoolView = currentView === "school" || currentView === "okul-notlari";
 
   const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   const moveDate = (direction: -1 | 1) => {
@@ -86,7 +86,7 @@ export function Topbar() {
           <Menu size={18} />
         </button>
         {isSchoolView ? (
-          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>Okul ajandası</span>
+          <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{currentView === "okul-notlari" ? "Okul notları" : "Okul ajandası"}</span>
         ) : <div className="flex items-center gap-1 min-w-0">
           <button onClick={() => moveDate(-1)} className="cp-icon-button hidden sm:flex" aria-label="Önceki dönem"><ChevronLeft size={16} /></button>
           <button

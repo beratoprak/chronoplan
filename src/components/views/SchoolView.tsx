@@ -11,9 +11,11 @@ import {
   Layers, RefreshCw, Save, School, ShieldCheck, Sparkles, Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { notKur } from "@/lib/okul-notlari";
 import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchoolData, isSchoolSourceStale, okulOnbellegi, saveCardReview, setUnitProgress, type SchoolData } from "@/lib/school-data";
 import { buildStudyPlan, type UnitProgress } from "@/lib/study-plan";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
+import { useNotBloklari } from "@/lib/useNotBloklari";
 import { enYakinSinav, haftaninPlani, PLAN_KAYNAGI, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
 import { dersOzetleri, soruSayisi, sureYazi } from "@/lib/ders-paneli";
@@ -63,9 +65,10 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 
 export function SchoolView() {
   const {
-    user, isDemoMode, events, tasks, addRichNote, setView, openTaskModal, syncStatus, updateEvent,
-    richNotes, openGunSayfasi, openDersSayfasi,
+    user, isDemoMode, events, tasks, setView, openTaskModal, syncStatus, updateEvent,
+    openGunSayfasi, openDersSayfasi,
   } = useAppStore();
+  const richNotes = useNotBloklari();
   // Önbellek varsa ekran ilk karede dolu açılır; ağ arkadan tazeler.
   const [data, setData] = useState<SchoolData>(() => okulOnbellegi(user?.id) ?? EMPTY);
   const [loading, setLoading] = useState(() => !okulOnbellegi(user?.id));
@@ -74,6 +77,7 @@ export function SchoolView() {
   const [tazeleniyor, setTazeleniyor] = useState(false);
   const [quickNote, setQuickNote] = useState("");
   const [noteSaved, setNoteSaved] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
   const [ackMessage, setAckMessage] = useState<string | null>(null);
 
   /**
@@ -313,18 +317,20 @@ export function SchoolView() {
     window.history.replaceState({}, "", window.location.pathname + window.location.search.replace(/([?&])ack=[^&]*&?/, "$1").replace(/[?&]$/, ""));
   }, [acknowledge, events]);
 
-  function saveQuickNote() {
+  // Hızlı not okul notlarına (Ders notlarım) düşer; genel notlara karışmaz (v17).
+  async function saveQuickNote() {
     const content = quickNote.trim();
     if (!content) return;
-    addRichNote({
-      title: content.split("\n")[0].slice(0, 64) || "Okul notu",
-      content,
-      tags: ["okul", "YBS"],
-      pinned: false,
-    });
-    setQuickNote("");
-    setNoteSaved(true);
-    window.setTimeout(() => setNoteSaved(false), 2200);
+    setNoteError(null);
+    if (!user?.id || isDemoMode) { setNoteError("Giriş yapınca okul notlarına kaydedilir."); return; }
+    try {
+      await notKur(user.id, { baslik: content.split("\n")[0].slice(0, 64) || "Okul notu", icerik: content, tur: "serbest" }, null);
+      setQuickNote("");
+      setNoteSaved(true);
+      window.setTimeout(() => setNoteSaved(false), 2200);
+    } catch (e) {
+      setNoteError(e instanceof Error ? e.message : "Kaydedilemedi");
+    }
   }
 
   if (loading) {
@@ -634,7 +640,7 @@ export function SchoolView() {
             value={quickNote}
             onChange={(event) => setQuickNote(event.target.value)}
             onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") saveQuickNote();
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") void saveQuickNote();
             }}
             rows={3}
             placeholder="Örn. Matematik I için ikinci bölümü tekrar et…"
@@ -643,9 +649,10 @@ export function SchoolView() {
             aria-label="Hızlı okul notu"
           />
           <div className="mt-2 flex items-center justify-between gap-3">
-            <button onClick={() => setView("notes")} className="text-[11px] min-h-11" style={{ color: "var(--text-tertiary)" }}>Okul notlarını aç <ChevronRight size={13} className="inline" /></button>
-            <button onClick={saveQuickNote} disabled={!quickNote.trim()} className="cp-btn cp-btn-primary min-h-11 disabled:opacity-40"><Save size={14} />{noteSaved ? "Kaydedildi" : "Nota kaydet"}</button>
+            <button onClick={() => setView("okul-notlari")} className="text-[11px] min-h-11" style={{ color: "var(--text-tertiary)" }}>Okul notlarını aç <ChevronRight size={13} className="inline" /></button>
+            <button onClick={() => void saveQuickNote()} disabled={!quickNote.trim()} className="cp-btn cp-btn-primary min-h-11 disabled:opacity-40"><Save size={14} />{noteSaved ? "Kaydedildi" : "Nota kaydet"}</button>
           </div>
+          {noteError && <p className="text-[11px] mt-1" role="alert" style={{ color: "var(--priority-high-text)" }}>{noteError}</p>}
         </section>
 
           <section className="cp-card p-4 sm:p-5">

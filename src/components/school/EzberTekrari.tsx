@@ -8,13 +8,15 @@
 import { useMemo, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { ezberKartlari } from "@/lib/note-blocks";
+import { useNotBloklari } from "@/lib/useNotBloklari";
 import { degerlendir, yeniKart, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
 import { saveCardReview, type FlashcardRow } from "@/lib/school-data";
 
 const DEGERLER = [["tekrar", "Bilemedim"], ["zor", "Zor"], ["iyi", "İyi"], ["kolay", "Kolay"]] as const;
 
 export function EzberTekrari({ dersKodu, zamanlama, salt }: { dersKodu: string; zamanlama: FlashcardRow[]; salt: boolean }) {
-  const { user, richNotes } = useAppStore();
+  const { user } = useAppStore();
+  const notlar = useNotBloklari();
   const [bitti, setBitti] = useState<Set<string>>(new Set());
   const [cevrildi, setCevrildi] = useState(false);
   const [mesgul, setMesgul] = useState(false);
@@ -22,7 +24,7 @@ export function EzberTekrari({ dersKodu, zamanlama, salt }: { dersKodu: string; 
   const kartlar = useMemo(() => {
     const z = new Map(zamanlama.map((f) => [f.id, f]));
     const simdi = new Date().toISOString();
-    return ezberKartlari(richNotes)
+    return ezberKartlari(notlar)
       .filter((k) => k.dersKodu === dersKodu)
       .map((k) => {
         const f = z.get(k.cardId);
@@ -32,7 +34,7 @@ export function EzberTekrari({ dersKodu, zamanlama, salt }: { dersKodu: string; 
         return { ...k, durum };
       })
       .sort((a, b) => a.durum.dueAt.localeCompare(b.durum.dueAt));
-  }, [richNotes, zamanlama, dersKodu]);
+  }, [notlar, zamanlama, dersKodu]);
 
   const kalan = kartlar.filter((k) => !bitti.has(k.cardId));
   const kart = kalan[0];

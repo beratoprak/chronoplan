@@ -11,6 +11,7 @@ import {
   BookOpen,
   Timer,
   GraduationCap,
+  NotebookPen,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const VIEW_ITEMS: { id: ViewType; label: string; icon: React.ElementType; group?
   { id: "pomodoro", label: "Odak", icon: Timer, group: "Planlama" },
   { id: "media", label: "Arşiv", icon: BookOpen, group: "Planlama" },
   { id: "school", label: "Okul", icon: GraduationCap, group: "Okul" },
+  { id: "okul-notlari", label: "Okul notları", icon: NotebookPen, group: "Okul" },
 ];
 
 const TAG_DOTS: { label: string; color: string }[] = [

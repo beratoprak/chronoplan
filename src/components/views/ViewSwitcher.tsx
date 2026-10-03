@@ -9,6 +9,7 @@ import { NotesView } from "./NotesView";
 import { MediaView } from "./MediaView";
 import { PomodoroView } from "./PomodoroView";
 import { SchoolView } from "./SchoolView";
+import { OkulNotlariView } from "./OkulNotlariView";
 import { SallananFigurler } from "@/components/shared/SallananFigurler";
 
 export function ViewSwitcher() {
@@ -26,6 +27,7 @@ export function ViewSwitcher() {
       {currentView === "media" && <MediaView />}
       {currentView === "pomodoro" && <PomodoroView />}
       {currentView === "school" && <SchoolView />}
+      {currentView === "okul-notlari" && <OkulNotlariView />}
     </div>
   );
 }
