@@ -20,6 +20,7 @@ import type { StudyUnit, UnitProgress } from "@/lib/study-plan";
 import { buildUnitNote } from "@/lib/study-note";
 import { ADIMLAR, ilerlemeKatsayisi, mevcutAdimHaritasi, type Adim } from "@/lib/ilerleme";
 import { depoYolu } from "@/lib/pdf-kaynak";
+import { ZorlukRozeti } from "./GeminiParcalari";
 import {
   ADIM_ISARETI, foyMalzemesi, konuAdi, konuFoyu, soruDurumlari, soruSirasi,
   type FoyAdimi, type FoyMalzemesi, type MalzemeTuru,
@@ -241,6 +242,7 @@ export function KonuBasligi({ unitId, baslik, ...o }: Ortak & { unitId: string; 
     <div className="flex items-baseline gap-2">
       <h3 className="flex-1 min-w-0 text-[15px] lg:text-[19px] font-medium leading-snug">
         {unit?.konu_no ? `Konu ${unit.konu_no} — ` : ""}{konuAdi(baslik)}
+        {unit?.zorluk ? <span className="ml-2"><ZorlukRozeti zorluk={unit.zorluk} /></span> : null}
       </h3>
       <span className="text-[11px] lg:text-[13px] font-semibold tabular-nums shrink-0" style={{ color: yuzde === 100 ? "var(--priority-low-text)" : "var(--text-tertiary)" }}>
         %{yuzde}

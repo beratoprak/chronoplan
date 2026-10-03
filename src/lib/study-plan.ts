@@ -17,6 +17,8 @@ export type PlanState = "yolunda" | "geriliyor" | "kritik";
 
 export interface StudyUnit {
   id: string;
+  /** Gemini'nin zorluk tahmini 1-5 (Faz G); yoksa tanımsız. */
+  zorluk?: number;
   ders_kodu: string;
   baslik: string;
   tip: "konu" | "materyal";

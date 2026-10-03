@@ -37,6 +37,8 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 | `src/lib/gun-sayfasi.ts` | Gün sayfasının saf hesapları: konu föyü (malzeme, yönergeli adımlar, bugünkü kısım), soru sırası, tekrar günü |
 | `src/components/school/VideoOynatici.tsx` | Faz F: OYS videosunu uygulamada oynatır; %90 izlenince konunun "İzle" adımı |
 | `src/app/api/oys-video/route.ts` + `src/lib/oys-video.ts` | Video aracısı: imzalı kısa ömürlü adres, OYS'den 8 MB'lık parçalarla iletir. Vercel'de `OYS_TOKEN` ve `YBS_USER_ID` ister; anahtar tarayıcıya gitmez |
+| `src/components/school/GeminiParcalari.tsx` | Faz G: konu zorluğu (5 nokta) ve haftanın açıklaması kartı |
+| `supabase/migration-epoche-v13-gemini.sql` | Faz G tabloları: `ybs_unit_tahmin`, `ybs_haftalik_aciklama`, `ybs_modules.tur_tahmini` (motor yazar) |
 | `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü, PDF okuyucu |
 | `supabase/migration-epoche-v*.sql` | Şema değişiklikleri (Supabase SQL Editor'de elle çalıştırılır) |
 
@@ -46,6 +48,8 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
   diğerini ve iki repodaki `ilerleme-vakalari.json` kopyalarını da değiştir.
 - Plan etkinliğine tıklama `store.openEventModal`'da gün sayfasına yönlendiriliyor;
   düzenleme penceresi yalnız `{ duzenle: true }` ile açılır.
+- Gemini süre tahmini `school-data.ts → tahminleriUygula` ile birimlere uygulanır; ikizi
+  `ybs-panel/src/lib/tahmin.js`. Birini değiştirirsen diğerini de değiştir.
 - Motorun yazdığı kayıtlar `is_managed = true`. Plan etkinlikleri `source = 'ybs-haftalik-plan'`,
   kimlik `ybs-plan-<tarih>`. Kullanıcının kendi kayıtlarının üzerine yazma.
 - Eski tablolarda (`tasks`, `events`, `rich_notes`) zaman damgaları **metin** kolonu.

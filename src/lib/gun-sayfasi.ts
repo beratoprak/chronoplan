@@ -113,11 +113,16 @@ function malzemeTuru(etiket: string, ad: string): MalzemeTuru | null {
   return null; // geri bildirim formu, yoklama, forum: çalışma malzemesi değil
 }
 
+const GEMINI_TURU: Record<NonNullable<StudyModule["tur_tahmini"]>, MalzemeTuru> = {
+  kitap: "dosya", okuma: "dosya", video: "video", ses: "ses", alistirma: "test", diger: "diger",
+};
+
 /** Konunun malzemesi tür türüne, OYS'deki sırayla (modül sırası zaten konu sırası). */
 export function foyMalzemesi(moduller: StudyModule[]): FoyMalzemesi[] {
   const out: FoyMalzemesi[] = [];
   for (const m of moduller) {
-    const tur = malzemeTuru(materyalEtiketi(m.ad, m.tip), m.ad);
+    // Kod tanımıyorsa Gemini'nin tür tahminine bak (Faz G); uygulama içinde açılamaz, OYS'de açılır.
+    const tur = malzemeTuru(materyalEtiketi(m.ad, m.tip), m.ad) ?? (m.tur_tahmini ? GEMINI_TURU[m.tur_tahmini] : null);
     if (!tur) continue;
     out.push({
       tur,

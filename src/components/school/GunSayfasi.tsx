@@ -9,6 +9,7 @@
 // mantığı `KonuFoyu.tsx`'te (ders sayfası da aynısını kullanıyor).
 // Veri `ybs_haftalik_plan`'dan; ilerleme Okul sekmesiyle aynı tablolara yazılır.
 
+import { AciklamaKarti, haftaninAciklamasi } from "./GeminiParcalari";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -145,6 +146,9 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
               )}
             </div>
           )}
+
+          {/* Faz G: haftanın açıklaması (Gemini), planın üstünde. */}
+          {data && <AciklamaKarti buyuk aciklama={haftaninAciklamasi(data.aciklamalar, satirlar?.[0]?.hafta)} />}
 
           {/* Bugünün özeti: kaç ders, hangileri, ne kadar. Satıra basınca derse iner. */}
           {data && dersSatirlari.length > 0 && (

@@ -63,6 +63,23 @@ export interface StudyModule {
   oys_url: string | null;
   tahmini_dakika: number;
   yerel_dosya: string | null;
+  /** Tanınmayan türdeki malzeme için Gemini'nin tür tahmini (Faz G). */
+  tur_tahmini?: "kitap" | "video" | "ses" | "alistirma" | "okuma" | "diger" | null;
+}
+
+/** Gemini'nin konu tahmini (Faz G, `ybs_unit_tahmin`). */
+export interface UnitTahmin {
+  unit_id: string;
+  zorluk: number;
+  dakika: number;
+  gerekce: string | null;
+}
+
+/** Haftanın açıklaması (Faz G, `ybs_haftalik_aciklama`). */
+export interface HaftalikAciklama {
+  hafta: string;
+  metin: string;
+  olusturma: string;
 }
 
 export interface StudyQuestion {
@@ -116,7 +133,21 @@ export interface SchoolData {
   attempts: QuestionAttempt[];
   flashcards: FlashcardRow[];
   sessions: StudySession[];
+  /** Faz G; tablo kurulmadıysa boş. */
+  aciklamalar?: HaftalikAciklama[];
   warnings: string[];
+}
+
+/**
+ * Gemini süre tahminini birimlere uygular: planlayıcı, panel ve motorun
+ * `npm run plan`'i aynı süreyi kullansın. İkizi: ybs-panel/src/lib/tahmin.js.
+ */
+export function tahminleriUygula<T extends { id: string; tahmini_dakika: number }>(units: T[], tahminler: UnitTahmin[]): (T & { zorluk?: number })[] {
+  const harita = new Map(tahminler.map((t) => [t.unit_id, t]));
+  return units.map((u) => {
+    const t = harita.get(u.id);
+    return t && Number.isFinite(t.dakika) ? { ...u, tahmini_dakika: t.dakika, zorluk: t.zorluk } : u;
+  });
 }
 
 const PASSING = new Set(["A", "B1", "B2", "B3", "C1", "C2", "C3", "M1", "M2", "BŞR"]);
@@ -285,6 +316,11 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     readTable<FlashcardRow>("ybs_flashcards", userId),
     readTable<{ completed_at: string; duration_minutes: number; phase: string }>("work_sessions", userId),
   ]);
+  // Faz G tabloları isteğe bağlı: migration v13 çalışmadıysa uyarı vermeden boş geçer.
+  const [tahminler, aciklamalar] = await Promise.all([
+    readTable<UnitTahmin>("ybs_unit_tahmin", userId),
+    readTable<HaftalikAciklama>("ybs_haftalik_aciklama", userId),
+  ]);
   const sonuc: SchoolData = {
     sources: sources.rows,
     courses: courses.rows,
@@ -292,7 +328,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     announcements: announcements.rows,
     profile: profileRows.rows[0] ?? null,
     // Emekliye ayrılmış birim planda görünmemeli; kaynaktan düşen konu çalışma listesini kirletir.
-    units: units.rows.filter((unit) => !unit.deleted_at),
+    units: tahminleriUygula(units.rows.filter((unit) => !unit.deleted_at), tahminler.rows),
     progress: progress.rows,
     outcomes: outcomes.rows,
     modules: modules.rows.filter((row) => !row.deleted_at),
@@ -303,6 +339,7 @@ export async function fetchSchoolData(userId?: string | null): Promise<SchoolDat
     sessions: sessions.rows
       .filter((row) => row.phase === "work")
       .map((row) => ({ tarih: row.completed_at, dakika: row.duration_minutes })),
+    aciklamalar: aciklamalar.rows,
     warnings: [sources.warning, courses.warning, grades.warning, announcements.warning, profileRows.warning,
                units.warning, progress.warning, outcomes.warning, modules.warning, questions.warning, attempts.warning, flashcards.warning].filter(Boolean) as string[],
   };

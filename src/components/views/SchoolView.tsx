@@ -1,5 +1,6 @@
 "use client";
 
+import { AciklamaKarti, haftaninAciklamasi } from "@/components/school/GeminiParcalari";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -416,6 +417,7 @@ export function SchoolView() {
               takvimde her gün bir etkinlik olarak durur.
             </p>
             {planHatasi && <p className="text-[11px] mb-2" role="alert" style={{ color: "var(--priority-high-text)" }}>{planHatasi}</p>}
+            <div className="mb-3 empty:hidden"><AciklamaKarti aciklama={haftaninAciklamasi(data.aciklamalar, haftaSatirlari[0]?.hafta ?? hafta)} /></div>
             {haftaHesabi?.plan.uyarilar.map((u) => (
               <p key={u} className="text-[11px] mb-2 rounded-xl px-3 py-2" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }}>{u}</p>
             ))}

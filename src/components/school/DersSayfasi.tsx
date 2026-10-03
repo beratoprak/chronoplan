@@ -8,6 +8,7 @@
 // plan dışı bir konuyu da aynı yolla çalışırsın. İşaretlemeler gün sayfası ve
 // Okul sekmesiyle aynı tablolara yazılır.
 
+import { ZorlukRozeti } from "./GeminiParcalari";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronRight, Loader2, RefreshCw, Save } from "lucide-react";
 import { useAppStore } from "@/lib/store";
@@ -197,6 +198,7 @@ function KonuListesi({ baslik, aciklama, konular, buHafta, acik, setAcik, ortak,
                   </span>
                   <span className="block text-[11px] lg:text-[13px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
                     ~{u.tahmini_dakika} dk · {soruSayisi(u.soru_degeri)} değerinde
+                    {u.zorluk ? <> · <ZorlukRozeti zorluk={u.zorluk} /></> : null}
                     {buHafta.includes(u.id) && <span style={{ color: "var(--tag-school-text)" }}> · bu haftanın planında</span>}
                   </span>
                 </span>
