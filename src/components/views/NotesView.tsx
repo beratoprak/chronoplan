@@ -497,6 +497,7 @@ export function NotesView() {
                   baslik={pdf.baslik}
                   onKapat={() => setPdf(null)}
                   onAlinti={alintiEkle}
+                  notAlani={false}
                 />
               </div>
             )}

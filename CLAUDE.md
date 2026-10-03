@@ -44,7 +44,9 @@ npm run build         # prebuild pdf.js işçisini public/'e kopyalar
 | `src/components/school/SinavProgrami.tsx` + `src/lib/sinav-programi.ts` | Faz H: Okul → Sınav programı; derslerin sınav günü ve oturumu topluca (`ybs_sinav_oturum`, v14) |
 | `src/components/school/EzberTekrari.tsx` | Faz H: sınav haftası tekrar gününde dersin ezber kartları |
 | `src/components/shared/SallananFigurler.tsx` + `Figurlerim.tsx` + `src/lib/figurler.ts` | Takvim köşesinde sallanan figürler; Ayarlar → Figürlerim'den kullanıcı kendi resmini yükler (`epoche_figurler`, v15). Hazır figürler `public/figurler` (MIT, Fluent Emoji) |
-| `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü, PDF okuyucu |
+| `src/components/editor/PdfReader.tsx` + `src/lib/pdf-calisma.ts` | PDF çalışma alanı: solda PDF (yakınlaştırma, seçilebilir metin, vurgu/altı çizili), sağda sürüklenerek boyutlanan "Notlarım" (BlockEditor). Vurgular `epoche_pdf_isaret`, notlar `epoche_pdf_not` (v16) |
+| `src/lib/pdf-polyfill.ts` | pdf.js 5.6'nın istediği `Map.getOrInsertComputed` yaması; işçiye de `scripts/pdf-worker-kopyala.mjs` ekliyor (yoksa sayfalar beyaz) |
+| `src/components/editor/` | Blok not editörü, okul blokları, "/" menüsü |
 | `supabase/migration-epoche-v*.sql` | Şema değişiklikleri (Supabase SQL Editor'de elle çalıştırılır) |
 
 ## Kurallar

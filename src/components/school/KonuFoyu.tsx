@@ -230,7 +230,8 @@ export function useKonuCalisma(kapat: () => void) {
       />
     ) : pdf && (
       <div className="fixed inset-0 z-50 flex justify-center" style={{ background: "var(--surface-base)" }}>
-        <div className="w-full max-w-4xl flex" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        {/* Tam genişlik: PDF ile not alanı yan yana, aradaki çizgi sürüklenir. */}
+        <div className="w-full flex" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
           <PdfReader yol={pdf.yol} baslik={pdf.baslik} onKapat={() => setPdf(null)} />
         </div>
       </div>
