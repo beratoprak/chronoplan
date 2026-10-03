@@ -4,8 +4,10 @@ Next.js 14 + Supabase + Zustand + BlockNote ile yazılmış takvim/not uygulamas
 Canlı: `chronoplan-three.vercel.app` (main'e push → Vercel otomatik yayınlar).
 Canlı sürümü doğrulamak: `curl https://chronoplan-three.vercel.app/api/version`.
 
-**Bu repo herkese açık.** Kişisel bilgi, not içeriği, kullanıcı kimliği ya da anahtar
-yazma — commit mesajına da. Projenin planı, kararları ve nerede kalındığı özel
+**Bu repo 3 Ekim 2026'dan beri gizli (private)**; önceden herkese açıktı, geçmişi de açıkta
+kalmış olabilir. Yine de kişisel bilgi, not içeriği, kullanıcı kimliği ya da anahtar yazma —
+commit mesajına da. `raw.githubusercontent.com` bağlantıları artık giriş yapmadan açılmaz:
+kullanıcıya SQL verirken içeriği doğrudan sohbete yaz. Projenin planı, kararları ve nerede kalındığı özel
 `beratoprak/ybs-panel` reposunda: `DURUM.md`, `YAPILACAKLAR.md`, `PLAN-SISTEM.md`.
 Oturumda o repo da varsa **iş yapmadan önce onları oku**, iş bitince `DURUM.md`'yi güncelle.
 
