@@ -38,10 +38,12 @@ describe("takvim etkinliği", () => {
   it("başlıkta iki ders ve konu", () => {
     expect(etkinlikBasligi(gun, dersler)).toBe("📘 Matematik I · 3-Limit (devam)  +  Türk Dili I · 2-Dil Bilgisi");
   });
-  it("açıklamada süreler ve bitiş", () => {
+  it("açıklamada konular var, süre yok (26 Ekim)", () => {
     const a = etkinlikAciklamasi(gun, dersler);
-    expect(a).toContain("Matematik I — 30 dk");
-    expect(a).toContain("2-Dil Bilgisi — bugün biter · 30 dk");
+    expect(a).toContain("Matematik I");
+    expect(a).toContain("3-Limit (devam) — biraz daha ilerle, sonra bitir");
+    expect(a).toContain("• 2-Dil Bilgisi\n");
+    expect(a).not.toMatch(/\bdk\b|saat/);
   });
   it("uzun konu adı sözcük sınırında kısalır", () => {
     expect(kisalt("1-Temel İşletmecilik Kavram ve Tanımları, İşletmenin Özellikleri", 34)).toBe("1-Temel İşletmecilik Kavram ve…");

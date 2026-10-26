@@ -11,14 +11,15 @@
 
 import { EzberTekrari } from "./EzberTekrari";
 import { oturumGruplari } from "@/lib/sinav-programi";
-import { AciklamaKarti, haftaninAciklamasi } from "./GeminiParcalari";
+import { AciklamaKarti, gununNotu, haftaninAciklamasi, sonDuzlukMektubu } from "./GeminiParcalari";
+import { SinavTaktikleri } from "./SinavTaktikleri";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { ArrowLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, RefreshCw } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { buildSchoolDemoData } from "@/lib/school-data";
-import { gununPlani, planEtkinlikId, planiHesapla, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { gununPlani, planAraligi, planEtkinlikId, planiHesapla, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import type { PlanParcasi } from "@/lib/haftalik-plan";
 import { eksikKonular, konuAdi, tekrarSorulari } from "@/lib/gun-sayfasi";
 import { AltBaslik, Bos, Foy, KonuBasligi, SoruAkisi, useKonuCalisma, type Ortak } from "./KonuFoyu";
@@ -77,7 +78,9 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
 
   const gunTuru = satirlar?.[0]?.gun_turu;
   const dersSatirlari = (satirlar ?? []).filter((s) => s.ders_kodu);
-  const toplamDakika = dersSatirlari.reduce((t, s) => t + s.dakika, 0);
+  const konuSayisi = dersSatirlari.reduce((t, s) => t + (s.tur === "konu" ? s.parcalar.length : 0), 0);
+  const aralik = useMemo(() => planAraligi(events, new Date()), [events]);
+  const bugunMu = tarih === format(new Date(), "yyyy-MM-dd");
   const [menu, setMenu] = useState(false);
   const git = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -141,7 +144,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
               {gunTuru === "sinav"
                 ? <SinavGunu tarih={tarih} oturumlar={data.oturumlar ?? []} dersAdi={dersAdi} />
                 : gunTuru === "bos"
-                  ? "Bu gün için çalışma planlanmadı."
+                  ? "Bugün boş gün: dinlen. Yetiştiğin için bu günü sana bıraktım; istersen bir ezber kartı tur at, o kadar."
                   : "Bu gün için kayıtlı plan bulunamadı. Okul → Bu hafta → \"Yeniden planla\" ile plan yeniden kurulabilir."}
               {etkinlik?.description && (
                 <pre className="mt-3 whitespace-pre-wrap text-[12px] lg:text-[14px] font-sans" style={{ color: "var(--text-tertiary)" }}>{etkinlik.description}</pre>
@@ -149,14 +152,16 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
             </div>
           )}
 
-          {/* Faz G: haftanın açıklaması (Gemini), planın üstünde. */}
-          {data && <AciklamaKarti buyuk aciklama={haftaninAciklamasi(data.aciklamalar, satirlar?.[0]?.hafta)} />}
+          {/* Beynin notları (Gemini), planın üstünde: sabah notu, son düzlük mektubu, pazar mektubu. */}
+          {data && <AciklamaKarti buyuk baslik="Bu sabahın notu" aciklama={gununNotu(data.aciklamalar, tarih)} />}
+          {data && aralik.sonDuzluk && bugunMu && <AciklamaKarti buyuk baslik="Son düzlük planı" aciklama={sonDuzlukMektubu(data.aciklamalar, aralik.sinav?.tarih)} />}
+          {data && !gununNotu(data.aciklamalar, tarih) && <AciklamaKarti buyuk aciklama={haftaninAciklamasi(data.aciklamalar, satirlar?.[0]?.hafta)} />}
 
           {/* Bugünün özeti: kaç ders, hangileri, ne kadar. Satıra basınca derse iner. */}
           {data && dersSatirlari.length > 0 && (
             <div>
               <p className="text-[18px] lg:text-[26px] font-semibold leading-tight">
-                {gunTuru === "tekrar" ? "Tekrar günü" : "Bugün"} {dersSatirlari.length} ders · ~{toplamDakika} dk
+                {gunTuru === "tekrar" ? `Tekrar günü · ${dersSatirlari.length} ders` : `Bugün ${dersSatirlari.length === 1 ? "tek ders" : `${dersSatirlari.length} ders`} · ${konuSayisi} konu`}
               </p>
               <ol className="mt-2 lg:mt-4 space-y-1 lg:space-y-2">
                 {dersSatirlari.map((satir, i) => {
@@ -174,7 +179,6 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                               : ilk && ` — ${unit?.konu_no ? `${unit.konu_no}. konu: ` : ""}${konuAdi(ilk.baslik)}${satir.parcalar.length > 1 ? ` +${satir.parcalar.length - 1}` : ""}`}
                           </span>
                         </span>
-                        <span className="shrink-0 text-[12px] lg:text-[14px] tabular-nums" style={{ color: "var(--text-tertiary)" }}>~{satir.dakika} dk</span>
                       </button>
                     </li>
                   );
@@ -194,7 +198,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                 style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)" }}
               >
                 <p className="text-[11px] lg:text-[13px]" style={{ color: "var(--text-tertiary)" }}>
-                  Ders {i + 1} · {satir.tur === "tekrar" ? "tekrar" : `~${satir.dakika} dk`}
+                  Ders {i + 1}{satir.tur === "tekrar" ? " · tekrar" : ` · ${satir.parcalar.length} konu`}
                 </p>
                 <h2 className="text-[17px] lg:text-[24px] font-semibold leading-snug">{dersAdi(kod)}</h2>
                 {satir.tur === "tekrar"
@@ -203,6 +207,9 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
               </section>
             );
           })}
+
+          {/* Tekrar günlerinde ve son düzlükte taktikler föyün altında. */}
+          {data && (gunTuru === "tekrar" || aralik.sonDuzluk) && <SinavTaktikleri buyuk acik={gunTuru === "tekrar"} />}
         </div>
       </div>
 
@@ -213,22 +220,20 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
 
 // ── Bölümler ─────────────────────────────────────────────────────
 
-/** Konunun parçası hakkında tek cümle: bugün konunun neresi yapılıyor. */
-function parcaCumlesi(p: PlanParcasi, toplam: number): string | null {
-  const tamami = toplam > 0 ? `Konunun tamamı ~${toplam} dk. ` : "";
+/** Konunun parçası hakkında tek cümle: bugün konunun neresi yapılıyor. Süre yok (26 Ekim). */
+function parcaCumlesi(p: PlanParcasi): string | null {
   if (!p.devam && p.bitiyor) return null;
-  if (!p.devam) return `${tamami}Bugün ~${p.dakika} dk'lık ilk kısmı; kalanı sonraki çalışmada.`;
-  if (!p.bitiyor) return `${tamami}Önceki günden devam; bugün ~${p.dakika} dk, kalanı sonraki çalışmada.`;
-  return `${tamami}Önceki günden devam; bugün bitiyor.`;
+  if (!p.devam) return "Konu uzun: bugün başla, aşağıdaki \"Bugün\" adımlarını yap; kalanı sonraki çalışmada.";
+  if (!p.bitiyor) return "Önceki günden devam: bugün biraz daha ilerle, kalanı sonraki çalışmada.";
+  return "Önceki günden devam: bugün bitir.";
 }
 
 /** Normal gün: bir konu (ya da konunun bugünkü kısmı) föy olarak. */
 function KonuFoyuBolumu({ parca, ilk, ...o }: Ortak & { parca: PlanParcasi; ilk: boolean }) {
-  const unit = o.unitById.get(parca.unit_id);
   return (
     <div className={ilk ? "mt-1" : "mt-5 pt-4"} style={ilk ? undefined : { borderTop: "0.5px solid var(--border-default)" }}>
       <KonuBasligi unitId={parca.unit_id} baslik={parca.baslik} {...o} />
-      {(() => { const c = parcaCumlesi(parca, unit?.tahmini_dakika ?? 0); return c && <p className="text-[12px] lg:text-[14px] mt-1" style={{ color: "var(--text-tertiary)" }}>{c}</p>; })()}
+      {(() => { const c = parcaCumlesi(parca); return c && <p className="text-[12px] lg:text-[14px] mt-1" style={{ color: "var(--text-tertiary)" }}>{c}</p>; })()}
       <Foy unitId={parca.unit_id} butce={parca.dakika} bitiyor={parca.bitiyor} {...o} />
     </div>
   );

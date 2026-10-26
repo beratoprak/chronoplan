@@ -1,7 +1,8 @@
 "use client";
 
 import { SinavProgrami } from "@/components/school/SinavProgrami";
-import { AciklamaKarti, haftaninAciklamasi } from "@/components/school/GeminiParcalari";
+import { AciklamaKarti, gununNotu, haftaninAciklamasi, sonDuzlukMektubu } from "@/components/school/GeminiParcalari";
+import { SinavTaktikleri } from "@/components/school/SinavTaktikleri";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -16,10 +17,10 @@ import { buildSchoolDemoData, buildSchoolStrategy, completedCredits, fetchSchool
 import { buildStudyPlan, type UnitProgress } from "@/lib/study-plan";
 import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
 import { useNotBloklari } from "@/lib/useNotBloklari";
-import { enYakinSinav, haftaninPlani, PLAN_KAYNAGI, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { araliktakiPlan, enYakinSinav, haftaninPlani, parcaNotu, PLAN_KAYNAGI, planAraligi, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
-import { dersOzetleri, soruSayisi, sureYazi } from "@/lib/ders-paneli";
-import { ADIMLAR, mevcutAdimHaritasi } from "@/lib/ilerleme";
+import { dersOzetleri, soruSayisi } from "@/lib/ders-paneli";
+import { ADIMLAR, ilerlemeKatsayisi, mevcutAdimHaritasi } from "@/lib/ilerleme";
 import { degerlendir, yeniKart, zamaniGelenler, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
 import type { CalendarEvent, Task } from "@/types";
 
@@ -104,6 +105,14 @@ export function SchoolView() {
 
   useEffect(() => { void load(true); }, [load]);
 
+  const [yenilendi, setYenilendi] = useState(false);
+  const elleYenile = useCallback(async () => {
+    setYenilendi(false);
+    await Promise.all([load(), useAppStore.getState().syncFromSupabase().catch(() => undefined)]);
+    setYenilendi(true);
+    window.setTimeout(() => setYenilendi(false), 2500);
+  }, [load]);
+
   // ── Bu hafta ──────────────────────────────────────────────────
   // Planı kendiliğinden kuran kanca app düzeyinde (useHaftalikPlanlayici);
   // burada yalnız gösteriliyor ve elle yeniden kurulabiliyor.
@@ -111,16 +120,20 @@ export function SchoolView() {
   const [planMesgul, setPlanMesgul] = useState(false);
   const [planHatasi, setPlanHatasi] = useState<string | null>(null);
   const hafta = hedefHafta(new Date()).hafta;
+  // Son düzlükte (sınava ≤ 14 gün) liste bu haftanın başından sınava kadar uzar.
+  const aralik = useMemo(() => planAraligi(events, new Date()), [events]);
   const haftayiOku = useCallback(async () => {
     if (!user?.id || isDemoMode) return;
     try {
-      setHaftaSatirlari(await haftaninPlani(user.id, hafta));
+      setHaftaSatirlari(aralik.sonDuzluk
+        ? await araliktakiPlan(user.id, aralik.hafta, aralik.bitis)
+        : await haftaninPlani(user.id, hafta));
     } catch (e) {
       setPlanHatasi(/ybs_haftalik_plan/.test(String(e))
         ? "Haftalık plan için veritabanı güncellemesi bekleniyor (migration-epoche-v12)."
         : `Plan okunamadı: ${e instanceof Error ? e.message : e}`);
     }
-  }, [user?.id, isDemoMode, hafta]);
+  }, [user?.id, isDemoMode, hafta, aralik.sonDuzluk, aralik.hafta, aralik.bitis]);
   useEffect(() => { void haftayiOku(); }, [haftayiOku, events.length]);
 
   const yenidenPlanla = useCallback(async () => {
@@ -176,6 +189,9 @@ export function SchoolView() {
   // OYS mobil anahtarı reddedildiyse (süresi doldu ya da iptal) ders içeriği
   // güncellenmiyor; genel "kaynak bayat" uyarısı ne yapılacağını söylemiyordu.
   const oysAnahtari = staleSources.find((source) => source.id === "oys-mobil" && source.last_error === "OYS anahtarını yenile");
+  // ANKUZEF sitesi bakımdayken (21 Ekim 2026'dan beri) ondan beslenen kaynaklar
+  // bayatlıyor; bu bir arıza değil, ne olduğunu söyle.
+  const ankuzefBakimda = staleSources.length > 0 && staleSources.every((s) => /bakımda|ankuzef/i.test(`${s.last_error ?? ""} ${s.url ?? ""}`));
   const strategy = useMemo(() => buildSchoolStrategy(data.courses, data.grades), [data.courses, data.grades]);
 
   // Sinav tarihi panelin kendi uydurdugu bir sabit degil: motorun yazdigi
@@ -265,6 +281,11 @@ export function SchoolView() {
       dilim: aktifSinav?.dilim ?? "vize",
     });
   }, [data.units, data.sessions, progressMap, examEvent?.date, aktifSinav?.dilim]);
+
+  /** Sınav kapsamında henüz "Hakimim" denmemiş konu sayısı (saat yerine, 26 Ekim). */
+  const kalanKonu = useMemo(() => data.units.filter((u) => u.tip === "konu" && u.dilim === (aktifSinav?.dilim ?? "vize")
+    && ilerlemeKatsayisi(progressMap.get(u.id), adimHaritasi.get(u.id) ?? ADIMLAR) < 1).length,
+  [data.units, progressMap, adimHaritasi, aktifSinav?.dilim]);
 
   /** Dersler bölümü: her ders bir satır, eşiğe en uzak olan üstte (Faz D). */
   const dersOzet = useMemo(() => dersOzetleri({
@@ -359,9 +380,11 @@ export function SchoolView() {
             <p className="text-[13px] font-semibold">Okul verisinin bir bölümü doğrulanamadı</p>
             <p className="text-[11px] mt-1">{data.warnings[0] ?? (oysAnahtari && staleSources.length === 1
               ? "OYS anahtarını yenile: ders içeriği güncellenmiyor. Bilgisayarda ybs-panel klasöründe npm run oys:kesif çalıştır."
-              : `${staleSources.length} kaynak bayat veya hatalı. Kritik tarihi resmî bağlantıdan kontrol et.`)}</p>
+              : ankuzefBakimda
+                ? "ANKUZEF'in sitesi bakımda. Bu senin sisteminden kaynaklanmıyor; site açılınca kendiliğinden düzelir. O zamana kadar tarihler son bilinen hâliyle gösteriliyor."
+                : `${staleSources.length} kaynak bayat veya hatalı. Kritik tarihi resmî bağlantıdan kontrol et.`)}</p>
           </div>
-          <button onClick={() => void load()} className="ml-auto cp-icon-button shrink-0" aria-label="Okul verilerini yenile"><RefreshCw size={16} /></button>
+          <button onClick={() => void elleYenile()} disabled={tazeleniyor} className="ml-auto cp-icon-button shrink-0" aria-label="Okul verilerini yenile"><RefreshCw size={16} className={tazeleniyor ? "animate-spin" : undefined} /></button>
         </div>
       )}
 
@@ -373,7 +396,13 @@ export function SchoolView() {
           </div>
           <p className="text-[12px] mt-1" style={{ color: "var(--text-tertiary)" }}>{data.profile?.program ?? "YBS dijital ajandan"}</p>
         </div>
-        <button onClick={() => void load()} className="cp-btn cp-btn-ghost px-3" aria-label="Yenile"><RefreshCw size={15} /><span className="hidden sm:inline">Yenile</span></button>
+        {/* Yalnız uygulamadaki veriyi yeniden okur; okulun sitesini açamaz. Döndüğünü ve bittiğini göstersin. */}
+        <div className="flex items-center gap-2">
+          {yenilendi && !tazeleniyor && <span className="text-[11px]" role="status" style={{ color: "var(--priority-low-text)" }}>Güncel</span>}
+          <button onClick={() => void elleYenile()} disabled={tazeleniyor} className="cp-btn cp-btn-ghost px-3 disabled:opacity-60" aria-label="Yenile">
+            <RefreshCw size={15} className={tazeleniyor ? "animate-spin" : undefined} /><span className="hidden sm:inline">{tazeleniyor ? "Yenileniyor" : "Yenile"}</span>
+          </button>
+        </div>
       </header>
 
       <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.75fr)] gap-4 sm:gap-5 items-start">
@@ -415,22 +444,27 @@ export function SchoolView() {
             <div className="flex items-end justify-between gap-3 mb-3">
               <div className="flex items-center gap-2 min-w-0">
                 <CalendarClock size={17} style={{ color: "var(--tag-school)" }} />
-                <h2 className="text-[15px] font-semibold">Bu hafta</h2>
+                <h2 className="text-[15px] font-semibold">{aralik.sonDuzluk ? "Son düzlük · sınava kadar" : "Bu hafta"}</h2>
               </div>
               <button onClick={() => void yenidenPlanla()} disabled={planMesgul || !user} className="cp-btn cp-btn-ghost text-[11px] shrink-0 disabled:opacity-50">
                 <RefreshCw size={13} className={planMesgul ? "animate-spin" : undefined} />Yeniden planla
               </button>
             </div>
             <p className="text-[11px] -mt-1 mb-3" style={{ color: "var(--text-tertiary)" }}>
-              Her gün 2 ders, ~1 saat. Plan her pazar 21:00'den sonra ilerlemene göre yeniden kurulur;
-              takvimde her gün bir etkinlik olarak durur.
+              {aralik.sonDuzluk
+                ? "Sınava iki haftadan az kaldı: her dersi geçme çizgisine taşıyacak konular seçildi. Plan her gün ilerlemene göre kendini düzeltir."
+                : "Bazı günler tek ders, bazı günler iki ders; konular bütün olarak gelir. Plan her pazar 21:00'den sonra yeniden kurulur, uzun ara verirsen kalan günlere yeniden dağılır."}
             </p>
             {planHatasi && <p className="text-[11px] mb-2" role="alert" style={{ color: "var(--priority-high-text)" }}>{planHatasi}</p>}
-            <div className="mb-3 empty:hidden"><AciklamaKarti aciklama={haftaninAciklamasi(data.aciklamalar, haftaSatirlari[0]?.hafta ?? hafta)} /></div>
+            <div className="mb-3 space-y-2 empty:hidden">
+              <AciklamaKarti baslik="Bu sabahın notu" aciklama={gununNotu(data.aciklamalar, format(new Date(), "yyyy-MM-dd"))} />
+              {aralik.sonDuzluk && <AciklamaKarti baslik="Son düzlük planı" aciklama={sonDuzlukMektubu(data.aciklamalar, aralik.sinav?.tarih)} />}
+              <AciklamaKarti aciklama={haftaninAciklamasi(data.aciklamalar, hafta)} />
+            </div>
             {haftaHesabi?.plan.uyarilar.map((u) => (
               <p key={u} className="text-[11px] mb-2 rounded-xl px-3 py-2" style={{ background: "var(--priority-medium-bg)", color: "var(--priority-medium-text)" }}>{u}</p>
             ))}
-            {!haftaGunleri.length && !planHatasi && <EmptyState>Bu haftanın planı henüz kurulmadı. "Yeniden planla"ya bas.</EmptyState>}
+            {!haftaGunleri.length && !planHatasi && <EmptyState>Plan henüz kurulmadı. "Yeniden planla"ya bas.</EmptyState>}
             <ol className="space-y-1.5">
               {haftaGunleri.map(([tarih, satirlar]) => {
                 const bugunMu = tarih === format(new Date(), "yyyy-MM-dd");
@@ -448,16 +482,16 @@ export function SchoolView() {
                     </div>
                     <div className="min-w-0 flex-1 space-y-1.5">
                       {tur === "sinav" && <p className="text-[12px] font-semibold" style={{ color: "var(--priority-high-text)" }}>Sınav günü</p>}
-                      {tur === "bos" && <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>Plan yok</p>}
+                      {tur === "bos" && <p className="text-[12px]" style={{ color: "var(--text-tertiary)" }}>{aktifSinav && tarih < aktifSinav.tarih ? "Boş gün — dinlen" : "Plan yok"}</p>}
                       {satirlar.filter((s) => s.ders_kodu).map((s) => (
                         <div key={s.id}>
                           <p className="text-[12px] font-semibold leading-snug">
                             {dersAdi(s.ders_kodu)}
-                            <span className="font-normal" style={{ color: "var(--text-tertiary)" }}> · {s.tur === "tekrar" ? "tekrar" : `${s.dakika} dk`}</span>
+                            {s.tur === "tekrar" && <span className="font-normal" style={{ color: "var(--text-tertiary)" }}> · tekrar</span>}
                           </p>
                           {s.tur === "konu" && s.parcalar.map((p) => (
                             <span key={`${s.id}-${p.unit_id}`} className="block text-[11px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-                              {p.baslik}{p.devam ? " (devam)" : ""}{p.bitiyor ? " — bugün biter" : ""} · {p.dakika} dk
+                              {p.baslik}{p.devam ? " (devam)" : ""}{parcaNotu(p)}
                             </span>
                           ))}
                         </div>
@@ -470,6 +504,8 @@ export function SchoolView() {
               })}
             </ol>
           </section>
+
+          <SinavTaktikleri acik={aralik.sonDuzluk} />
 
           {/* Faz H: sınav giriş belgesi çıkınca derslerin gün ve oturumu, topluca. */}
           {aktifSinav && (
@@ -500,7 +536,7 @@ export function SchoolView() {
                 >
                   {HAL_ETIKET[plan.hal]}
                 </span>
-                <span>{countdownLabel(plan.sinav_tarihi)} · {dilimAdi === "Final" ? "finale" : "vizeye"} kalan iş {sureYazi(plan.kalan_dakika)} · gereken {plan.gereken_tempo} dk/gün</span>
+                <span>{countdownLabel(plan.sinav_tarihi)} · {dilimAdi === "Final" ? "finale" : "vizeye"} kalan {kalanKonu} konu</span>
               </p>
             )}
             <p className="text-[11px] mb-2" style={{ color: "var(--text-tertiary)" }}>
@@ -508,7 +544,7 @@ export function SchoolView() {
             </p>
             {plan && plan.risk.length > 0 && (
               <p className="text-[11px] mb-2 rounded-xl px-3 py-2" style={{ background: "var(--priority-high-bg)", color: "var(--priority-high-text)" }}>
-                Bu tempoyla eşiğe ulaşamayan dersler: {plan.risk.map((r) => `${dersAdi(r.ders_kodu)} (${sureYazi(r.gereken_dakika)})`).join(" · ")}
+                Şu gidişle eşiğe yetişmeyebilecek dersler: {plan.risk.map((r) => dersAdi(r.ders_kodu)).join(" · ")}. Plan bunlara öncelik veriyor.
               </p>
             )}
             {!dersOzet.length && (

@@ -83,8 +83,14 @@ export interface SinavOturumu {
   oturum: number;
 }
 
-/** Haftanın açıklaması (Faz G, `ybs_haftalik_aciklama`). */
+/**
+ * Beynin notları (Faz G, `ybs_haftalik_aciklama`). Kimliğin biçimi türünü
+ * söyler (v4, tablo değişmeden): `<kullanıcı>:<pazartesi>` pazar mektubu,
+ * `<kullanıcı>:gun:<tarih>` sabah notu, `<kullanıcı>:son:<sınav>` son düzlük
+ * mektubu. Sabah notunda `hafta` o günün tarihi.
+ */
 export interface HaftalikAciklama {
+  id: string;
   hafta: string;
   metin: string;
   olusturma: string;

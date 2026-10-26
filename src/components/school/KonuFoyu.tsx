@@ -308,7 +308,7 @@ export function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; 
           <Info size={14} className="shrink-0 mt-0.5" />{foy.aciklama}
         </p>
       )}
-      {ayir && bugun.length > 0 && <GrupBasligi>Bugün{foy.bugunDakika ? ` · ~${foy.bugunDakika} dk` : ""}</GrupBasligi>}
+      {ayir && bugun.length > 0 && <GrupBasligi>Bugün</GrupBasligi>}
       {bugun.map(({ a, no }) => <AdimSatiri key={no} adim={a} no={no} acik {...adimProps} />)}
       {ayir && <GrupBasligi>Sonraki çalışmada</GrupBasligi>}
       {sonra.map(({ a, no }) => <AdimSatiri key={no} adim={a} no={no} acik={false} {...adimProps} />)}
@@ -444,8 +444,7 @@ function AdimSatiri({ adim, no, acik, unitId, sorular, ac, mesgul, onAdim, soruP
             {adim.metin}
           </p>
           <p className="text-[11px] lg:text-[13px] mt-0.5 lg:mt-1.5" style={{ color: "var(--text-tertiary)" }}>
-            {adim.dakika > 0 && `~${adim.dakika} dk`}
-            {!adim.adim && `${adim.dakika > 0 ? " · " : ""}isteğe bağlı`}
+            {!adim.adim && "isteğe bağlı"}
           </p>
         </div>
         {adim.adim && (

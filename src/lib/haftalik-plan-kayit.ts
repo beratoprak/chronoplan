@@ -9,7 +9,7 @@
 import { addDays, format, parseISO } from "date-fns";
 import { supabase } from "./supabase";
 import { fetchSchoolData, type SchoolCourse, type SchoolData } from "./school-data";
-import { haftalikPlanKur, hedefHafta, type HaftalikPlan, type PlanDersi, type PlanGunu } from "./haftalik-plan";
+import { haftaAnahtari, haftalikPlanKur, hedefAralik, PLAN_SURUM_ANI, yenidenKurulmali, type HaftalikPlan, type PlanDersi, type PlanGunu, type YenidenKurNedeni } from "./haftalik-plan";
 import { ADIMLAR, mevcutAdimHaritasi } from "./ilerleme";
 import type { UnitProgress } from "./study-plan";
 import type { CalendarEvent } from "@/types";
@@ -32,7 +32,7 @@ export interface PlanSatiri {
 }
 
 export type PlanSonucu =
-  | { durum: "kuruldu"; hafta: string; plan: HaftalikPlan }
+  | { durum: "kuruldu"; hafta: string; plan: HaftalikPlan; neden: YenidenKurNedeni | "elle" }
   | { durum: "guncel"; hafta: string }
   | { durum: "sinav-yok" | "veri-yok"; hafta: string };
 
@@ -61,7 +61,7 @@ export function kisalt(metin: string, uzunluk: number): string {
   return `${(bosluk > uzunluk * 0.6 ? kesik.slice(0, bosluk) : kesik).replace(/[\s,;:·-]+$/, "")}…`;
 }
 
-/** Takvimde görünen başlık: iki ders ve günün konusu (konu adı kısaltılmış). */
+/** Takvimde görünen başlık: günün dersleri ve konusu (konu adı kısaltılmış). */
 export function etkinlikBasligi(gun: PlanGunu, dersler: SchoolCourse[]): string {
   if (gun.tur === "tekrar") {
     return `🔁 Tekrar · ${gun.dersler.map((d) => kisaAd(d.ders_kodu, dersler)).join(" + ")}`;
@@ -69,21 +69,28 @@ export function etkinlikBasligi(gun: PlanGunu, dersler: SchoolCourse[]): string 
   const parca = (d: PlanDersi) => {
     const ilk = d.parcalar[0];
     if (!ilk) return kisaAd(d.ders_kodu, dersler);
-    return `${kisaAd(d.ders_kodu, dersler)} · ${kisalt(ilk.baslik, 34)}${ilk.devam ? " (devam)" : ""}`;
+    const ek = d.parcalar.length > 1 ? ` +${d.parcalar.length - 1}` : ilk.devam ? " (devam)" : "";
+    return `${kisaAd(d.ders_kodu, dersler)} · ${kisalt(ilk.baslik, d.parcalar.length > 1 || gun.dersler.length === 1 ? 40 : 34)}${ek}`;
   };
   return `📘 ${gun.dersler.map(parca).join("  +  ")}`;
 }
 
-/** Etkinlik açıklaması: bütün parçalar ve süreleri. */
+/** Bölünmüş konu için kısa not; konu bütünse boş. */
+export function parcaNotu(p: { devam: boolean; bitiyor: boolean }): string {
+  if (p.bitiyor) return p.devam ? " — bugün bitir" : "";
+  return p.devam ? " — biraz daha ilerle, sonra bitir" : " — bugün başla, sonra bitir";
+}
+
+/** Etkinlik açıklaması: bütün konular. Süre yazılmaz (26 Ekim kararı). */
 export function etkinlikAciklamasi(gun: PlanGunu, dersler: SchoolCourse[]): string {
   const satirlar: string[] = [];
   for (const d of gun.dersler) {
-    satirlar.push(`${kisaAd(d.ders_kodu, dersler)} — ${d.tur === "tekrar" ? "tekrar" : `${d.dakika} dk`}`);
+    satirlar.push(`${kisaAd(d.ders_kodu, dersler)}${d.tur === "tekrar" ? " — tekrar" : ""}`);
     if (d.tur === "tekrar") {
       satirlar.push("  • Konuların özetine ve çıkmış sorulara dön, ezber kartlarını çevir.");
     } else {
       for (const p of d.parcalar) {
-        satirlar.push(`  • ${p.baslik}${p.devam ? " (devam)" : ""}${p.bitiyor ? " — bugün biter" : ""} · ${p.dakika} dk`);
+        satirlar.push(`  • ${p.baslik}${p.devam ? " (devam)" : ""}${parcaNotu(p)}`);
       }
     }
   }
@@ -91,10 +98,12 @@ export function etkinlikAciklamasi(gun: PlanGunu, dersler: SchoolCourse[]): stri
   return satirlar.join("\n");
 }
 
-function satirlariUret(userId: string, hafta: string, plan: HaftalikPlan): PlanSatiri[] {
+function satirlariUret(userId: string, plan: HaftalikPlan): PlanSatiri[] {
   const simdi = new Date().toISOString();
   const satirlar: PlanSatiri[] = [];
   for (const gun of plan.gunler) {
+    // Son düzlükte plan birden çok haftaya yayılır: her satır kendi haftasında.
+    const hafta = haftaAnahtari(gun.tarih);
     if (!gun.dersler.length) {
       satirlar.push({
         id: `${userId}:${gun.tarih}:0`, user_id: userId, hafta, tarih: gun.tarih, gun_turu: gun.tur,
@@ -123,6 +132,20 @@ export async function haftaninPlani(userId: string, hafta: string): Promise<Plan
   return (data ?? []) as PlanSatiri[];
 }
 
+/** Tarih aralığındaki plan satırları (son düzlükte birden çok hafta). */
+export async function araliktakiPlan(userId: string, baslangic: string, bitis: string): Promise<PlanSatiri[]> {
+  const { data, error } = await supabase
+    .from("ybs_haftalik_plan")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("tarih", baslangic)
+    .lte("tarih", bitis)
+    .order("tarih")
+    .order("sira");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PlanSatiri[];
+}
+
 /** Tek günün plan satırları (gün sayfası). Hafta değil tarih: geçmiş haftanın günü de açılabilsin. */
 export async function gununPlani(userId: string, tarih: string): Promise<PlanSatiri[]> {
   const { data, error } = await supabase
@@ -136,12 +159,9 @@ export async function gununPlani(userId: string, tarih: string): Promise<PlanSat
 }
 
 /** Planı hesaplar — yazmaz. Test ve önizleme için ayrı. */
-export function planiHesapla(data: SchoolData, events: CalendarEvent[], simdi: Date): { hafta: string; plan: HaftalikPlan } | null {
-  const hedef = hedefHafta(simdi);
-  // Sınav, planın kurulduğu haftanın ilk gününe göre seçilir (Faz H). Bugüne
-  // göre seçilseydi vizeden sonraki pazar akşamı (15 Kasım) ara sınav hâlâ
-  // "yaklaşan" sayılır, 16 Kasım haftası geçmiş vizeye göre kurulurdu.
-  const sinav = enYakinSinav(events, hedef.baslangic);
+export function planiHesapla(data: SchoolData, events: CalendarEvent[], simdi: Date): { hafta: string; baslangic: string; bitis: string; plan: HaftalikPlan } | null {
+  const hedef = planAraligi(events, simdi);
+  const sinav = hedef.sinav;
   if (!sinav || !data.units.length) return null;
   const adimlar = mevcutAdimHaritasi(data.units, data.modules, data.questions);
   const ilerleme = new Map<string, UnitProgress>(
@@ -152,31 +172,66 @@ export function planiHesapla(data: SchoolData, events: CalendarEvent[], simdi: D
     units: data.units, ilerleme, sinavTarihi: sinav.tarih, dilim: sinav.dilim, oturumlar,
     baslangic: hedef.baslangic, bitis: hedef.bitis,
   });
-  return { hafta: hedef.hafta, plan };
+  return { hafta: hedef.hafta, baslangic: hedef.baslangic, bitis: hedef.bitis, plan };
+}
+
+/**
+ * Planlanacak aralık ve sınav. Sınav, planın kurulduğu haftanın ilk gününe
+ * göre seçilir (Faz H). Bugüne göre seçilseydi vizeden sonraki pazar akşamı
+ * (15 Kasım) ara sınav hâlâ "yaklaşan" sayılır, 16 Kasım haftası geçmiş
+ * vizeye göre kurulurdu.
+ */
+export function planAraligi(events: CalendarEvent[], simdi: Date) {
+  const ilk = hedefAralik(simdi, null);
+  const sinav = enYakinSinav(events, ilk.baslangic);
+  return { ...hedefAralik(simdi, sinav?.tarih ?? null), sinav };
+}
+
+/** Plan yeniden kurulmalı mı — iki küçük okumayla. */
+async function kurulmaNedeni(userId: string, hedef: ReturnType<typeof planAraligi>, bugun: string): Promise<YenidenKurNedeni | null> {
+  const [hafta, sonrasi, ilerleme] = await Promise.all([
+    supabase.from("ybs_haftalik_plan").select("id").eq("user_id", userId).eq("hafta", hedef.hafta).limit(1),
+    supabase.from("ybs_haftalik_plan").select("tarih,olusturma").eq("user_id", userId).gte("tarih", hedef.baslangic)
+      .order("tarih", { ascending: false }).limit(60),
+    supabase.from("ybs_unit_progress").select("updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1),
+  ]);
+  for (const r of [hafta, sonrasi]) if (r.error) throw new Error(r.error.message);
+  const satirlar = (sonrasi.data ?? []) as { tarih: string; olusturma: string }[];
+  const sonKurulum = satirlar.reduce<string | null>((m, s) => (!m || s.olusturma > m ? s.olusturma : m), null);
+  return yenidenKurulmali({
+    bugun,
+    sonDuzluk: hedef.sonDuzluk,
+    haftaVar: Boolean(hafta.data?.length),
+    sinavaUzaniyor: Boolean(hedef.sinav && satirlar.some((s) => String(s.tarih).slice(0, 10) >= hedef.sinav!.tarih)),
+    sonKurulum,
+    sonIlerleme: (ilerleme.data?.[0] as { updated_at?: string } | undefined)?.updated_at ?? null,
+    surumAni: PLAN_SURUM_ANI,
+  });
 }
 
 let calisiyor = false;
 
 /**
- * Hedef haftanın planı yoksa (ya da `zorla` verildiyse) kurar ve yazar.
+ * Gerekiyorsa (bkz. `yenidenKurulmali`) ya da `zorla` verildiyse planı kurar
+ * ve yazar.
  *
- * Geçmiş günlere dokunulmaz: hafta ortasında yeniden planlanınca yalnız
- * bugünden pazara kadar olan günler değişir, geride kalanlar kayıt olarak kalır.
+ * Geçmiş günlere dokunulmaz: yeniden planlanınca yalnız bugünden aralığın
+ * sonuna kadar olan günler değişir, geride kalanlar kayıt olarak kalır.
  */
 export async function planiKurVeYaz(
   userId: string,
   events: CalendarEvent[],
   { zorla = false, simdi = new Date() }: { zorla?: boolean; simdi?: Date } = {},
 ): Promise<PlanSonucu> {
-  const hedef = hedefHafta(simdi);
+  const hedef = planAraligi(events, simdi);
   if (calisiyor) return { durum: "guncel", hafta: hedef.hafta };
   calisiyor = true;
   try {
+    let neden: YenidenKurNedeni | "elle" = "elle";
     if (!zorla) {
-      const { data: var_, error } = await supabase
-        .from("ybs_haftalik_plan").select("id").eq("user_id", userId).eq("hafta", hedef.hafta).limit(1);
-      if (error) throw new Error(error.message);
-      if (var_?.length) return { durum: "guncel", hafta: hedef.hafta };
+      const n = await kurulmaNedeni(userId, hedef, format(simdi, "yyyy-MM-dd"));
+      if (!n) return { durum: "guncel", hafta: hedef.hafta };
+      neden = n;
     }
 
     const data = await fetchSchoolData(userId);
@@ -190,7 +245,7 @@ export async function planiKurVeYaz(
       .from("ybs_haftalik_plan").delete()
       .eq("user_id", userId).gte("tarih", hedef.baslangic).lte("tarih", hedef.bitis);
     if (silmeHatasi) throw new Error(silmeHatasi.message);
-    const satirlar = satirlariUret(userId, hedef.hafta, plan);
+    const satirlar = satirlariUret(userId, plan);
     const { error: yazmaHatasi } = await supabase.from("ybs_haftalik_plan").insert(satirlar);
     if (yazmaHatasi) throw new Error(yazmaHatasi.message);
 
@@ -232,7 +287,7 @@ export async function planiKurVeYaz(
     const { error: emekliHatasi } = await emekli;
     if (emekliHatasi) throw new Error(emekliHatasi.message);
 
-    return { durum: "kuruldu", hafta: hedef.hafta, plan };
+    return { durum: "kuruldu", hafta: hedef.hafta, plan, neden };
   } finally {
     calisiyor = false;
   }

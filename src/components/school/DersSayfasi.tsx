@@ -18,7 +18,7 @@ import { hedefHafta } from "@/lib/haftalik-plan";
 import { ADIMLAR, ilerlemeKatsayisi } from "@/lib/ilerleme";
 import type { StudyUnit } from "@/lib/study-plan";
 import { konuAdi } from "@/lib/gun-sayfasi";
-import { dersOzetleri, soruSayisi, sureYazi } from "@/lib/ders-paneli";
+import { dersOzetleri, soruSayisi } from "@/lib/ders-paneli";
 import { AltBaslik, Bos, Foy, useKonuCalisma, type Ortak } from "./KonuFoyu";
 import { KonuChecklist } from "./KonuChecklist";
 
@@ -100,11 +100,11 @@ function DersSayfasiIcerik({ kod }: { kod: string }) {
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4">
                 <Kutucuk baslik="Vize kapsamı" deger={`%${ozet.yuzde}`} alt={ozet.esikte ? "eşikte ✓" : `eşiğe ${soruSayisi(ozet.esige_kalan)}`} iyi={ozet.esikte} />
-                <Kutucuk baslik="Vizeye kalan iş" deger={ozet.kalan_dakika ? `~${sureYazi(ozet.kalan_dakika)}` : "yok"} alt={`${ozet.konular.vize.length} vize konusu`} />
+                <Kutucuk baslik="Vizeye kalan" deger={ozet.kalan_konu ? `${ozet.kalan_konu} konu` : "yok"} alt={`${ozet.konular.vize.length} vize konusu`} />
                 <Kutucuk
                   baslik="Bu hafta"
                   deger={ozet.buHafta.length ? `${ozet.buHafta.length} konu` : "planda yok"}
-                  alt={ozet.buHafta.length ? `${ozet.buHaftaBiten} tanesi bitti` : "plan pazar akşamı yeniden kurulur"}
+                  alt={ozet.buHafta.length ? `${ozet.buHaftaBiten} tanesi bitti` : "plan ilerlemene göre yeniden kurulur"}
                 />
                 <Kutucuk
                   baslik="Notun"
@@ -199,7 +199,7 @@ function KonuListesi({ baslik, aciklama, konular, buHafta, acik, setAcik, ortak,
                     {u.konu_no ? `Konu ${u.konu_no} — ` : ""}{konuAdi(u.baslik)}
                   </span>
                   <span className="block text-[11px] lg:text-[13px] mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-                    ~{u.tahmini_dakika} dk · {soruSayisi(u.soru_degeri)} değerinde
+                    {soruSayisi(u.soru_degeri)} değerinde
                     {u.zorluk ? <> · <ZorlukRozeti zorluk={u.zorluk} /></> : null}
                     {buHafta.includes(u.id) && <span style={{ color: "var(--tag-school-text)" }}> · bu haftanın planında</span>}
                   </span>

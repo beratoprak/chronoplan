@@ -23,22 +23,34 @@ export function ZorlukRozeti({ zorluk }: { zorluk?: number }) {
   );
 }
 
-/** Haftanın açıklaması: planla birlikte, 3-4 cümle. */
-export function AciklamaKarti({ aciklama, buyuk = false }: { aciklama?: HaftalikAciklama | null; buyuk?: boolean }) {
+/** Beynin notu: pazar mektubu, sabah notu ya da son düzlük mektubu. */
+export function AciklamaKarti({ aciklama, buyuk = false, baslik = "Bu haftanın mektubu" }: { aciklama?: HaftalikAciklama | null; buyuk?: boolean; baslik?: string }) {
   if (!aciklama?.metin) return null;
   return (
     <div className="rounded-2xl px-4 py-3 lg:px-6 lg:py-4 flex gap-3" style={{ background: "var(--tag-school-bg)" }}>
       <Sparkles size={buyuk ? 18 : 15} className="shrink-0 mt-0.5" style={{ color: "var(--tag-school-text)" }} />
       <div className="min-w-0">
         <p className={`${buyuk ? "text-[11px] lg:text-[13px]" : "text-[10px]"} font-semibold uppercase tracking-wide mb-1`} style={{ color: "var(--tag-school-text)" }}>
-          Bu haftanın planı neden böyle
+          {baslik}
         </p>
-        <p className={`${buyuk ? "text-[14px] lg:text-[17px]" : "text-[12px]"} leading-relaxed`} style={{ color: "var(--text-primary)" }}>{aciklama.metin}</p>
+        {aciklama.metin.split(/\n{2,}/).map((paragraf, i) => (
+          <p key={i} className={`${buyuk ? "text-[14px] lg:text-[17px]" : "text-[12px]"} leading-relaxed ${i ? "mt-2" : ""}`} style={{ color: "var(--text-primary)" }}>{paragraf}</p>
+        ))}
       </div>
     </div>
   );
 }
 
-/** Bir haftanın açıklaması (hafta: pazartesi tarihi). */
+const turu = (a: HaftalikAciklama) => (/:gun:/.test(a.id ?? "") ? "gun" : /:son:/.test(a.id ?? "") ? "son" : "hafta");
+
+/** Bir haftanın pazar mektubu (hafta: pazartesi tarihi). */
 export const haftaninAciklamasi = (liste: HaftalikAciklama[] | undefined, hafta: string | undefined | null) =>
-  (hafta && liste?.find((a) => String(a.hafta).slice(0, 10) === String(hafta).slice(0, 10))) || null;
+  (hafta && liste?.find((a) => turu(a) === "hafta" && String(a.hafta).slice(0, 10) === String(hafta).slice(0, 10))) || null;
+
+/** Bir günün sabah notu. */
+export const gununNotu = (liste: HaftalikAciklama[] | undefined, tarih: string) =>
+  liste?.find((a) => turu(a) === "gun" && String(a.hafta).slice(0, 10) === tarih) || null;
+
+/** Bir sınavın son düzlük mektubu. */
+export const sonDuzlukMektubu = (liste: HaftalikAciklama[] | undefined, sinavTarihi: string | undefined | null) =>
+  (sinavTarihi && liste?.find((a) => turu(a) === "son" && (a.id ?? "").endsWith(`:son:${sinavTarihi}`))) || null;

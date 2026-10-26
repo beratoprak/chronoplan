@@ -18,6 +18,8 @@ export interface DersOzeti {
   esikte: boolean;
   esige_kalan: number;
   kalan_dakika: number;
+  /** Sınav diliminde henüz bitmemiş konu sayısı (öğrenciye süre yerine bu gösterilir). */
+  kalan_konu: number;
   /** Dilimin kaçta kaçı karşılanıyor (0-100). */
   yuzde: number;
   /** Eşiğin çubuktaki yeri (0-100): toplam 20 soruysa 60. */
@@ -80,6 +82,7 @@ export function dersOzetleri(args: {
       esikte: d?.esikte ?? false,
       esige_kalan: d?.esige_kalan ?? ESIK_SORU,
       kalan_dakika: d?.kalan_dakika ?? 0,
+      kalan_konu: dersinKonulari.filter((u) => u.dilim === dilim && ilerlemeKatsayisi(ilerleme.get(u.id), adimHaritasi.get(u.id) ?? ADIMLAR) < 1).length,
       yuzde: toplam > 0 ? Math.round(((d?.kapsanan ?? 0) / toplam) * 100) : 0,
       esikYeri: toplam > 0 ? Math.min(100, Math.round((ESIK_SORU / toplam) * 100)) : 60,
       konular: {
