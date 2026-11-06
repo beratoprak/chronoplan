@@ -86,7 +86,8 @@ describe("haftalık planlayıcı — kurallar (v4)", () => {
   });
 
   it("sınavdan önceki son 4 gün yalnız tekrar, sınav günleri boş", () => {
-    const p = haftalikPlanKur(temel(dort, { baslangic: "2026-11-09", bitis: "2026-11-15" }));
+    // Tekrar günü sabit: kurtarma kapalı (12 konu bir güne sığmazdı; kurtarma ayrı denenir).
+    const p = haftalikPlanKur(temel(dort, { baslangic: "2026-11-09", bitis: "2026-11-15", tekrarGunu: 4 }));
     const turler = Object.fromEntries(p.gunler.map((g) => [g.tarih, g.tur]));
     expect(turler["2026-11-09"]).toBe("calisma");
     for (const t of ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"]) expect(turler[t]).toBe("tekrar");
@@ -135,6 +136,42 @@ describe("son düzlük (sınava ≤ 14 gün)", () => {
   });
 });
 
+describe("kurtarma (12 doğruya yetecek konular da sığmıyor)", () => {
+  // 9 ders × 5 uzun konu, 8 gün kala hiç başlanmamış.
+  const agir = Array.from({ length: 9 }, (_, i) => [1, 2, 3, 4, 5].map((n) => u(`D${i}-${n}`, `D${i}`, n, 120 + i * 20, 4))).flat();
+  const p = haftalikPlanKur(temel(agir, { baslangic: "2026-11-06", bitis: "2026-11-15" }));
+
+  it("kurtarma moduna girer ve söyler", () => {
+    expect(p.mod).toBe("kurtarma");
+    expect(p.hedef_soru).toBe(12);
+    expect(p.uyarilar.join(" ")).toMatch(/kurtarma planı/);
+  });
+
+  it("tekrar yalnız sınavdan önceki gün; öncesi çalışma", () => {
+    expect(p.gunler.map((g) => g.tur)).toEqual(["calisma", "calisma", "calisma", "calisma", "calisma", "calisma", "calisma", "tekrar", "sinav", "sinav"]);
+  });
+
+  it("en az işi kalan ders önce; her konu parçası kurtarma işaretli", () => {
+    expect(p.gunler[0].dersler[0].ders_kodu).toBe("D0");
+    const parcalar = p.gunler.filter((g) => g.tur === "calisma").flatMap((g) => g.dersler.flatMap((d) => d.parcalar));
+    expect(parcalar.length).toBeGreaterThan(0);
+    expect(parcalar.every((x) => x.kurtarma)).toBe(true);
+  });
+
+  it("çalışma günlerine sığmayan dersler tekrar gününe önce girer", () => {
+    const calisilan = new Set(p.gunler.filter((g) => g.tur === "calisma").flatMap((g) => g.dersler.map((d) => d.ders_kodu)));
+    const tekrar = p.gunler.find((g) => g.tur === "tekrar")!.dersler.map((d) => d.ders_kodu);
+    expect(calisilan.has("D8")).toBe(false);
+    expect(tekrar[0]).toBe("D8");
+  });
+
+  it("iş sığıyorsa kurtarma yok", () => {
+    const hafif = haftalikPlanKur(temel(agir.map((x) => ({ ...x, tahmini_dakika: 10 })), { baslangic: "2026-11-06", bitis: "2026-11-15" }));
+    expect(hafif.mod).toBe("son-duzluk");
+    expect(hafif.gunler.filter((g) => g.tur === "tekrar")).toHaveLength(4);
+  });
+});
+
 describe("haftalık planlayıcı — gerçek 9 ders", () => {
   const units = gercekBirimler as StudyUnit[];
 
@@ -165,7 +202,8 @@ describe("hedef hafta", () => {
 
 describe("sınav haftası ve oturumlar (Faz H)", () => {
   const sekiz = ["A", "B", "C", "D", "E", "F", "G", "H"].flatMap((d) => [u(`${d}1`, d, 1, 60)]);
-  const haftasi = (ek: Partial<PlanGirdisi> = {}) => haftalikPlanKur(temel(sekiz, { baslangic: "2026-11-09", bitis: "2026-11-15", ...ek }));
+  // Tekrar günü sabit: kurtarma modu kapalı (bu iş bir güne sığmazdı).
+  const haftasi = (ek: Partial<PlanGirdisi> = {}) => haftalikPlanKur(temel(sekiz, { baslangic: "2026-11-09", bitis: "2026-11-15", tekrarGunu: 4, ...ek }));
 
   it("son 4 gün tekrar, sınav günleri boş", () => {
     const p = haftasi();

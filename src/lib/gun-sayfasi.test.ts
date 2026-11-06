@@ -87,6 +87,20 @@ describe("konu föyü", () => {
     expect(f.adimlar.map((a) => a.bugun)).toEqual([false, false, false, true, true]);
   });
 
+  it("kurtarma: çıkmış sorular ilk adım, okumanın şart olmadığı söylenir", () => {
+    const f = konuFoyu({ moduller: BY_1, soruSayisi: 3, kazanimSayisi: 0, mevcut: ["oku", "izle", "soru", "hakim"], butce: 30, bitiyor: false, kurtarma: true });
+    expect(f.adimlar.map((a) => a.adim)).toEqual(["soru", "oku", null, "izle", "hakim"]);
+    expect(f.adimlar[0].metin).toMatch(/^Önce 3 çıkmış soruyu çöz/);
+    expect(f.adimlar[0].bugun).toBe(true);
+    expect(f.aciklama).toMatch(/^Kurtarma planı/);
+  });
+
+  it("kurtarma: sorusu olmayan konu değişmez", () => {
+    const f = konuFoyu({ moduller: BIT_1, soruSayisi: 0, kazanimSayisi: 3, mevcut: ["oku", "izle", "hakim"], butce: 30, bitiyor: false, kurtarma: true });
+    expect(f.adimlar.map((a) => a.adim)).toEqual(["oku", "izle", null, "hakim"]);
+    expect(f.aciklama).not.toMatch(/Kurtarma/);
+  });
+
   it("konuyu bitiren günde kalan her şey bugündür", () => {
     const f = konuFoyu({ moduller: BY_1, soruSayisi: 1, kazanimSayisi: 0, mevcut: ["oku", "izle", "soru", "hakim"], butce: 10, bitiyor: true });
     expect(f.adimlar.every((a) => a.bugun)).toBe(true);

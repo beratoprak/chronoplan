@@ -16,6 +16,9 @@
 //    güvenlik payıyla) taşıyacak konular seçilir, en verimliler önce; sığmayan
 //    konular bilerek bırakılır ve söylenir.
 // 7. Sınavdan önceki son `tekrarGunu` gün yeni konu yok, yalnız tekrar.
+// 8. Kurtarma (6 Kasım): son düzlükte 12 doğruya yetecek konular bile
+//    günlere sığmıyorsa tekrar yalnız sınavdan önceki gün, en az işi kalan
+//    ders önce bitirilir ve her konuya çıkmış sorulardan başlanır.
 //
 // Konular normalde dersin kendi sırasıyla gelir (konu_no). Son düzlükte
 // sıralı olmayan derslerde kısa (soru başına ucuz) konular öne alınır;
@@ -38,6 +41,8 @@ const TAVAN_DK = 150;
 const RAHAT_DK = 90;
 /** Son düzlükte güvenlik payı adayları: 16 sorudan geriye, en az 12. */
 const HEDEF_ADAYLARI = [16, 15, 14, 13, ESIK_SORU];
+/** Kurtarma modunda yalnız sınavdan önceki gün tekrar. */
+export const KURTARMA_TEKRAR_GUNU = 1;
 /** Günün ana dersinden en fazla bu kadar konu; kalan yer ikinci derse. */
 const GUNLUK_KONU = 2;
 
@@ -77,6 +82,8 @@ export interface PlanParcasi {
   devam: boolean;
   /** Bu parça konuyu bitiriyor. */
   bitiyor: boolean;
+  /** Kurtarma modu: konuya çıkmış sorulardan başlanır. */
+  kurtarma?: boolean;
 }
 
 export interface PlanDersi {
@@ -97,8 +104,8 @@ export interface PlanGunu {
 
 export interface HaftalikPlan {
   gunler: PlanGunu[];
-  /** "son-duzluk": sınava ≤ 14 gün, seçici plan. */
-  mod: "normal" | "son-duzluk";
+  /** "son-duzluk": sınava ≤ 14 gün, seçici plan. "kurtarma": seçilenler de sığmıyor. */
+  mod: "normal" | "son-duzluk" | "kurtarma";
   /** Son düzlükte her dersin taşınacağı soru sayısı; normalde null (hepsi). */
   hedef_soru: number | null;
   /** Son düzlükte bilerek bırakılan konular. */
@@ -252,14 +259,16 @@ function konuAl(ders: DersHali, butce: number, bolunebilir = true): PlanParcasi[
  * seçince dokuz dersin hepsi döner, büyük dersler daha sık gelir ve hepsi
  * sınava doğru birlikte ilerler. Dün çalışılan ders sona kalır.
  */
-function dersSirasi(dersler: DersHali[], dun: Set<string>, haric: Set<string>): DersHali[] {
+function dersSirasi(dersler: DersHali[], dun: Set<string>, haric: Set<string>, kurtarma = false): DersHali[] {
   const aday = dersler.filter((d) => d.toplamKalan > 0 && !haric.has(d.ders_kodu));
   const esikAltinda = (d: DersHali) => d.esikIhtiyaci > 0;
   const oran = (d: DersHali) => esikAltinda(d)
     ? 1 - d.esikIhtiyaci / Math.max(1, d.ilkEsik)
     : 1 - d.toplamKalan / Math.max(1, d.ilkToplam);
+  // Kurtarma: eşiğe en az işi kalan ders önce — hızlı dersler önce güvenceye alınır.
   const sirala = (liste: DersHali[]) => [...liste].sort((a, b) =>
     Number(esikAltinda(b)) - Number(esikAltinda(a))
+    || (kurtarma ? a.esikIhtiyaci - b.esikIhtiyaci : 0)
     || oran(a) - oran(b)
     || b.esikIhtiyaci - a.esikIhtiyaci
     || a.ders_kodu.localeCompare(b.ders_kodu));
@@ -268,7 +277,7 @@ function dersSirasi(dersler: DersHali[], dun: Set<string>, haric: Set<string>): 
   return [...taze, ...tekrar];
 }
 
-const dersSec = (dersler: DersHali[], dun: Set<string>, haric: Set<string>) => dersSirasi(dersler, dun, haric)[0] ?? null;
+const dersSec = (dersler: DersHali[], dun: Set<string>, haric: Set<string>, kurtarma = false) => dersSirasi(dersler, dun, haric, kurtarma)[0] ?? null;
 
 /**
  * Tekrar sırası: en az kapsanan dersler önce. Oturumlar biliniyorsa (Faz H)
@@ -313,7 +322,7 @@ function tekrarDersleri(units: StudyUnit[], ilerleme: Map<string, UnitProgress>,
 const sinirla = (dk: number) => Math.min(TAVAN_DK, Math.max(TABAN_DK, Math.round(dk)));
 
 export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
-  const tekrarGunu = g.tekrarGunu ?? 4;
+  let tekrarGunu = g.tekrarGunu ?? 4;
   const sinavGunSayisi = g.sinavGunSayisi ?? 2;
 
   const units = g.units.filter((u) => u.dilim === g.dilim);
@@ -324,10 +333,12 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
   const sonDuzluk = sinavaKalan <= SON_DUZLUK_GUNU;
 
   // Sınava kadarki çalışma günleri (tekrar günleri hariç) ve aralarındaki pazarlar.
-  const calismaGunleri: Date[] = [];
-  for (let d = ilk; differenceInCalendarDays(sinav, d) > tekrarGunu; d = addDays(d, 1)) calismaGunleri.push(d);
-  const pazarlar = calismaGunleri.filter((d) => d.getDay() === 0).length;
-  const W = calismaGunleri.length;
+  const calismaGunleri = (tekrar: number) => {
+    const l: Date[] = [];
+    for (let d = ilk; differenceInCalendarDays(sinav, d) > tekrar; d = addDays(d, 1)) l.push(d);
+    return l;
+  };
+  let W = calismaGunleri(tekrarGunu).length;
 
   // Hedef: normalde konuların tamamı; son düzlükte günlük yükün sığdığı en
   // yüksek güvenlik payı (16 → 14 → 12 soru).
@@ -336,6 +347,7 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
   const esikIcin = tam.dersler.reduce((n, d) => n + d.esikIhtiyaci, 0);
   let hedef: number | null = null;
   let secim = tam;
+  let kurtarma = false;
   if (sonDuzluk) {
     for (const aday of [null, ...HEDEF_ADAYLARI]) {
       const deneme = dersHalleri(units, g.ilerleme, { zorluk: g.zorluk, hedef: aday, secici: aday != null });
@@ -343,8 +355,15 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
       hedef = aday;
       secim = deneme;
       if (W === 0 || is / W <= TAVAN_DK * 0.8) break;
+      // 12 doğruya yetecek konular bile sığmıyor: kurtarma (tekrar günü dışarıdan sabitlenmediyse).
+      if (aday === ESIK_SORU && g.tekrarGunu == null) kurtarma = true;
     }
   }
+  if (kurtarma) {
+    tekrarGunu = KURTARMA_TEKRAR_GUNU;
+    W = calismaGunleri(tekrarGunu).length;
+  }
+  const pazarlar = calismaGunleri(tekrarGunu).filter((d) => d.getDay() === 0).length;
   const dersler = secim.dersler;
   const kalanIs = dersler.reduce((n, d) => n + d.toplamKalan, 0);
 
@@ -377,7 +396,12 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
     }
     if (sinavaGun <= tekrarGunu) {
       // Gün sırası sınava uzaklıktan: hafta ortasında yeniden planlansa da aynı gün aynı dersler.
-      gunler.push({ tarih, tur: "tekrar", dersler: tekrarDersleri(units, g.ilerleme, tekrarGunu - sinavaGun, tekrarAdedi, sinavTekrari) });
+      // Kurtarma: önce çalışma günlerine sığmayan dersler — onlara çıkmış sorulardan dokunulur.
+      const sigmayanDers = kurtarma
+        ? dersler.filter((d) => d.kuyruk.length).sort((a, b) => b.esikIhtiyaci - a.esikIhtiyaci).map((d) => d.ders_kodu)
+        : [];
+      const siralama = sigmayanDers.length ? [...sigmayanDers, ...sinavTekrari.filter((k) => !sigmayanDers.includes(k))] : sinavTekrari;
+      gunler.push({ tarih, tur: "tekrar", dersler: tekrarDersleri(units, g.ilerleme, tekrarGunu - sinavaGun, tekrarAdedi, siralama) });
       dun = new Set();
       continue;
     }
@@ -386,7 +410,7 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
       dun = new Set();
       continue;
     }
-    const ana = dersSec(dersler, dun, new Set());
+    const ana = dersSec(dersler, dun, new Set(), kurtarma);
     if (!ana) {
       // Seçilen konular bitti: kalan günler tekrar.
       gunler.push({ tarih, tur: "tekrar", dersler: tekrarDersleri(units, g.ilerleme, bitenTekrar++, 2) });
@@ -400,13 +424,14 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
     // sığan, sırası en önde olan ders. Yarım konu ikinci derse bölünmez.
     const kalan = butce - gunDersleri[0].dakika;
     if (kalan >= 20) {
-      for (const ikinci of dersSirasi(dersler, dun, new Set([ana.ders_kodu]))) {
+      for (const ikinci of dersSirasi(dersler, dun, new Set([ana.ders_kodu]), kurtarma)) {
         const p = konuAl(ikinci, kalan, false);
         if (!p.length) continue;
         gunDersleri.push({ ders_kodu: ikinci.ders_kodu, tur: "konu", dakika: p.reduce((n, x) => n + x.dakika, 0), parcalar: p });
         break;
       }
     }
+    if (kurtarma) for (const gd of gunDersleri) for (const p of gd.parcalar) p.kurtarma = true;
     gunler.push({ tarih, tur: "calisma", dersler: gunDersleri });
     dun = new Set(gunDersleri.map((s) => s.ders_kodu));
   }
@@ -414,10 +439,12 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
   const uyarilar: string[] = [];
   const kapasite = etkinGun * TAVAN_DK;
   const sigmayan = dersler.reduce((n, d) => n + d.kuyruk.length, 0);
-  if (sonDuzluk && sigmayan > 0 && differenceInCalendarDays(sinav, son) <= tekrarGunu) {
+  if (sonDuzluk && !kurtarma && sigmayan > 0 && differenceInCalendarDays(sinav, son) <= tekrarGunu) {
     uyarilar.push(`Seçtiğim konuların ${sigmayan} tanesi tekrar günlerinden önce sığmadı; birkaç gün biraz fazla çalışırsan yetişir.`);
   }
-  if (secim.birakilan.length) {
+  if (kurtarma) {
+    uyarilar.push("Kalan günlere geçmeye yetecek konuların hepsi bile sığmıyor: kurtarma planı kurdum. Hızlı dersler önce, her konuda önce çıkmış sorular; tekrar yalnız sınavdan önceki gün.");
+  } else if (secim.birakilan.length) {
     uyarilar.push(`Sınava kadar her konu sığmıyor: ${secim.birakilan.length} konuyu bilerek bıraktım, her dersi geçme çizgisine taşıyacak konular plana girdi.`);
   } else if (!sonDuzluk && tamamiIcin > kapasite) {
     uyarilar.push("Bu tempoyla bütün konular sığmayabilir. Sınava iki hafta kala, geçmeye yetecek konuları seçen son düzlük planı kurulacak.");
@@ -425,7 +452,7 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
 
   return {
     gunler,
-    mod: sonDuzluk ? "son-duzluk" : "normal",
+    mod: kurtarma ? "kurtarma" : sonDuzluk ? "son-duzluk" : "normal",
     hedef_soru: hedef,
     birakilan: secim.birakilan,
     bos_gun: bosGun,
@@ -476,9 +503,9 @@ export function haftaAnahtari(tarih: string): string {
 
 /**
  * Planlayıcının kuralları değişince (v4: 26 Ekim, saat ve "her gün 2 ders"
- * kalktı) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
+ * kalktı; 6 Kasım: kurtarma modu) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
  */
-export const PLAN_SURUM_ANI = "2026-10-26T14:00:00Z";
+export const PLAN_SURUM_ANI = "2026-11-06T17:30:00Z";
 
 export type YenidenKurNedeni = "yeni-hafta" | "son-duzluk" | "gunluk" | "geri-donus";
 

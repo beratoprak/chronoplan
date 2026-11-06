@@ -234,7 +234,7 @@ function KonuFoyuBolumu({ parca, ilk, ...o }: Ortak & { parca: PlanParcasi; ilk:
     <div className={ilk ? "mt-1" : "mt-5 pt-4"} style={ilk ? undefined : { borderTop: "0.5px solid var(--border-default)" }}>
       <KonuBasligi unitId={parca.unit_id} baslik={parca.baslik} {...o} />
       {(() => { const c = parcaCumlesi(parca); return c && <p className="text-[12px] lg:text-[14px] mt-1" style={{ color: "var(--text-tertiary)" }}>{c}</p>; })()}
-      <Foy unitId={parca.unit_id} butce={parca.dakika} bitiyor={parca.bitiyor} {...o} />
+      <Foy unitId={parca.unit_id} butce={parca.dakika} bitiyor={parca.bitiyor} kurtarma={parca.kurtarma} {...o} />
     </div>
   );
 }

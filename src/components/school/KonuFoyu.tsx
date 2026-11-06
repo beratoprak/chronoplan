@@ -258,15 +258,15 @@ export function KonuBasligi({ unitId, baslik, ...o }: Ortak & { unitId: string; 
 }
 
 /** Föyün gövdesi: öğreneceklerin → malzemen → nasıl çalışacaksın → konu notu. */
-export function Foy({ unitId, butce, bitiyor, ...o }: Ortak & { unitId: string; butce: number; bitiyor: boolean }) {
+export function Foy({ unitId, butce, bitiyor, kurtarma = false, ...o }: Ortak & { unitId: string; butce: number; bitiyor: boolean; kurtarma?: boolean }) {
   const moduller = useMemo(() => o.data.modules.filter((m) => m.unit_id === unitId), [o.data.modules, unitId]);
   const sorular = useMemo(() => o.data.questions.filter((q) => q.unit_id === unitId), [o.data.questions, unitId]);
   const kazanim = o.kazanimlar.get(unitId) ?? [];
   const kayit = o.ilerleme.get(unitId);
   const foy = useMemo(() => konuFoyu({
     moduller, soruSayisi: sorular.length, kazanimSayisi: kazanim.length,
-    mevcut: o.adimHaritasi.get(unitId) ?? ADIMLAR, kayit, butce, bitiyor,
-  }), [moduller, sorular.length, kazanim.length, o.adimHaritasi, unitId, kayit, butce, bitiyor]);
+    mevcut: o.adimHaritasi.get(unitId) ?? ADIMLAR, kayit, butce, bitiyor, kurtarma,
+  }), [moduller, sorular.length, kazanim.length, o.adimHaritasi, unitId, kayit, butce, bitiyor, kurtarma]);
   const dersKodu = o.unitById.get(unitId)?.ders_kodu ?? "";
   const ac = (m: FoyMalzemesi) => {
     if (m.oynatilir) o.onVideo(m, unitId);

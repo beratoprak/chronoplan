@@ -146,7 +146,7 @@ const tirnakla = (l: FoyMalzemesi[]) => l.map((m) => `"${m.ad}"`).join(", sonra 
  * sorusuz konuda Soru yok); `butce` bugün bu konuya ayrılan dakika, `bitiyor`
  * bugünün parçası konuyu bitiriyorsa — o zaman kalan her şey bugündür.
  */
-export function konuFoyu({ moduller, soruSayisi, kazanimSayisi, mevcut, kayit, butce, bitiyor }: {
+export function konuFoyu({ moduller, soruSayisi, kazanimSayisi, mevcut, kayit, butce, bitiyor, kurtarma = false }: {
   moduller: StudyModule[];
   soruSayisi: number;
   kazanimSayisi: number;
@@ -154,6 +154,8 @@ export function konuFoyu({ moduller, soruSayisi, kazanimSayisi, mevcut, kayit, b
   kayit?: { adimlar?: Partial<Record<Adim, string | null>> | null } | null;
   butce: number;
   bitiyor: boolean;
+  /** Kurtarma modu (6 Kasım): çıkmış sorular ilk adım. */
+  kurtarma?: boolean;
 }): KonuFoyu {
   const malzeme = foyMalzemesi(moduller);
   const tur = (t: MalzemeTuru) => malzeme.filter((m) => m.tur === t);
@@ -201,6 +203,13 @@ export function konuFoyu({ moduller, soruSayisi, kazanimSayisi, mevcut, kayit, b
       metin: `${kazanimaBak} kitaba bakmadan anlatabiliyorsan işaretle.` });
   }
 
+  // Kurtarma: önce çıkmış sorular; bilinmeyen yerler sonra kitaptan/videodan.
+  const soruAdimi = taslak.findIndex((a) => a.soru);
+  if (kurtarma && soruAdimi > 0) {
+    const [s] = taslak.splice(soruAdimi, 1);
+    taslak.unshift({ ...s, metin: `Önce ${s.metin.charAt(0).toLocaleLowerCase("tr")}${s.metin.slice(1)} Bilemediklerini aşağıdaki adımlarda ara.` });
+  }
+
   // İsteğe bağlı adım, kendinden sonraki bir adım işaretlendiyse geçilmiş sayılır.
   const yapildi = taslak.map((a, i) =>
     a.adim ? isaretli.has(a.adim) : taslak.slice(i + 1).some((s) => s.adim && isaretli.has(s.adim)));
@@ -231,6 +240,11 @@ export function konuFoyu({ moduller, soruSayisi, kazanimSayisi, mevcut, kayit, b
         + (!hedef.length && test.length ? " OYS'deki test anlayıp anlamadığını gösterir." : "");
     } else if (malzeme.length) aciklama = "Bu konunun okunacak metni (PDF) yok; aşağıdaki malzemeyle çalışılıyor.";
     else aciklama = "Bu konuya OYS'de henüz malzeme konmamış.";
+  }
+
+  if (kurtarma && soruAdimi >= 0) {
+    aciklama = "Kurtarma planı: konuyu baştan sona okuman şart değil. Önce çıkmış soruları çöz, bilemediğin sorunun cevabını kitapta ya da videoda bul."
+      + (aciklama ? ` ${aciklama}` : "");
   }
 
   const adimlar = taslak.map((a, i) => ({ ...a, yapildi: yapildi[i], bugun: bugun[i] }));
