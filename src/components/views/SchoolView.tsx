@@ -487,7 +487,7 @@ export function SchoolView() {
                         <div key={s.id}>
                           <p className="text-[12px] font-semibold leading-snug">
                             {dersAdi(s.ders_kodu)}
-                            {s.tur === "tekrar" && <span className="font-normal" style={{ color: "var(--text-tertiary)" }}> · tekrar</span>}
+                            {s.tur === "tekrar" && <span className="font-normal" style={{ color: "var(--text-tertiary)" }}>{s.parcalar.length > 0 && s.parcalar.every((p) => p.yalnizSoru) ? " · çıkmış sorular" : " · tekrar"}</span>}
                           </p>
                           {s.tur === "konu" && s.parcalar.map((p) => (
                             <span key={`${s.id}-${p.unit_id}`} className="block text-[11px] leading-snug" style={{ color: "var(--text-secondary)" }}>

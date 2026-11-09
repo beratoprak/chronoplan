@@ -151,24 +151,65 @@ describe("kurtarma (12 doğruya yetecek konular da sığmıyor)", () => {
     expect(p.gunler.map((g) => g.tur)).toEqual(["calisma", "calisma", "calisma", "calisma", "calisma", "calisma", "calisma", "tekrar", "sinav", "sinav"]);
   });
 
-  it("en az işi kalan ders önce; her konu parçası kurtarma işaretli", () => {
-    expect(p.gunler[0].dersler[0].ders_kodu).toBe("D0");
+  it("ana dersler dönüşümlü gelir (9 Kasım); her konu parçası kurtarma işaretli", () => {
+    const anaDersler = new Set(p.gunler.filter((g) => g.tur === "calisma").map((g) => g.dersler[0].ders_kodu));
+    expect(anaDersler.size).toBe(7);
     const parcalar = p.gunler.filter((g) => g.tur === "calisma").flatMap((g) => g.dersler.flatMap((d) => d.parcalar));
     expect(parcalar.length).toBeGreaterThan(0);
     expect(parcalar.every((x) => x.kurtarma)).toBe(true);
   });
 
   it("çalışma günlerine sığmayan dersler tekrar gününe önce girer", () => {
-    const calisilan = new Set(p.gunler.filter((g) => g.tur === "calisma").flatMap((g) => g.dersler.map((d) => d.ders_kodu)));
-    const tekrar = p.gunler.find((g) => g.tur === "tekrar")!.dersler.map((d) => d.ders_kodu);
-    expect(calisilan.has("D8")).toBe(false);
-    expect(tekrar[0]).toBe("D8");
+    const planlanan = new Set(p.gunler.filter((g) => g.tur === "calisma").flatMap((g) => g.dersler.flatMap((d) => d.parcalar.map((x) => x.unit_id))));
+    const ilk = p.gunler.find((g) => g.tur === "tekrar")!.dersler[0].ders_kodu;
+    expect([1, 2, 3, 4, 5].some((n) => !planlanan.has(`${ilk}-${n}`))).toBe(true);
   });
 
   it("iş sığıyorsa kurtarma yok", () => {
     const hafif = haftalikPlanKur(temel(agir.map((x) => ({ ...x, tahmini_dakika: 10 })), { baslangic: "2026-11-06", bitis: "2026-11-15" }));
     expect(hafif.mod).toBe("son-duzluk");
     expect(hafif.gunler.filter((g) => g.tur === "tekrar")).toHaveLength(4);
+  });
+});
+
+describe("kurtarma: ana dersler önce, yabancı dil yalnız soru (9 Kasım)", () => {
+  const k = (id: string, ders: string, no: number, dakika: number, katman: "cekirdek" | "kultur") => ({ ...u(id, ders, no, dakika, 4), katman });
+  const units: StudyUnit[] = [
+    ...["C1", "C2", "C3"].flatMap((d) => [1, 2, 3, 4, 5].map((n) => k(`${d}-${n}`, d, n, 150, "cekirdek"))),
+    ...["K1", "K2"].flatMap((d) => [1, 2, 3, 4, 5].map((n) => k(`${d}-${n}`, d, n, 20, "kultur"))),
+    ...[1, 2, 3, 4, 5].map((n) => k(`AYDİ111-${n}`, "AYDİ111", n, 60, "kultur")),
+  ];
+  const oturumlar = new Map([
+    ["K1", { tarih: "2026-11-14", oturum: 1 }], ["K2", { tarih: "2026-11-14", oturum: 1 }], ["AYDİ111", { tarih: "2026-11-14", oturum: 1 }],
+    ["C1", { tarih: "2026-11-15", oturum: 1 }], ["C2", { tarih: "2026-11-15", oturum: 1 }], ["C3", { tarih: "2026-11-15", oturum: 1 }],
+  ]);
+  const p = haftalikPlanKur(temel(units, { baslangic: "2026-11-09", bitis: "2026-11-15", oturumlar }));
+  const calisma = p.gunler.filter((g) => g.tur === "calisma");
+
+  it("günün ana dersi çekirdek; kısa dersten günde en fazla bir konu", () => {
+    expect(p.mod).toBe("kurtarma");
+    for (const g of calisma) {
+      expect(g.dersler[0].ders_kodu).toMatch(/^C/);
+      for (const d of g.dersler.filter((x) => x.ders_kodu.startsWith("K"))) expect(d.parcalar).toHaveLength(1);
+    }
+  });
+
+  it("yabancı dil konu almaz, her çalışma günü yalnız çıkmış soru satırı", () => {
+    for (const g of calisma) {
+      const dil = g.dersler.filter((d) => d.ders_kodu === "AYDİ111");
+      expect(dil).toHaveLength(1);
+      expect(dil[0].tur).toBe("tekrar");
+      expect(dil[0].parcalar.every((x) => x.yalnizSoru)).toBe(true);
+    }
+  });
+
+  it("sınavdan önceki gün o sabahın bütün dersleri; ilk sınav günü öğleden sonra ertesi günün dersleri", () => {
+    const gun = (t: string) => p.gunler.find((g) => g.tarih === t)!;
+    expect(gun("2026-11-13").tur).toBe("tekrar");
+    expect(gun("2026-11-13").dersler.map((d) => d.ders_kodu).sort()).toEqual(["AYDİ111", "K1", "K2"]);
+    expect(gun("2026-11-14").tur).toBe("sinav");
+    expect(gun("2026-11-14").dersler.map((d) => d.ders_kodu)).toEqual(["C1", "C2", "C3"]);
+    expect(gun("2026-11-15").dersler).toHaveLength(0);
   });
 });
 

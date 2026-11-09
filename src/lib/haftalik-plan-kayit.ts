@@ -68,6 +68,7 @@ export function etkinlikBasligi(gun: PlanGunu, dersler: SchoolCourse[]): string 
   }
   const parca = (d: PlanDersi) => {
     const ilk = d.parcalar[0];
+    if (ilk?.yalnizSoru) return `${kisaAd(d.ders_kodu, dersler)} · soru`;
     if (!ilk) return kisaAd(d.ders_kodu, dersler);
     const ek = d.parcalar.length > 1 ? ` +${d.parcalar.length - 1}` : ilk.devam ? " (devam)" : "";
     return `${kisaAd(d.ders_kodu, dersler)} · ${kisalt(ilk.baslik, d.parcalar.length > 1 || gun.dersler.length === 1 ? 40 : 34)}${ek}`;
@@ -85,8 +86,11 @@ export function parcaNotu(p: { devam: boolean; bitiyor: boolean }): string {
 export function etkinlikAciklamasi(gun: PlanGunu, dersler: SchoolCourse[]): string {
   const satirlar: string[] = [];
   for (const d of gun.dersler) {
-    satirlar.push(`${kisaAd(d.ders_kodu, dersler)}${d.tur === "tekrar" ? " — tekrar" : ""}`);
-    if (d.tur === "tekrar") {
+    const yalnizSoru = d.parcalar.length > 0 && d.parcalar.every((p) => p.yalnizSoru);
+    satirlar.push(`${kisaAd(d.ders_kodu, dersler)}${yalnizSoru ? " — çıkmış sorular" : d.tur === "tekrar" ? " — tekrar" : ""}`);
+    if (yalnizSoru) {
+      satirlar.push("  • Yalnız çıkmış sorular: çözmediklerin ve yanlışların.");
+    } else if (d.tur === "tekrar") {
       satirlar.push("  • Konuların özetine ve çıkmış sorulara dön, ezber kartlarını çevir.");
     } else {
       for (const p of d.parcalar) {

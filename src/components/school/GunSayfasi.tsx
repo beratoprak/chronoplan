@@ -79,6 +79,8 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
   const gunTuru = satirlar?.[0]?.gun_turu;
   const dersSatirlari = (satirlar ?? []).filter((s) => s.ders_kodu);
   const konuSayisi = dersSatirlari.reduce((t, s) => t + (s.tur === "konu" ? s.parcalar.length : 0), 0);
+  /** Yalnız çıkmış soru satırı (kurtarmada yabancı dil). */
+  const soruSatiri = (s: { parcalar: PlanParcasi[] }) => s.parcalar.length > 0 && s.parcalar.every((p) => p.yalnizSoru);
   const aralik = useMemo(() => planAraligi(events, new Date()), [events]);
   const bugunMu = tarih === format(new Date(), "yyyy-MM-dd");
   const [menu, setMenu] = useState(false);
@@ -157,11 +159,20 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
           {data && aralik.sonDuzluk && bugunMu && <AciklamaKarti buyuk baslik="Son düzlük planı" aciklama={sonDuzlukMektubu(data.aciklamalar, aralik.sinav?.tarih)} />}
           {data && !gununNotu(data.aciklamalar, tarih) && <AciklamaKarti buyuk aciklama={haftaninAciklamasi(data.aciklamalar, satirlar?.[0]?.hafta)} />}
 
+          {/* İlk sınav günü öğleden sonra ertesi günün tekrarı (kurtarma): önce sınav kartı. */}
+          {data && gunTuru === "sinav" && dersSatirlari.length > 0 && (
+            <div className="rounded-2xl p-4 text-[13px] lg:text-[15px] leading-relaxed" style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)", color: "var(--text-secondary)" }}>
+              <SinavGunu tarih={tarih} oturumlar={data.oturumlar ?? []} dersAdi={dersAdi} />
+            </div>
+          )}
+
           {/* Bugünün özeti: kaç ders, hangileri, ne kadar. Satıra basınca derse iner. */}
           {data && dersSatirlari.length > 0 && (
             <div>
               <p className="text-[18px] lg:text-[26px] font-semibold leading-tight">
-                {gunTuru === "tekrar" ? `Tekrar günü · ${dersSatirlari.length} ders` : `Bugün ${dersSatirlari.length === 1 ? "tek ders" : `${dersSatirlari.length} ders`} · ${konuSayisi} konu`}
+                {gunTuru === "sinav"
+                  ? `Öğleden sonra · yarının ${dersSatirlari.length} dersine tekrar`
+                  : gunTuru === "tekrar" ? `Tekrar günü · ${dersSatirlari.length} ders` : `Bugün ${dersSatirlari.length === 1 ? "tek ders" : `${dersSatirlari.length} ders`} · ${konuSayisi} konu`}
               </p>
               <ol className="mt-2 lg:mt-4 space-y-1 lg:space-y-2">
                 {dersSatirlari.map((satir, i) => {
@@ -175,7 +186,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                           <span className="font-medium">{dersAdi(satir.ders_kodu as string)}</span>
                           <span style={{ color: "var(--text-tertiary)" }}>
                             {satir.tur === "tekrar"
-                              ? " — tekrar"
+                              ? soruSatiri(satir) ? " — yalnız çıkmış sorular" : " — tekrar"
                               : ilk && ` — ${unit?.konu_no ? `${unit.konu_no}. konu: ` : ""}${konuAdi(ilk.baslik)}${satir.parcalar.length > 1 ? ` +${satir.parcalar.length - 1}` : ""}`}
                           </span>
                         </span>
@@ -198,10 +209,12 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                 style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)" }}
               >
                 <p className="text-[11px] lg:text-[13px]" style={{ color: "var(--text-tertiary)" }}>
-                  Ders {i + 1}{satir.tur === "tekrar" ? " · tekrar" : ` · ${satir.parcalar.length} konu`}
+                  Ders {i + 1}{satir.tur === "tekrar" ? soruSatiri(satir) ? " · yalnız çıkmış sorular" : " · tekrar" : ` · ${satir.parcalar.length} konu`}
                 </p>
                 <h2 className="text-[17px] lg:text-[24px] font-semibold leading-snug">{dersAdi(kod)}</h2>
-                {satir.tur === "tekrar"
+                {satir.tur === "tekrar" && soruSatiri(satir)
+                  ? <SoruBolumu dersKodu={kod} {...ortak} />
+                  : satir.tur === "tekrar"
                   ? <TekrarBolumu parcalar={satir.parcalar} dersKodu={kod} {...ortak} />
                   : satir.parcalar.map((p, j) => <KonuFoyuBolumu key={p.unit_id} parca={p} ilk={j === 0} {...ortak} />)}
               </section>
@@ -279,6 +292,22 @@ function TekrarBolumu({ parcalar, dersKodu, ...o }: Ortak & { parcalar: PlanParc
       {/* Faz H: sınav haftası — tekrar + çıkmış sorular + ezber kartları. */}
       <AltBaslik>{`${eksik.length ? "3" : "2"}. Ezber kartları`}</AltBaslik>
       <EzberTekrari dersKodu={dersKodu} zamanlama={o.data.flashcards} salt={o.salt} />
+    </>
+  );
+}
+
+/** Kurtarmada yabancı dil: konu yok, dersin çıkmış soruları (çözmediklerin ve yanlışların önce). */
+function SoruBolumu({ dersKodu, ...o }: Ortak & { dersKodu: string }) {
+  const sorular = useMemo(() => o.data.questions.filter((q) => q.ders_kodu === dersKodu), [o.data.questions, dersKodu]);
+  return (
+    <>
+      <p className="text-[12px] lg:text-[14px] mt-1" style={{ color: "var(--text-tertiary)" }}>
+        Bu dersten konu çalışmıyorsun: her gün yalnız çıkmış sorular. Yanlış yaptığının doğru cevabına bak, aynı soru tipini aklında tut.
+      </p>
+      <AltBaslik>Çıkmış sorular · çözmediklerin ve yanlışların</AltBaslik>
+      {sorular.length
+        ? <SoruAkisi sorular={sorular} denemeler={o.data.attempts} salt={o.salt} onSoru={o.onSoru} sirala={tekrarSorulari} />
+        : <Bos>Bu dersin çıkmış sorusu yok.</Bos>}
     </>
   );
 }
