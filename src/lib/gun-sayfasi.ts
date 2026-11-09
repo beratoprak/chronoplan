@@ -203,10 +203,13 @@ export function konuFoyu({ moduller, soruSayisi, kazanimSayisi, mevcut, kayit, b
       metin: `${kazanimaBak} kitaba bakmadan anlatabiliyorsan işaretle.` });
   }
 
-  // Kurtarma: önce çıkmış sorular; bilinmeyen yerler sonra kitaptan/videodan.
+  // Kurtarma: önce çıkmış sorular; çıkmış sorusu yoksa OYS'deki "Kendini dene"
+  // testi (BİT gibi). Bilinmeyen yerler sonra kitaptan/videodan.
   const soruAdimi = taslak.findIndex((a) => a.soru);
-  if (kurtarma && soruAdimi > 0) {
-    const [s] = taslak.splice(soruAdimi, 1);
+  const testAdimi = taslak.findIndex((a) => a.malzeme.some((m) => m.tur === "test"));
+  const oneAlinan = soruAdimi >= 0 ? soruAdimi : testAdimi;
+  if (kurtarma && oneAlinan > 0) {
+    const [s] = taslak.splice(oneAlinan, 1);
     taslak.unshift({ ...s, metin: `Önce ${s.metin.charAt(0).toLocaleLowerCase("tr")}${s.metin.slice(1)} Bilemediklerini aşağıdaki adımlarda ara.` });
   }
 
@@ -242,8 +245,8 @@ export function konuFoyu({ moduller, soruSayisi, kazanimSayisi, mevcut, kayit, b
     else aciklama = "Bu konuya OYS'de henüz malzeme konmamış.";
   }
 
-  if (kurtarma && soruAdimi >= 0) {
-    aciklama = "Kurtarma planı: konuyu baştan sona okuman şart değil. Önce çıkmış soruları çöz, bilemediğin sorunun cevabını kitapta ya da videoda bul."
+  if (kurtarma && oneAlinan >= 0) {
+    aciklama = `Kurtarma planı: konuyu baştan sona okuman şart değil. Önce ${soruAdimi >= 0 ? "çıkmış soruları" : "OYS'deki testi"} çöz, bilemediğin sorunun cevabını kitapta ya da videoda bul.`
       + (aciklama ? ` ${aciklama}` : "");
   }
 

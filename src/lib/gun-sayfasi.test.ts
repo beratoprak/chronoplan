@@ -95,9 +95,16 @@ describe("konu föyü", () => {
     expect(f.aciklama).toMatch(/^Kurtarma planı/);
   });
 
-  it("kurtarma: sorusu olmayan konu değişmez", () => {
+  it("kurtarma: çıkmış sorusu olmayan konuda OYS testi ilk adım (BİT)", () => {
     const f = konuFoyu({ moduller: BIT_1, soruSayisi: 0, kazanimSayisi: 3, mevcut: ["oku", "izle", "hakim"], butce: 30, bitiyor: false, kurtarma: true });
-    expect(f.adimlar.map((a) => a.adim)).toEqual(["oku", "izle", null, "hakim"]);
+    expect(f.adimlar.map((a) => a.adim)).toEqual([null, "oku", "izle", "hakim"]);
+    expect(f.adimlar[0].metin).toMatch(/^Önce kendini dene/);
+    expect(f.aciklama).toMatch(/OYS'deki testi/);
+  });
+
+  it("kurtarma: ne sorusu ne testi olan konu değişmez", () => {
+    const f = konuFoyu({ moduller: BIT_1.filter((x) => x.tip !== "quiz"), soruSayisi: 0, kazanimSayisi: 3, mevcut: ["oku", "izle", "hakim"], butce: 30, bitiyor: false, kurtarma: true });
+    expect(f.adimlar.map((a) => a.adim)).toEqual(["oku", "izle", "hakim"]);
     expect(f.aciklama).not.toMatch(/Kurtarma/);
   });
 

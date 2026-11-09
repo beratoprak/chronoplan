@@ -165,6 +165,12 @@ describe("kurtarma (12 doğruya yetecek konular da sığmıyor)", () => {
     expect([1, 2, 3, 4, 5].some((n) => !planlanan.has(`${ilk}-${n}`))).toBe(true);
   });
 
+  it("sınava 4 gün kala (tekrar günlerinden sonra) da kurtarma sürer", () => {
+    const gec = haftalikPlanKur(temel(agir, { baslangic: "2026-11-10", bitis: "2026-11-15" }));
+    expect(gec.mod).toBe("kurtarma");
+    expect(gec.gunler.map((g) => g.tur)).toEqual(["calisma", "calisma", "calisma", "tekrar", "sinav", "sinav"]);
+  });
+
   it("iş sığıyorsa kurtarma yok", () => {
     const hafif = haftalikPlanKur(temel(agir.map((x) => ({ ...x, tahmini_dakika: 10 })), { baslangic: "2026-11-06", bitis: "2026-11-15" }));
     expect(hafif.mod).toBe("son-duzluk");
@@ -194,19 +200,14 @@ describe("kurtarma: ana dersler önce, yabancı dil yalnız soru (9 Kasım)", ()
     }
   });
 
-  it("yabancı dil konu almaz, her çalışma günü yalnız çıkmış soru satırı", () => {
-    for (const g of calisma) {
-      const dil = g.dersler.filter((d) => d.ders_kodu === "AYDİ111");
-      expect(dil).toHaveLength(1);
-      expect(dil[0].tur).toBe("tekrar");
-      expect(dil[0].parcalar.every((x) => x.yalnizSoru)).toBe(true);
-    }
+  it("yabancı dil plana hiç girmez", () => {
+    expect(p.gunler.flatMap((g) => g.dersler.map((d) => d.ders_kodu))).not.toContain("AYDİ111");
   });
 
   it("sınavdan önceki gün o sabahın bütün dersleri; ilk sınav günü öğleden sonra ertesi günün dersleri", () => {
     const gun = (t: string) => p.gunler.find((g) => g.tarih === t)!;
     expect(gun("2026-11-13").tur).toBe("tekrar");
-    expect(gun("2026-11-13").dersler.map((d) => d.ders_kodu).sort()).toEqual(["AYDİ111", "K1", "K2"]);
+    expect(gun("2026-11-13").dersler.map((d) => d.ders_kodu).sort()).toEqual(["K1", "K2"]);
     expect(gun("2026-11-14").tur).toBe("sinav");
     expect(gun("2026-11-14").dersler.map((d) => d.ders_kodu)).toEqual(["C1", "C2", "C3"]);
     expect(gun("2026-11-15").dersler).toHaveLength(0);
