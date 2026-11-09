@@ -171,6 +171,15 @@ describe("kurtarma (12 doğruya yetecek konular da sığmıyor)", () => {
     expect(gec.gunler.map((g) => g.tur)).toEqual(["calisma", "calisma", "calisma", "tekrar", "sinav", "sinav"]);
   });
 
+  it("Matematik kurtarmada yalnız ana ders olur, bir günde üç konuya kadar", () => {
+    const mat = [1, 2, 3, 4].map((n) => u(`AAUF1105-${n}`, "AAUF1105", n, 60, 5));
+    const m = haftalikPlanKur(temel([...agir.filter((x) => ["D0", "D1", "D2"].includes(x.ders_kodu)), ...mat], { baslangic: "2026-11-09", bitis: "2026-11-15" }));
+    const gunleri = m.gunler.filter((g) => g.dersler.some((d) => d.ders_kodu === "AAUF1105"));
+    expect(gunleri.length).toBeGreaterThan(0);
+    for (const g of gunleri) expect(g.dersler[0].ders_kodu).toBe("AAUF1105");
+    expect(gunleri[0].dersler[0].parcalar.map((x) => x.unit_id)).toEqual(["AAUF1105-1", "AAUF1105-2", "AAUF1105-3"]);
+  });
+
   it("iş sığıyorsa kurtarma yok", () => {
     const hafif = haftalikPlanKur(temel(agir.map((x) => ({ ...x, tahmini_dakika: 10 })), { baslangic: "2026-11-06", bitis: "2026-11-15" }));
     expect(hafif.mod).toBe("son-duzluk");

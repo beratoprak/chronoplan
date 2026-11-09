@@ -465,7 +465,8 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
     // bir konu. Kısa dersler de dönüşümlü gelir; uzun konusu (BİT) bölünebilir.
     const kisalar = dersler.filter((x) => !cekirdek.has(x.ders_kodu));
     const gruplar: [DersHali[], boolean][] = kurtarma
-      ? [[dersSirasi(anaAdaylari, dun, new Set([ana.ders_kodu])), false], [dersSirasi(kisalar, dun, new Set()), true]]
+      // Zincirli ders ikinci sırada tek konuyla bölünmesin: yalnız ana ders olarak gelir.
+      ? [[dersSirasi(anaAdaylari.filter((x) => !ZINCIRLI_DERSLER.has(x.ders_kodu)), dun, new Set([ana.ders_kodu])), false], [dersSirasi(kisalar, dun, new Set()), true]]
       : [[dersSirasi(dersler, dun, new Set([ana.ders_kodu])), false]];
     for (const [grup, kisa] of gruplar) {
       // Kurtarma: kısa dersin parçası gün dolu olsa da gelir (her gün bir kısa ders).
