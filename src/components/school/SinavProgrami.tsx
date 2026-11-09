@@ -16,22 +16,8 @@ import { tr } from "date-fns/locale";
 import { CalendarCheck, FileUp, Loader2, Pencil } from "lucide-react";
 import { sinavProgramiKaydet, type SchoolCourse, type SinavOturumu } from "@/lib/school-data";
 import { girisBelgesiCoz, oturumGruplari } from "@/lib/sinav-programi";
-import { pdfPolyfill } from "@/lib/pdf-polyfill";
+import { pdfMetni } from "@/lib/pdf-metni";
 
-/** PDF'in düz metni, cihazda (pdf.js; işçi PdfReader'ınkiyle aynı). */
-async function pdfMetni(dosya: File): Promise<string> {
-  pdfPolyfill();
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker-${pdfjs.version}.min.mjs`;
-  const belge = await pdfjs.getDocument({ data: new Uint8Array(await dosya.arrayBuffer()) }).promise;
-  let metin = "";
-  for (let i = 1; i <= belge.numPages; i++) {
-    const icerik = await (await belge.getPage(i)).getTextContent();
-    metin += icerik.items.map((x) => ("str" in x ? x.str : "") + ("hasEOL" in x && x.hasEOL ? "\n" : " ")).join("") + "\n";
-  }
-  await belge.destroy();
-  return metin;
-}
 
 const OTURUMLAR = [1, 2, 3, 4];
 
@@ -88,8 +74,9 @@ export function SinavProgrami({ sinav, dersler, oturumlar, userId, onKaydedildi 
       setBilgi(`Belgeden ${uygun.length} ders okundu. Bir bak, doğruysa Kaydet'e bas.`
         + (eksik.length ? ` Belgede bulunmayan: ${eksik.join(", ")}.` : "")
         + (bilinmeyen.length ? ` Ders listende olmayan kodlar atlandı: ${bilinmeyen.join(", ")}.` : ""));
-    } catch {
-      setHata("PDF okunamadı. Dosya bozuk olabilir; elle doldurabilirsin.");
+    } catch (e) {
+      // Ayrıntı küçük yazıyla: bir dahaki hatada nedeni ekran görüntüsünden okunabilsin.
+      setHata(`PDF okunamadı; elle doldurabilirsin. (${e instanceof Error ? e.message : String(e)})`);
     } finally {
       setMesgul(false);
       if (dosyaGirdisi.current) dosyaGirdisi.current.value = "";
