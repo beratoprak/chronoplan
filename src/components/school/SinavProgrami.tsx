@@ -5,13 +5,33 @@
 // Sınav giriş belgesi çıkınca bütün dersler tek yerde girilir: hangi gün,
 // kaçıncı oturum. Girildikten sonra aynı yerde gün ve oturuma göre toplu
 // görünür; planlayıcı da tekrar günlerini buna göre dizer.
+//
+// Giriş belgesi (9 Kasım): PDF seçilince metni cihazda pdf.js ile okunur,
+// form doldurulur, kullanıcı bakıp Kaydet'e basar. Dosya hiçbir yere
+// gönderilmez, saklanmaz (belgede T.C. kimlik no var).
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { addDays, format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { CalendarCheck, Loader2, Pencil } from "lucide-react";
+import { CalendarCheck, FileUp, Loader2, Pencil } from "lucide-react";
 import { sinavProgramiKaydet, type SchoolCourse, type SinavOturumu } from "@/lib/school-data";
-import { oturumGruplari } from "@/lib/sinav-programi";
+import { girisBelgesiCoz, oturumGruplari } from "@/lib/sinav-programi";
+import { pdfPolyfill } from "@/lib/pdf-polyfill";
+
+/** PDF'in düz metni, cihazda (pdf.js; işçi PdfReader'ınkiyle aynı). */
+async function pdfMetni(dosya: File): Promise<string> {
+  pdfPolyfill();
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker-${pdfjs.version}.min.mjs`;
+  const belge = await pdfjs.getDocument({ data: new Uint8Array(await dosya.arrayBuffer()) }).promise;
+  let metin = "";
+  for (let i = 1; i <= belge.numPages; i++) {
+    const icerik = await (await belge.getPage(i)).getTextContent();
+    metin += icerik.items.map((x) => ("str" in x ? x.str : "") + ("hasEOL" in x && x.hasEOL ? "\n" : " ")).join("") + "\n";
+  }
+  await belge.destroy();
+  return metin;
+}
 
 const OTURUMLAR = [1, 2, 3, 4];
 
@@ -28,6 +48,8 @@ export function SinavProgrami({ sinav, dersler, oturumlar, userId, onKaydedildi 
   const [taslak, setTaslak] = useState<Record<string, { tarih: string; oturum: number | "" }>>({});
   const [mesgul, setMesgul] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
+  const [bilgi, setBilgi] = useState<string | null>(null);
+  const dosyaGirdisi = useRef<HTMLInputElement>(null);
   const ad = (kod: string) => dersler.find((d) => d.kod === kod)?.ad ?? kod;
   const gunAdi = (tarih: string) => format(parseISO(tarih), "d MMMM EEEE", { locale: tr });
   const sinavAdi = sinav.dilim === "final" ? "Final" : "Ara sınav";
@@ -38,8 +60,50 @@ export function SinavProgrami({ sinav, dersler, oturumlar, userId, onKaydedildi 
       return [d.kod, { tarih: o?.tarih ?? gunler[0], oturum: o?.oturum ?? "" }];
     })));
     setHata(null);
+    setBilgi(null);
     setDuzenle(true);
   };
+
+  const belgeYukle = async (dosya: File | undefined) => {
+    if (!dosya) return;
+    setMesgul(true);
+    setHata(null);
+    setBilgi(null);
+    try {
+      const { satirlar, bilinmeyen } = girisBelgesiCoz(await pdfMetni(dosya), dersler.map((d) => d.kod));
+      const uygun = satirlar.filter((x) => gunler.includes(x.tarih));
+      if (!uygun.length) {
+        setHata(satirlar.length
+          ? `Belgedeki tarihler (${Array.from(new Set(satirlar.map((x) => gunAdi(x.tarih)))).join(", ")}) bu sınavın günleriyle uyuşmuyor. Doğru belgeyi seçtiğinden emin ol.`
+          : "Bu PDF'te sınav oturumu bulamadım. OBS'den indirdiğin sınava giriş belgesini seç.");
+        return;
+      }
+      const yeni = Object.fromEntries(dersler.map((d) => {
+        const o = uygun.find((x) => x.ders_kodu === d.kod) ?? bu.find((x) => x.ders_kodu === d.kod);
+        return [d.kod, { tarih: o?.tarih ?? gunler[0], oturum: o?.oturum ?? "" }];
+      })) as typeof taslak;
+      setTaslak(yeni);
+      setDuzenle(true);
+      const eksik = dersler.filter((d) => !uygun.some((x) => x.ders_kodu === d.kod)).map((d) => d.ad);
+      setBilgi(`Belgeden ${uygun.length} ders okundu. Bir bak, doğruysa Kaydet'e bas.`
+        + (eksik.length ? ` Belgede bulunmayan: ${eksik.join(", ")}.` : "")
+        + (bilinmeyen.length ? ` Ders listende olmayan kodlar atlandı: ${bilinmeyen.join(", ")}.` : ""));
+    } catch {
+      setHata("PDF okunamadı. Dosya bozuk olabilir; elle doldurabilirsin.");
+    } finally {
+      setMesgul(false);
+      if (dosyaGirdisi.current) dosyaGirdisi.current.value = "";
+    }
+  };
+
+  const belgeDugmesi = userId && (
+    <>
+      <input ref={dosyaGirdisi} type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => void belgeYukle(e.target.files?.[0])} />
+      <button onClick={() => dosyaGirdisi.current?.click()} disabled={mesgul} className="cp-btn cp-btn-ghost min-h-11 text-[12px] disabled:opacity-50">
+        {mesgul ? <Loader2 size={13} className="animate-spin" /> : <FileUp size={13} />}Giriş belgesini yükle (PDF)
+      </button>
+    </>
+  );
 
   const kaydet = async () => {
     if (!userId) return;
@@ -75,10 +139,14 @@ export function SinavProgrami({ sinav, dersler, oturumlar, userId, onKaydedildi 
       </div>
 
       {!duzenle && !bu.length && (
-        <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-          Sınav giriş belgen çıkınca derslerin gününü ve oturumunu buraya topluca gir. Plan son günlerin
-          tekrarını buna göre dizer; sınav günü hangi oturumda ne olduğunu burada ve gün sayfasında görürsün.
-        </p>
+        <>
+          <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
+            Sınav giriş belgen çıkınca derslerin gününü ve oturumunu buraya gir: OBS'den indirdiğin PDF'i
+            yükle, ya da "Gir"e basıp elle doldur. Plan son günlerin tekrarını buna göre dizer.
+          </p>
+          <div className="mt-2">{belgeDugmesi}</div>
+          {hata && <p className="text-[11px] mt-2" role="alert" style={{ color: "var(--priority-high-text)" }}>{hata}</p>}
+        </>
       )}
 
       {!duzenle && bu.length > 0 && (
@@ -106,6 +174,8 @@ export function SinavProgrami({ sinav, dersler, oturumlar, userId, onKaydedildi 
 
       {duzenle && (
         <div>
+          <div className="mb-2">{belgeDugmesi}</div>
+          {bilgi && <p className="text-[11px] mb-2 leading-relaxed" role="status" style={{ color: "var(--text-secondary)" }}>{bilgi}</p>}
           <ul className="space-y-1.5">
             {dersler.map((d) => {
               const v = taslak[d.kod] ?? { tarih: gunler[0], oturum: "" as const };
