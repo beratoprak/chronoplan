@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eksikKonular, konuAdi, konuFoyu, soruSirasi, tekrarSorulari } from "./gun-sayfasi";
+import { eksikKonular, gununSorulari, konuAdi, konuFoyu, soruSirasi, tekrarSorulari } from "./gun-sayfasi";
 import type { QuestionAttempt, StudyModule, StudyQuestion } from "./school-data";
 import type { UnitProgress } from "./study-plan";
 
@@ -126,5 +126,13 @@ describe("konu föyü", () => {
   it("konu adındaki numara ayıklanır", () => {
     expect(konuAdi("1-Temel Kavramlar")).toBe("Temel Kavramlar");
     expect(konuAdi("Bilgi ve İletişim Teknolojileri Giriş")).toBe("Bilgi ve İletişim Teknolojileri Giriş");
+  });
+});
+
+describe("günün matematik soruları", () => {
+  it("yalnız o günün tarihli soruları, sırayla", () => {
+    const l = [soru("ybs:mq:2026-11-11:2:limit-hesap", 2), soru("ybs:mq:2026-11-10:1:kumeler", 1), soru("ybs:mq:2026-11-11:1:sureksizlik", 1), soru("ybs:q:9:1", 1)];
+    expect(gununSorulari(l, "2026-11-11").map((q) => q.soru_no)).toEqual([1, 2]);
+    expect(gununSorulari(l, "2026-11-12")).toEqual([]);
   });
 });

@@ -193,9 +193,11 @@ describe("kurtarma: ana dersler önce, yabancı dil yalnız soru (9 Kasım)", ()
     ...["C1", "C2", "C3"].flatMap((d) => [1, 2, 3, 4, 5].map((n) => k(`${d}-${n}`, d, n, 150, "cekirdek"))),
     ...["K1", "K2"].flatMap((d) => [1, 2, 3, 4, 5].map((n) => k(`${d}-${n}`, d, n, 20, "kultur"))),
     ...[1, 2, 3, 4, 5].map((n) => k(`AYDİ111-${n}`, "AYDİ111", n, 60, "kultur")),
+    ...["ATDİ107", "AATA107"].flatMap((d) => [1, 2, 3].map((n) => k(`${d}-${n}`, d, n, 30, "kultur"))),
   ];
   const oturumlar = new Map([
     ["K1", { tarih: "2026-11-14", oturum: 1 }], ["K2", { tarih: "2026-11-14", oturum: 1 }], ["AYDİ111", { tarih: "2026-11-14", oturum: 1 }],
+    ["ATDİ107", { tarih: "2026-11-14", oturum: 1 }], ["AATA107", { tarih: "2026-11-14", oturum: 1 }],
     ["C1", { tarih: "2026-11-15", oturum: 1 }], ["C2", { tarih: "2026-11-15", oturum: 1 }], ["C3", { tarih: "2026-11-15", oturum: 1 }],
   ]);
   const p = haftalikPlanKur(temel(units, { baslangic: "2026-11-09", bitis: "2026-11-15", oturumlar }));
@@ -213,10 +215,18 @@ describe("kurtarma: ana dersler önce, yabancı dil yalnız soru (9 Kasım)", ()
     expect(p.gunler.flatMap((g) => g.dersler.map((d) => d.ders_kodu))).not.toContain("AYDİ111");
   });
 
+  it("İnkılap ve Türk Dili konu günü almaz, yalnız sınavdan önceki tekrarda gelir (10 Kasım)", () => {
+    const konuDersleri = calisma.flatMap((g) => g.dersler.map((d) => d.ders_kodu));
+    expect(konuDersleri).not.toContain("ATDİ107");
+    expect(konuDersleri).not.toContain("AATA107");
+    const onceki = p.gunler.find((g) => g.tarih === "2026-11-13")!.dersler.map((d) => d.ders_kodu);
+    expect(onceki).toEqual(expect.arrayContaining(["ATDİ107", "AATA107"]));
+  });
+
   it("sınavdan önceki gün o sabahın bütün dersleri; ilk sınav günü öğleden sonra ertesi günün dersleri", () => {
     const gun = (t: string) => p.gunler.find((g) => g.tarih === t)!;
     expect(gun("2026-11-13").tur).toBe("tekrar");
-    expect(gun("2026-11-13").dersler.map((d) => d.ders_kodu).sort()).toEqual(["K1", "K2"]);
+    expect(gun("2026-11-13").dersler.map((d) => d.ders_kodu).sort()).toEqual(["AATA107", "ATDİ107", "K1", "K2"]);
     expect(gun("2026-11-14").tur).toBe("sinav");
     expect(gun("2026-11-14").dersler.map((d) => d.ders_kodu)).toEqual(["C1", "C2", "C3"]);
     expect(gun("2026-11-15").dersler).toHaveLength(0);

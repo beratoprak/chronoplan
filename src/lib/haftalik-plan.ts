@@ -25,6 +25,9 @@
 //    iyi"; zaten sistemde çıkmış sorusu yok).
 //    Oturumlar biliniyorsa sınavdan önceki gün o günün bütün dersleri tekrar
 //    edilir, ilk sınav gününün öğleden sonrası ertesi günün dersleri.
+// 10. Son düzlükte İnkılap ve Türk Dili'ne konu günü yok (10 Kasım, Berat:
+//    "genel kültür altyapım var, ana derslerime önem ver"): yalnız sınavdan
+//    önceki günün tekrarında, çıkmış soruları ve testleriyle gelirler.
 //
 // Konular normalde dersin kendi sırasıyla gelir (konu_no). Son düzlükte
 // sıralı olmayan derslerde kısa (soru başına ucuz) konular öne alınır;
@@ -55,6 +58,8 @@ export const KURTARMA_TEKRAR_GUNU = 1;
 export const kurtarmadaDisarida = (kod: string) => kod.startsWith("AYDİ");
 /** Kurtarmada kısa derse günde en az bu kadar yer (konu uzunsa bölünür). */
 const KISA_DERS_DK = 45;
+/** Son düzlükte konu günü almayan, yalnız sınav öncesi tekrarda gelen dersler. */
+export const sonDuzluktaHafif = (kod: string) => kod.startsWith("ATDİ") || kod.startsWith("AATA");
 /** Günün ana dersinden en fazla bu kadar konu; kalan yer ikinci derse. */
 const GUNLUK_KONU = 2;
 
@@ -376,8 +381,10 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
     W = calismaGunleri(tekrarGunu).length;
   }
   const pazarlar = calismaGunleri(tekrarGunu).filter((d) => d.getDay() === 0).length;
-  // Kurtarma: yabancı dil plana girmez.
-  const dersler = kurtarma ? secim.dersler.filter((d) => !kurtarmadaDisarida(d.ders_kodu)) : secim.dersler;
+  // Kurtarma: yabancı dil plana girmez. Son düzlük: İnkılap ve Türk Dili konu günü almaz.
+  const dersler = secim.dersler
+    .filter((d) => !(kurtarma && kurtarmadaDisarida(d.ders_kodu)))
+    .filter((d) => !(sonDuzluk && sonDuzluktaHafif(d.ders_kodu)));
   const cekirdek = new Set(units.filter((u) => u.katman === "cekirdek").map((u) => u.ders_kodu));
   /** Ders listesi tekrar satırı olarak. */
   const tekrarSatirlari = (kodlar: string[]) => tekrarDersleri(units, g.ilerleme, 0, kodlar.length, kodlar);
@@ -552,9 +559,9 @@ export function haftaAnahtari(tarih: string): string {
 
 /**
  * Planlayıcının kuralları değişince (v4: 26 Ekim, saat ve "her gün 2 ders"
- * kalktı; 6 Kasım: kurtarma modu; 9 Kasım: ana dersler önce) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
+ * kalktı; 6 Kasım: kurtarma modu; 9 Kasım: ana dersler önce; 10 Kasım: İnkılap ve Türk Dili yalnız tekrarda) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
  */
-export const PLAN_SURUM_ANI = "2026-11-09T13:39:00Z";
+export const PLAN_SURUM_ANI = "2026-11-10T09:00:00Z";
 
 export type YenidenKurNedeni = "yeni-hafta" | "son-duzluk" | "gunluk" | "geri-donus";
 

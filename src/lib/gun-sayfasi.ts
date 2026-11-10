@@ -23,6 +23,15 @@ export function soruDurumlari(denemeler: QuestionAttempt[]): Map<string, SoruDur
 }
 
 /**
+ * Günün matematik soruları (10 Kasım): beyin her gece o günün tarihiyle yazar
+ * (kimlik ybs:mq:<tarih>:<sıra>:<konu>). Yazıldığı sırayla gösterilir.
+ */
+export function gununSorulari(sorular: StudyQuestion[], tarih: string): StudyQuestion[] {
+  const onek = `ybs:mq:${tarih}:`;
+  return sorular.filter((q) => q.id.startsWith(onek)).sort((a, b) => a.soru_no - b.soru_no);
+}
+
+/**
  * Soruların gösterilme sırası: önce hiç çözmediklerin, sonra yanlış
  * yaptıkların, en son doğru bildiklerin. Grup içinde kitaptaki sıra.
  */

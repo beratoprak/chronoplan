@@ -21,7 +21,7 @@ import { useAppStore } from "@/lib/store";
 import { buildSchoolDemoData } from "@/lib/school-data";
 import { gununPlani, planAraligi, planEtkinlikId, planiHesapla, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import type { PlanParcasi } from "@/lib/haftalik-plan";
-import { eksikKonular, konuAdi, tekrarSorulari } from "@/lib/gun-sayfasi";
+import { eksikKonular, gununSorulari, konuAdi, tekrarSorulari } from "@/lib/gun-sayfasi";
 import { AltBaslik, Bos, Foy, KonuBasligi, SoruAkisi, useKonuCalisma, type Ortak } from "./KonuFoyu";
 
 /** Ekranı açan kabuk: tarih yoksa hiçbir şey çizmez, veri yüklemez. */
@@ -81,6 +81,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
   const konuSayisi = dersSatirlari.reduce((t, s) => t + (s.tur === "konu" ? s.parcalar.length : 0), 0);
   const aralik = useMemo(() => planAraligi(events, new Date()), [events]);
   const bugunMu = tarih === format(new Date(), "yyyy-MM-dd");
+  const matSorulari = useMemo(() => gununSorulari(data?.questions ?? [], tarih), [data?.questions, tarih]);
   const [menu, setMenu] = useState(false);
   const git = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -192,6 +193,14 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                     </li>
                   );
                 })}
+                {matSorulari.length > 0 && (
+                  <li>
+                    <button onClick={() => git("gunun-sorulari")} className="w-full min-h-11 flex items-baseline gap-2 text-left text-[13px] lg:text-[15px] rounded-lg px-2 -mx-2 hover:bg-[var(--surface-sunken)]">
+                      <span className="font-semibold" style={{ color: "var(--tag-school-text)" }}>+</span>
+                      <span className="flex-1 min-w-0 font-medium">Günün matematik soruları ({matSorulari.length})</span>
+                    </button>
+                  </li>
+                )}
               </ol>
             </div>
           )}
@@ -216,6 +225,22 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
               </section>
             );
           })}
+
+          {/* Günün matematik soruları: beyin her gece yanlış yaptığın konulardan yazar (10 Kasım). */}
+          {data && matSorulari.length > 0 && (
+            <section
+              id="gunun-sorulari"
+              className="rounded-2xl p-4 sm:p-5 lg:p-10 scroll-mt-3"
+              style={{ background: "var(--surface-raised)", border: "0.5px solid var(--border-default)" }}
+            >
+              <p className="text-[11px] lg:text-[13px]" style={{ color: "var(--text-tertiary)" }}>{dersAdi("AAUF1105")} · {matSorulari.length} soru</p>
+              <h2 className="text-[17px] lg:text-[24px] font-semibold leading-snug">Günün matematik soruları</h2>
+              <p className="text-[12px] lg:text-[14px] mt-1 mb-3" style={{ color: "var(--text-tertiary)" }}>
+                Cevapların kaydediliyor. Bu gece beyin, yanlış yaptığın konulardan yarının sorularını yazacak.
+              </p>
+              <SoruAkisi sorular={matSorulari} denemeler={data.attempts} salt={salt} onSoru={(k.ortak("AAUF1105") as Ortak).onSoru} sirala={(x) => x} />
+            </section>
+          )}
 
           {/* Tekrar günlerinde ve son düzlükte taktikler föyün altında. */}
           {data && (gunTuru === "tekrar" || aralik.sonDuzluk) && <SinavTaktikleri buyuk acik={gunTuru === "tekrar"} />}
