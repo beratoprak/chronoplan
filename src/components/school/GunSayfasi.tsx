@@ -19,7 +19,10 @@ import { tr } from "date-fns/locale";
 import { ArrowLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, RefreshCw } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { buildSchoolDemoData } from "@/lib/school-data";
-import { gununPlani, planAraligi, planEtkinlikId, planiHesapla, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { araliktakiPlan, gununPlani, planAraligi, planEtkinlikId, planiHesapla, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
+import { konuBitti, konuSirasi, planTarihleri } from "@/lib/ders-paneli";
+import { ADIMLAR } from "@/lib/ilerleme";
+import { ESIK_SORU } from "@/lib/study-plan";
 import type { PlanParcasi } from "@/lib/haftalik-plan";
 import { eksikKonular, gununSorulari, konuAdi, tekrarSorulari } from "@/lib/gun-sayfasi";
 import { AltBaslik, Bos, Foy, KonuBasligi, SoruAkisi, useKonuCalisma, type Ortak } from "./KonuFoyu";
@@ -37,6 +40,8 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
   const k = useKonuCalisma(kapat);
   const { data, hata, setHata, salt, dersAdi, unitById } = k;
   const [satirlar, setSatirlar] = useState<PlanSatiri[] | null>(null);
+  /** Bugünden plan sonuna kadarki satırlar: hangi konu ileride planda, hangisi hiç yok. */
+  const [ileriPlan, setIleriPlan] = useState<PlanSatiri[]>([]);
 
   const yukle = useCallback(async () => {
     setHata(null);
@@ -52,8 +57,13 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
       return;
     }
     try {
-      const [, plan] = await Promise.all([k.yukle(), gununPlani(user.id, tarih)]);
+      const bitis = planAraligi(events, new Date()).bitis;
+      const [, plan, ileri] = await Promise.all([
+        k.yukle(), gununPlani(user.id, tarih),
+        bitis >= tarih ? araliktakiPlan(user.id, tarih, bitis).catch(() => []) : Promise.resolve([]),
+      ]);
       setSatirlar(plan);
+      setIleriPlan(ileri);
     } catch (e) {
       setHata(e instanceof Error ? e.message : "Veri alınamadı");
     }
@@ -222,6 +232,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                 {satir.tur === "tekrar"
                   ? <TekrarBolumu parcalar={satir.parcalar} dersKodu={kod} {...ortak} />
                   : satir.parcalar.map((p, j) => <KonuFoyuBolumu key={p.unit_id} parca={p} ilk={j === 0} {...ortak} />)}
+                {satir.tur !== "tekrar" && <EsikUstuBolumu dersKodu={kod} parcalar={satir.parcalar} ileriPlan={ileriPlan} tarih={tarih} {...ortak} />}
               </section>
             );
           })}
@@ -314,6 +325,68 @@ function TekrarBolumu({ parcalar, dersKodu, ...o }: Ortak & { parcalar: PlanParc
       <AltBaslik>{`${eksik.length ? "3" : "2"}. Ezber kartları`}</AltBaslik>
       <EzberTekrari dersKodu={dersKodu} zamanlama={o.data.flashcards} salt={o.salt} />
     </>
+  );
+}
+
+/**
+ * Eşiği aşmak için (11 Kasım, Berat: "eşiği aşabilirsem kaç konu var, ayrıca
+ * göstersin"): plan 12 doğruya yetecek konuları alıyor; burada dersin sınav
+ * dilimindeki, bitmemiş ve hiçbir plan gününde olmayan konuları, föyleriyle.
+ */
+function EsikUstuBolumu({ dersKodu, parcalar, ileriPlan, tarih, ...o }: Ortak & { dersKodu: string; parcalar: PlanParcasi[]; ileriPlan: PlanSatiri[]; tarih: string }) {
+  const [acik, setAcik] = useState<string | null>(null);
+  const [liste, setListe] = useState(false);
+  const konular = useMemo(() => {
+    const dilim = o.unitById.get(parcalar[0]?.unit_id ?? "")?.dilim ?? "vize";
+    const planli = planTarihleri(ileriPlan, tarih);
+    const bugun = new Set(parcalar.map((p) => p.unit_id));
+    const kapsam = o.data.units.filter((u) => u.tip === "konu" && u.ders_kodu === dersKodu && u.dilim === dilim);
+    const bitti = (id: string) => konuBitti(o.ilerleme.get(id), o.adimHaritasi.get(id) ?? ADIMLAR);
+    // Bitenler + plandakiler (bugün dahil) 12 doğruya yetiyor mu: başlık buna göre.
+    const planla = kapsam.filter((u) => bitti(u.id) || bugun.has(u.id) || planli.has(u.id)).reduce((n, u) => n + u.soru_degeri, 0);
+    return {
+      yetiyor: planla >= ESIK_SORU - 0.01,
+      liste: kapsam.filter((u) => !bugun.has(u.id) && !planli.has(u.id) && !bitti(u.id)).sort(konuSirasi),
+    };
+  }, [o.data.units, o.unitById, o.ilerleme, o.adimHaritasi, parcalar, ileriPlan, tarih, dersKodu]);
+  if (!konular.liste.length) return null;
+  return (
+    <div className="mt-5 pt-4" style={{ borderTop: "0.5px dashed var(--border-default)" }}>
+      <button onClick={() => setListe(!liste)} aria-expanded={liste} className="w-full min-h-11 flex items-center gap-2 text-left">
+        <ChevronRight size={14} className="shrink-0 transition-transform" style={{ transform: liste ? "rotate(90deg)" : undefined }} />
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13px] lg:text-[16px] font-semibold">
+            {konular.yetiyor ? "Eşiği aşmak istersen" : "Planda olmayan konular"} · {konular.liste.length} konu
+          </span>
+          <span className="block text-[11px] lg:text-[13px]" style={{ color: "var(--text-tertiary)" }}>
+            {konular.yetiyor
+              ? "Plandaki konular bu dersten 12 doğruya yetiyor. Bunlar planda olmayan, henüz çalışmadığın konular: vaktin kalırsa güvenlik payı."
+              : "Kalan günlere bu dersten bu kadar konu sığdı; 12 doğruya yetmesi için bunlardan da çalışman gerekebilir. Vaktin olursa önce bunlara bak."}
+          </span>
+        </span>
+      </button>
+      {liste && (
+        <ul className="space-y-2 mt-2">
+          {konular.liste.map((u) => (
+            <li key={u.id} className="rounded-2xl" style={{ background: "var(--surface-sunken)" }}>
+              <button
+                onClick={() => setAcik(acik === u.id ? null : u.id)}
+                aria-expanded={acik === u.id}
+                className="w-full min-h-11 flex items-center gap-2 px-3 py-2 text-left"
+              >
+                <ChevronRight size={14} className="shrink-0 transition-transform" style={{ transform: acik === u.id ? "rotate(90deg)" : undefined }} />
+                <span className="flex-1 min-w-0"><KonuBasligi unitId={u.id} baslik={u.baslik} {...o} /></span>
+              </button>
+              {acik === u.id && (
+                <div className="px-3 pb-3">
+                  <Foy unitId={u.id} butce={0} bitiyor {...o} />
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

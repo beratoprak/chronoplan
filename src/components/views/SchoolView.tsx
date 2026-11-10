@@ -19,7 +19,8 @@ import { ezberKartlari, isaretliKazanimlar } from "@/lib/note-blocks";
 import { useNotBloklari } from "@/lib/useNotBloklari";
 import { araliktakiPlan, enYakinSinav, haftaninPlani, parcaNotu, PLAN_KAYNAGI, planAraligi, planiHesapla, planiKurVeYaz, type PlanSatiri } from "@/lib/haftalik-plan-kayit";
 import { hedefHafta } from "@/lib/haftalik-plan";
-import { dersOzetleri, soruSayisi } from "@/lib/ders-paneli";
+import { dersOzetleri, durumTablosu, planTarihleri, soruSayisi } from "@/lib/ders-paneli";
+import { DurumGrafigi } from "@/components/school/DurumGrafigi";
 import { ADIMLAR, ilerlemeKatsayisi, mevcutAdimHaritasi } from "@/lib/ilerleme";
 import { degerlendir, yeniKart, zamaniGelenler, type Deger, type KartDurumu } from "@/lib/spaced-repetition";
 import type { CalendarEvent, Task } from "@/types";
@@ -293,6 +294,12 @@ export function SchoolView() {
     units: data.units, ilerleme: progressMap, adimHaritasi, haftaSatirlari, dilim: aktifSinav?.dilim ?? "vize",
   }), [activeCourses, data.units, progressMap, adimHaritasi, haftaSatirlari, aktifSinav?.dilim]);
 
+  /** Sınav dilimindeki bütün konuların durumu: grafik için (11 Kasım). */
+  const durumlar = useMemo(() => durumTablosu({
+    kodlar: dersOzet.map((d) => d.kod), units: data.units, ilerleme: progressMap, adimHaritasi,
+    planTarihleri: planTarihleri(haftaSatirlari, format(new Date(), "yyyy-MM-dd")), dilim: aktifSinav?.dilim ?? "vize",
+  }), [dersOzet, data.units, progressMap, adimHaritasi, haftaSatirlari, aktifSinav?.dilim]);
+
   // Kartın metni notta, zamanlaması tabloda. Sıra ikisinin birleşiminden çıkıyor;
   // zamanlama kaydı olmayan kart yeni sayılıp hemen sıraya giriyor.
   const [kartCevrildi, setKartCevrildi] = useState(false);
@@ -518,6 +525,8 @@ export function SchoolView() {
               onKaydedildi={() => { void load(); void yenidenPlanla(); }}
             />
           )}
+
+          <DurumGrafigi durumlar={durumlar} dersAdi={(kod) => dersAdi(kod)} dilimAdi={dilimAdi} onDers={openDersSayfasi} />
 
           <section className="cp-card p-4 sm:p-5">
             <SectionTitle

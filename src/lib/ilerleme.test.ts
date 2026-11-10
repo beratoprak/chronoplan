@@ -14,8 +14,10 @@ describe("ilerleme modeli (motorla ortak vakalar)", () => {
     });
   }
 
-  it("hakimim olmadan tavan aşılmaz", () => {
-    expect(ilerlemeKatsayisi({ adimlar: { oku: "x", izle: "x", soru: "x" } })).toBe(ADIM_TAVANI);
+  it("Oku ya da İzle konuyu bitirir; yalnız Soru tavanda kalır (11 Kasım)", () => {
+    expect(ilerlemeKatsayisi({ adimlar: { oku: "x" } })).toBe(1);
+    expect(ilerlemeKatsayisi({ adimlar: { izle: "x" } })).toBe(1);
+    expect(ilerlemeKatsayisi({ adimlar: { soru: "x" } })).toBeLessThanOrEqual(ADIM_TAVANI);
   });
 
   it("videosu olmayan konuda İzle adımı düşer", () => {

@@ -29,10 +29,10 @@ describe("ders durumları", () => {
     expect(d.kalan_dakika).toBe(0);
   });
 
-  it("yalnız çalışıldı durumu eşiği tek başına geçirmez", () => {
+  it("çalışıldı (okudu/izledi) konuyu tam sayar (11 Kasım)", () => {
     const units = [u("a", "X", "vize", 10, 60), u("b", "X", "vize", 10, 60)];
     const [d] = dersDurumlari(units, ilerlemeden({ a: "calisildi" }));
-    expect(d.kapsanan).toBe(7);
+    expect(d.kapsanan).toBe(10);
     expect(d.esikte).toBe(false);
   });
 });

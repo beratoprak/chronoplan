@@ -7,8 +7,9 @@
 // farklı rakam söyler.
 //
 // MODEL
-// "Hakimim" işaretliyse konu tamamdır. Değilse Oku · İzle · Soru adımları
-// konuyu en fazla %75'e taşır: geri kalanı ancak "biliyorum" demek kapatır.
+// Hakimim, Oku ya da İzle işaretliyse konu tamamdır (11 Kasım, Berat: "okudum
+// ya da izledim demişsem o konuyu öğrenmişim say"). Yalnız Soru işaretliyse
+// konu en fazla %75'e kadar sayılır.
 // Konunun videosu ya da çıkmış sorusu yoksa o adım düşer, kalanlar oranlanır.
 
 export type Adim = "oku" | "izle" | "soru" | "hakim";
@@ -30,8 +31,8 @@ export const ADIM_AGIRLIGI: Record<Exclude<Adim, "hakim">, number> = { oku: 35, 
 /** Adımlar gelmeden önceki tek-durumlu model; eski kayıtlar bununla okunur. */
 export const DURUM_KATSAYISI: Record<IlerlemeDurumu, number> = {
   dokunulmadi: 0,
-  calisildi: 0.7,
-  test_edildi: 0.85,
+  calisildi: 1,
+  test_edildi: 1,
   hakim: 1,
 };
 
@@ -56,7 +57,8 @@ export function ilerlemeKatsayisi(kayit: IlerlemeKaydi | undefined | null, mevcu
   if (!kayit) return 0;
   const isaretli = isaretliAdimlar(kayit, mevcut);
   if (isaretli.length === 0) return DURUM_KATSAYISI[kayit.durum as IlerlemeDurumu] ?? 0;
-  if (isaretli.includes("hakim")) return 1;
+  // 11 Kasım (Berat): Oku ya da İzle işaretliyse konu öğrenilmiş sayılır; Hakimim şart değil.
+  if (isaretli.some((a) => a === "hakim" || a === "oku" || a === "izle")) return 1;
   const toplam = mevcut.filter((a) => a !== "hakim").reduce((n, a) => n + ADIM_AGIRLIGI[a as Exclude<Adim, "hakim">], 0);
   if (toplam === 0) return 0;
   const yapilan = isaretli.reduce((n, a) => n + (a === "hakim" ? 0 : ADIM_AGIRLIGI[a]), 0);

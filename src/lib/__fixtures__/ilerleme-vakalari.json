@@ -24,7 +24,7 @@
         "soru",
         "hakim"
       ],
-      "katsayi": 0.7,
+      "katsayi": 1,
       "durum": null
     },
     {
@@ -54,7 +54,7 @@
         "soru",
         "hakim"
       ],
-      "katsayi": 0.35,
+      "katsayi": 1,
       "durum": "calisildi"
     },
     {
@@ -71,7 +71,7 @@
         "soru",
         "hakim"
       ],
-      "katsayi": 0.6,
+      "katsayi": 1,
       "durum": "calisildi"
     },
     {
@@ -89,7 +89,7 @@
         "soru",
         "hakim"
       ],
-      "katsayi": 0.75,
+      "katsayi": 1,
       "durum": "test_edildi"
     },
     {
@@ -121,7 +121,7 @@
         "soru",
         "hakim"
       ],
-      "katsayi": 0.75,
+      "katsayi": 1,
       "durum": "test_edildi"
     },
     {
@@ -135,7 +135,7 @@
         "oku",
         "hakim"
       ],
-      "katsayi": 0.75,
+      "katsayi": 1,
       "durum": "calisildi"
     },
     {
@@ -167,7 +167,7 @@
         "soru",
         "hakim"
       ],
-      "katsayi": 0.7,
+      "katsayi": 1,
       "durum": "dokunulmadi"
     }
   ]

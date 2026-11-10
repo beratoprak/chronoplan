@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dersOzetleri, konuBitti, soruSayisi, sureYazi } from "./ders-paneli";
+import { dersOzetleri, durumTablosu, konuBitti, planTarihleri, soruSayisi, sureYazi } from "./ders-paneli";
 import type { PlanSatiri } from "./haftalik-plan-kayit";
 import type { StudyUnit, UnitProgress } from "./study-plan";
 
@@ -16,7 +16,8 @@ const satir = (ders_kodu: string, unitIds: string[]): PlanSatiri => ({
 describe("konu bitti mi", () => {
   it("çalışma adımlarının hepsi ya da Hakimim", () => {
     const mevcut = ["oku", "izle", "hakim"] as const;
-    expect(konuBitti(kayit("a", { oku: "x" }), [...mevcut])).toBe(false);
+    expect(konuBitti(kayit("a", { oku: "x" }), [...mevcut])).toBe(true);
+    expect(konuBitti({ unit_id: "a", durum: "dokunulmadi", gercek_dakika: 0, adimlar: {} }, [...mevcut])).toBe(false);
     expect(konuBitti(kayit("a", { oku: "x", izle: "x" }), [...mevcut])).toBe(true);
     expect(konuBitti(kayit("a", { hakim: "x" }), [...mevcut])).toBe(true);
     expect(konuBitti(undefined)).toBe(false);
@@ -53,8 +54,8 @@ describe("ders özetleri", () => {
     const mat = ozet.find((o) => o.kod === "MAT")!;
     expect(mat.konular.vize.map((u) => u.id)).toEqual(["m1", "m2", "m3", "m4", "m5"]);
     expect(mat.konular.final.map((u) => u.id)).toEqual(["m6"]);
-    // m1'in üç çalışma adımı işaretli: %75 → 3 soru.
-    expect(mat.kapsanan).toBe(3);
+    // m1 okundu: konu öğrenilmiş sayılır (11 Kasım) → 4 soru.
+    expect(mat.kapsanan).toBe(4);
   });
 
   it("bu hafta planlanan konular ve biteni", () => {
@@ -70,5 +71,35 @@ describe("yazı biçimleri", () => {
     expect(soruSayisi(4)).toBe("4 soru");
     expect(sureYazi(45)).toBe("45 dk");
     expect(sureYazi(354)).toBe("5,9 sa");
+  });
+});
+
+describe("durum tablosu (11 Kasım)", () => {
+  const units = [
+    ...[1, 2, 3, 4, 5].map((n) => konu(`m${n}`, "MAT", n, "vize")),
+    konu("m6", "MAT", 6, "final"),
+  ];
+  const ilerleme = new Map<string, UnitProgress>([
+    ["m1", kayit("m1", { hakim: "x" })],
+    ["m4", kayit("m4", { soru: "x" })],
+  ]);
+  const adimHaritasi = new Map(units.map((u) => [u.id, ["oku", "izle", "soru", "hakim"] as ("oku" | "izle" | "soru" | "hakim")[]]));
+  const satirlar = [{ ...satir("MAT", ["m2"]), tarih: "2026-11-12" }, { ...satir("MAT", ["m3"]), tarih: "2026-11-10" }];
+  const [d] = durumTablosu({ kodlar: ["MAT"], units, ilerleme, adimHaritasi, planTarihleri: planTarihleri(satirlar, "2026-11-11"), dilim: "vize" });
+
+  it("her konu tek halde; geçmiş günün planı sayılmaz; final konusu yok", () => {
+    expect(d.konular.map((k) => [k.id, k.hal])).toEqual([
+      ["m1", "bitti"], ["m2", "planda"], ["m4", "basladin"], ["m3", "dokunulmadi"], ["m5", "dokunulmadi"],
+    ]);
+    expect(d.sayac).toEqual({ bitti: 1, planda: 1, basladin: 1, dokunulmadi: 2 });
+    expect(d.konular.find((k) => k.id === "m2")?.planTarihi).toBe("2026-11-12");
+  });
+
+  it("eşik çizgisi ve plan bitince eşikte olur mu", () => {
+    expect(d.toplam).toBe(20);
+    expect(d.esikYeri).toBe(60);
+    expect(d.planlaEsikte).toBe(false); // bitti + planda = 8 soru
+    const tam = durumTablosu({ kodlar: ["MAT"], units, ilerleme, adimHaritasi, planTarihleri: new Map([["m2", "2026-11-12"], ["m3", "2026-11-12"]]), dilim: "vize" })[0];
+    expect(tam.planlaEsikte).toBe(true); // 12 soru
   });
 });

@@ -105,3 +105,94 @@ export function soruSayisi(n: number): string {
 export function sureYazi(dakika: number): string {
   return dakika < 60 ? `${Math.round(dakika)} dk` : `${(dakika / 60).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} sa`;
 }
+
+// ── Durum tablosu (11 Kasım) ─────────────────────────────────────
+//
+// Berat: "hangi konulara çalışmadığımı bilmek benim hakkım". Plan kurtarmada
+// yalnız 12 doğruya yetecek konuları alıyor; bu tablo sınav dilimindeki her
+// konuyu gösterir: bitti, plana alındı, başladın ama planda yok, hiç
+// dokunulmadı. Vize ya da final, hangisi sıradaysa.
+
+export type KonuHali = "bitti" | "planda" | "basladin" | "dokunulmadi";
+export const KONU_HALI_SIRASI: KonuHali[] = ["bitti", "planda", "basladin", "dokunulmadi"];
+
+export interface DurumKonusu {
+  id: string;
+  baslik: string;
+  konu_no: number | null;
+  /** Konunun sınavda getirdiği tahmini soru. */
+  soru: number;
+  hal: KonuHali;
+  /** Plana alındıysa ilk geldiği gün. */
+  planTarihi?: string;
+}
+
+export interface DersDurumu {
+  kod: string;
+  toplam: number;
+  kapsanan: number;
+  esikte: boolean;
+  esige_kalan: number;
+  /** Eşiğin çubuktaki yeri (0-100). */
+  esikYeri: number;
+  /** Bitti + planda konular eşiği karşılıyor mu (plan bitince eşikte olur musun). */
+  planlaEsikte: boolean;
+  konular: DurumKonusu[];
+  sayac: Record<KonuHali, number>;
+}
+
+/**
+ * Derslerin sınav dilimindeki konu konu durumu. `planTarihleri`: bugünden
+ * sonraki plan satırlarındaki konu → ilk tarih. Konular hal sırasıyla
+ * (önce bitenler), aynı halde kitap sırasıyla.
+ */
+export function durumTablosu(args: {
+  kodlar: string[];
+  units: StudyUnit[];
+  ilerleme: Map<string, UnitProgress>;
+  adimHaritasi: Map<string, Adim[]>;
+  planTarihleri: Map<string, string>;
+  dilim: "vize" | "final";
+}): DersDurumu[] {
+  const { kodlar, units, adimHaritasi, planTarihleri, dilim } = args;
+  const ilerleme = new Map<string, UnitProgress>();
+  for (const [id, k] of Array.from(args.ilerleme.entries())) ilerleme.set(id, { ...k, mevcut: adimHaritasi.get(id) ?? ADIMLAR });
+  const kapsam = units.filter((u) => u.tip === "konu" && u.dilim === dilim);
+  const durum = new Map(dersDurumlari(kapsam, ilerleme).map((d) => [d.ders_kodu, d]));
+
+  return kodlar.filter((kod) => kapsam.some((u) => u.ders_kodu === kod)).map((kod) => {
+    const konular = kapsam.filter((u) => u.ders_kodu === kod).map((u): DurumKonusu => {
+      const kayit = ilerleme.get(u.id);
+      const mevcut = adimHaritasi.get(u.id) ?? ADIMLAR;
+      const hal: KonuHali = konuBitti(kayit, mevcut) ? "bitti"
+        : planTarihleri.has(u.id) ? "planda"
+        : ilerlemeKatsayisi(kayit, mevcut) > 0 ? "basladin"
+        : "dokunulmadi";
+      return { id: u.id, baslik: u.baslik, konu_no: u.konu_no, soru: u.soru_degeri, hal, planTarihi: planTarihleri.get(u.id) };
+    }).sort((a, b) => KONU_HALI_SIRASI.indexOf(a.hal) - KONU_HALI_SIRASI.indexOf(b.hal) || (a.konu_no ?? 999) - (b.konu_no ?? 999));
+    const d = durum.get(kod);
+    const toplam = d?.toplam ?? 0;
+    const sayac = { bitti: 0, planda: 0, basladin: 0, dokunulmadi: 0 } as Record<KonuHali, number>;
+    for (const k of konular) sayac[k.hal]++;
+    const planla = konular.filter((k) => k.hal === "bitti" || k.hal === "planda").reduce((n, k) => n + k.soru, 0);
+    return {
+      kod, toplam,
+      kapsanan: d?.kapsanan ?? 0,
+      esikte: d?.esikte ?? false,
+      esige_kalan: d?.esige_kalan ?? ESIK_SORU,
+      esikYeri: toplam > 0 ? Math.min(100, Math.round((ESIK_SORU / toplam) * 100)) : 60,
+      planlaEsikte: planla >= ESIK_SORU - 0.01,
+      konular, sayac,
+    };
+  });
+}
+
+/** Bugünden sonraki plan satırlarından konu → ilk planlandığı gün. */
+export function planTarihleri(satirlar: PlanSatiri[], bugun: string): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const s of [...satirlar].sort((a, b) => a.tarih.localeCompare(b.tarih))) {
+    if (s.tur !== "konu" || s.tarih < bugun) continue;
+    for (const p of s.parcalar) if (!m.has(p.unit_id)) m.set(p.unit_id, s.tarih);
+  }
+  return m;
+}

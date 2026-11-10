@@ -559,9 +559,9 @@ export function haftaAnahtari(tarih: string): string {
 
 /**
  * Planlayıcının kuralları değişince (v4: 26 Ekim, saat ve "her gün 2 ders"
- * kalktı; 6 Kasım: kurtarma modu; 9 Kasım: ana dersler önce; 10 Kasım: İnkılap ve Türk Dili yalnız tekrarda) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
+ * kalktı; 6 Kasım: kurtarma modu; 9 Kasım: ana dersler önce; 10 Kasım: İnkılap ve Türk Dili yalnız tekrarda; 11 Kasım: Oku ya da İzle konuyu bitirir) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
  */
-export const PLAN_SURUM_ANI = "2026-11-10T09:00:00Z";
+export const PLAN_SURUM_ANI = "2026-11-11T15:00:00Z";
 
 export type YenidenKurNedeni = "yeni-hafta" | "son-duzluk" | "gunluk" | "geri-donus";
 
