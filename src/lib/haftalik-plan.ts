@@ -28,6 +28,11 @@
 // 10. Son düzlükte İnkılap ve Türk Dili'ne konu günü yok (10 Kasım, Berat:
 //    "genel kültür altyapım var, ana derslerime önem ver"): yalnız sınavdan
 //    önceki günün tekrarında, çıkmış soruları ve testleriyle gelirler.
+// 11. Kurtarmada eşik için seçilip günlere sığmayan ana ders konuları
+//    bırakılmaz (11 Kasım, Berat: "ana derslerim eşiğe yaklaşsın"): dersin
+//    sınavından önceki son çalışma gününe eklenir; sınavı ikinci sınav
+//    günündeyse ilk sınav gününün öğleden sonrasına. Bir güne en fazla
+//    `EK_TAVAN_DK` kadar ek; eşiğe en yakın ders önce.
 //
 // Konular normalde dersin kendi sırasıyla gelir (konu_no). Son düzlükte
 // sıralı olmayan derslerde kısa (soru başına ucuz) konular öne alınır;
@@ -62,6 +67,8 @@ const KISA_DERS_DK = 45;
 export const sonDuzluktaHafif = (kod: string) => kod.startsWith("ATDİ") || kod.startsWith("AATA");
 /** Günün ana dersinden en fazla bu kadar konu; kalan yer ikinci derse. */
 const GUNLUK_KONU = 2;
+/** Kurtarmada sığmayan ana ders konularından bir güne eklenebilecek en fazla iş. */
+const EK_TAVAN_DK = 150;
 
 export interface PlanGirdisi {
   units: StudyUnit[];
@@ -492,6 +499,50 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
     dun = new Set(gunDersleri.map((s) => s.ders_kodu));
   }
 
+  // Kural 11: sığmayan ana ders konuları sınavından önceki son uygun güne.
+  let eklenen = 0;
+  if (kurtarma) {
+    const ek = new Map<string, number>();
+    const sinavi = (kod: string) => g.oturumlar?.get(kod)?.tarih ?? g.sinavTarihi;
+    const sonGun = (once: PlanGunu[], tur: GunTuru) => [...once].reverse().find((x) => x.tur === tur);
+    const eksikler = dersler
+      .filter((d) => cekirdek.has(d.ders_kodu) && d.kuyruk.length)
+      .sort((a, b) => a.esikIhtiyaci - b.esikIhtiyaci || a.ders_kodu.localeCompare(b.ders_kodu));
+    for (const d of eksikler) {
+      const tarih = sinavi(d.ders_kodu);
+      const once = gunler.filter((x) => x.tarih < tarih);
+      const hedefGun = tarih > g.sinavTarihi
+        // İkinci sınav gününün dersi: ilk sınav gününün öğleden sonrası.
+        ? once.find((x) => x.tur === "sinav") ?? sonGun(once, "calisma")
+        : sonGun(once, "calisma") ?? sonGun(once, "tekrar");
+      if (!hedefGun) continue;
+      const parcalar: PlanParcasi[] = [];
+      while (d.kuyruk.length) {
+        const q = d.kuyruk[0];
+        const kullanilan = ek.get(hedefGun.tarih) ?? 0;
+        if (kullanilan + q.kalan > EK_TAVAN_DK) break;
+        parcalar.push({ unit_id: q.unit.id, baslik: q.unit.baslik, dakika: q.kalan, devam: q.kalan < q.baslangic, bitiyor: true, kurtarma: true });
+        ek.set(hedefGun.tarih, kullanilan + q.kalan);
+        d.toplamKalan -= q.kalan;
+        d.kuyruk.shift();
+      }
+      if (!parcalar.length) continue;
+      eklenen += parcalar.length;
+      const dakika = parcalar.reduce((n, p) => n + p.dakika, 0);
+      const mevcut = hedefGun.dersler.find((x) => x.ders_kodu === d.ders_kodu && x.tur === "konu");
+      if (mevcut) {
+        mevcut.parcalar.push(...parcalar);
+        mevcut.dakika += dakika;
+      } else {
+        // Yeni konu satırı tekrar satırlarından önce: önce yeni konu, sonra tekrar.
+        const satir: PlanDersi = { ders_kodu: d.ders_kodu, tur: "konu", dakika, parcalar };
+        const yer = hedefGun.dersler.findIndex((x) => x.tur === "tekrar");
+        if (yer === -1) hedefGun.dersler.push(satir);
+        else hedefGun.dersler.splice(yer, 0, satir);
+      }
+    }
+  }
+
   const uyarilar: string[] = [];
   const kapasite = etkinGun * TAVAN_DK;
   const sigmayan = dersler.reduce((n, d) => n + d.kuyruk.length, 0);
@@ -500,6 +551,7 @@ export function haftalikPlanKur(g: PlanGirdisi): HaftalikPlan {
   }
   if (kurtarma) {
     uyarilar.push("Kalan günlere geçmeye yetecek konuların hepsi bile sığmıyor: kurtarma planı kurdum. Ana dersler önce, her konuda önce çıkmış sorular; tekrar sınavdan önceki gün.");
+    if (eklenen) uyarilar.push(`Ana derslerin eşiğe yetmeyen ${eklenen} konusunu sınavından önceki son güne ekledim; o günler biraz daha dolu.`);
   } else if (secim.birakilan.length) {
     uyarilar.push(`Sınava kadar her konu sığmıyor: ${secim.birakilan.length} konuyu bilerek bıraktım, her dersi geçme çizgisine taşıyacak konular plana girdi.`);
   } else if (!sonDuzluk && tamamiIcin > kapasite) {
@@ -559,9 +611,13 @@ export function haftaAnahtari(tarih: string): string {
 
 /**
  * Planlayıcının kuralları değişince (v4: 26 Ekim, saat ve "her gün 2 ders"
- * kalktı; 6 Kasım: kurtarma modu; 9 Kasım: ana dersler önce; 10 Kasım: İnkılap ve Türk Dili yalnız tekrarda; 11 Kasım: Oku ya da İzle konuyu bitirir) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
+ * kalktı; 6 Kasım: kurtarma modu; 9 Kasım: ana dersler önce; 10 Kasım: İnkılap ve Türk Dili yalnız tekrarda; 11 Kasım: Oku ya da İzle konuyu bitirir, sığmayan ana ders konuları son güne) bu andan önce kurulan planlar bir kez kendiliğinden yeniden kurulur.
+ *
+ * Gönderim anına yakın bir an ver, ileri bir an verme: o ana kadar plan her
+ * açılışta yeniden kurulur ve gün içinde işaretlenen ilerleme bugünün konularını
+ * kaydırır (11 Kasım'da 15 saat ileri verilmişti).
  */
-export const PLAN_SURUM_ANI = "2026-11-11T15:00:00Z";
+export const PLAN_SURUM_ANI = "2026-11-11T00:25:00Z";
 
 export type YenidenKurNedeni = "yeni-hafta" | "son-duzluk" | "gunluk" | "geri-donus";
 

@@ -89,6 +89,9 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
   const gunTuru = satirlar?.[0]?.gun_turu;
   const dersSatirlari = (satirlar ?? []).filter((s) => s.ders_kodu);
   const konuSayisi = dersSatirlari.reduce((t, s) => t + (s.tur === "konu" ? s.parcalar.length : 0), 0);
+  const tekrarSayisi = dersSatirlari.filter((s) => s.tur === "tekrar").length;
+  /** Bugün yeni konu olarak gelen konular: tekrar listesinde ikinci kez çıkmasın. */
+  const bugunKonular = useMemo(() => new Set(dersSatirlari.filter((s) => s.tur === "konu").flatMap((s) => s.parcalar.map((p) => p.unit_id))), [dersSatirlari]);
   const aralik = useMemo(() => planAraligi(events, new Date()), [events]);
   const bugunMu = tarih === format(new Date(), "yyyy-MM-dd");
   const matSorulari = useMemo(() => gununSorulari(data?.questions ?? [], tarih), [data?.questions, tarih]);
@@ -180,8 +183,10 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
             <div>
               <p className="text-[18px] lg:text-[26px] font-semibold leading-tight">
                 {gunTuru === "sinav"
-                  ? `Öğleden sonra · yarının ${dersSatirlari.length} dersine tekrar`
-                  : gunTuru === "tekrar" ? `Tekrar günü · ${dersSatirlari.length} ders` : `Bugün ${dersSatirlari.length === 1 ? "tek ders" : `${dersSatirlari.length} ders`} · ${konuSayisi} konu`}
+                  ? `Öğleden sonra · ${konuSayisi ? `${konuSayisi} yeni konu, ` : ""}yarının ${tekrarSayisi} dersine tekrar`
+                  : gunTuru === "tekrar"
+                    ? `Tekrar günü · ${tekrarSayisi} ders${konuSayisi ? ` · ${konuSayisi} yeni konu` : ""}`
+                    : `Bugün ${dersSatirlari.length === 1 ? "tek ders" : `${dersSatirlari.length} ders`} · ${konuSayisi} konu`}
               </p>
               <ol className="mt-2 lg:mt-4 space-y-1 lg:space-y-2">
                 {dersSatirlari.map((satir, i) => {
@@ -230,7 +235,7 @@ function GunSayfasiIcerik({ tarih }: { tarih: string }) {
                 </p>
                 <h2 className="text-[17px] lg:text-[24px] font-semibold leading-snug">{dersAdi(kod)}</h2>
                 {satir.tur === "tekrar"
-                  ? <TekrarBolumu parcalar={satir.parcalar} dersKodu={kod} {...ortak} />
+                  ? <TekrarBolumu parcalar={satir.parcalar.filter((p) => !bugunKonular.has(p.unit_id))} dersKodu={kod} {...ortak} />
                   : satir.parcalar.map((p, j) => <KonuFoyuBolumu key={p.unit_id} parca={p} ilk={j === 0} {...ortak} />)}
                 {satir.tur !== "tekrar" && <EsikUstuBolumu dersKodu={kod} parcalar={satir.parcalar} ileriPlan={ileriPlan} tarih={tarih} {...ortak} />}
               </section>

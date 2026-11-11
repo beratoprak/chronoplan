@@ -52,6 +52,21 @@ describe("takvim etkinliği", () => {
   it("kimlik tarihten: yeniden planlanınca çoğalmaz", () => {
     expect(planEtkinlikId("2026-10-05")).toBe("ybs-plan-2026-10-05");
   });
+  it("tekrar günü yalnız tekrarsa eskisi gibi", () => {
+    const tekrar: PlanGunu = { tarih: "2026-11-13", tur: "tekrar", dersler: [{ ...gun.dersler[0], tur: "tekrar" }, { ...gun.dersler[1], tur: "tekrar" }] };
+    expect(etkinlikBasligi(tekrar, dersler)).toBe("🔁 Tekrar · Matematik I + Türk Dili I");
+  });
+  it("sınav günü öğleden sonra: önce yeni konu, sonra tekrar (11 Kasım)", () => {
+    const sinav: PlanGunu = {
+      tarih: "2026-11-14", tur: "sinav", dersler: [
+        { ders_kodu: "AAUF1105", tur: "konu", dakika: 50, parcalar: [{ unit_id: "u3", baslik: "3-Limit", dakika: 50, devam: false, bitiyor: true }] },
+        { ders_kodu: "AAUF1105", tur: "tekrar", dakika: 0, parcalar: [] },
+        { ders_kodu: "ATDİ107", tur: "tekrar", dakika: 0, parcalar: [] },
+      ],
+    };
+    expect(etkinlikBasligi(sinav, dersler)).toBe("Öğleden sonra · 📘 Matematik I · 3-Limit  +  🔁 Tekrar · Matematik I + Türk Dili I");
+    expect(etkinlikAciklamasi(sinav, dersler)).toMatch(/^Sınavdan sonra, öğleden sonra:/);
+  });
 });
 
 describe("vizeden sonra finale geçiş (Faz H)", () => {

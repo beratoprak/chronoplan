@@ -228,8 +228,46 @@ describe("kurtarma: ana dersler önce, yabancı dil yalnız soru (9 Kasım)", ()
     expect(gun("2026-11-13").tur).toBe("tekrar");
     expect(gun("2026-11-13").dersler.map((d) => d.ders_kodu).sort()).toEqual(["AATA107", "ATDİ107", "K1", "K2"]);
     expect(gun("2026-11-14").tur).toBe("sinav");
-    expect(gun("2026-11-14").dersler.map((d) => d.ders_kodu)).toEqual(["C1", "C2", "C3"]);
+    expect(gun("2026-11-14").dersler.filter((d) => d.tur === "tekrar").map((d) => d.ders_kodu)).toEqual(["C1", "C2", "C3"]);
     expect(gun("2026-11-15").dersler).toHaveLength(0);
+  });
+
+  it("sığmayan ana ders konusu ilk sınav günü öğleden sonraya; bir güne en fazla bir günlük ek (11 Kasım)", () => {
+    const sinav = p.gunler.find((g) => g.tarih === "2026-11-14")!;
+    const konu = sinav.dersler.filter((d) => d.tur === "konu");
+    // Konular 150'şer: tavan bir konuya izin verir; yeni konu tekrardan önce.
+    expect(konu).toHaveLength(1);
+    expect(konu[0].ders_kodu).toMatch(/^C/);
+    expect(sinav.dersler[0].tur).toBe("konu");
+    expect(p.uyarilar.join(" ")).toMatch(/ekledim/);
+  });
+});
+
+describe("kurtarma: sığmayan ana ders konuları sınavından önceki son güne (11 Kasım)", () => {
+  const k = (id: string, ders: string, no: number, dakika: number, katman: "cekirdek" | "kultur") => ({ ...u(id, ders, no, dakika, 4), katman });
+  // İki ana ders, 5'er konu × 4 soru; eşik için üçer konu gerekiyor.
+  const units: StudyUnit[] = ["C1", "C2"].flatMap((d) => [1, 2, 3, 4, 5].map((n) => k(`${d}-${n}`, d, n, 60, "cekirdek")));
+  const oturumlar = new Map([["C1", { tarih: "2026-11-14", oturum: 1 }], ["C2", { tarih: "2026-11-15", oturum: 1 }]]);
+  const p = haftalikPlanKur(temel(units, { baslangic: "2026-11-11", bitis: "2026-11-15", oturumlar }));
+  const gun = (t: string) => p.gunler.find((g) => g.tarih === t)!;
+  const konular = (kod: string) => p.gunler.flatMap((g) => g.dersler.filter((d) => d.ders_kodu === kod && d.tur === "konu").flatMap((d) => d.parcalar.map((x) => x.unit_id)));
+
+  it("kurtarma; iki çalışma günü", () => {
+    expect(p.mod).toBe("kurtarma");
+    expect(p.gunler.filter((g) => g.tur === "calisma").map((g) => g.tarih)).toEqual(["2026-11-11", "2026-11-12"]);
+  });
+
+  it("her ana ders eşiğe yetecek üç konuyu da alır", () => {
+    expect(konular("C1").sort()).toEqual(["C1-1", "C1-2", "C1-3"]);
+    expect(konular("C2").sort()).toEqual(["C2-1", "C2-2", "C2-3"]);
+  });
+
+  it("cumartesi sınavlı dersin eksiği son çalışma gününe, pazar sınavlınınki cumartesi öğleden sonraya", () => {
+    expect(gun("2026-11-12").dersler.find((d) => d.ders_kodu === "C1")!.parcalar.map((x) => x.unit_id)).toContain("C1-3");
+    const cmt = gun("2026-11-14");
+    expect(cmt.tur).toBe("sinav");
+    expect(cmt.dersler.map((d) => [d.ders_kodu, d.tur])).toEqual([["C2", "konu"], ["C2", "tekrar"]]);
+    expect(cmt.dersler[0].parcalar.map((x) => x.unit_id)).toEqual(["C2-3"]);
   });
 });
 

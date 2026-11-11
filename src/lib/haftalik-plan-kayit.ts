@@ -61,18 +61,24 @@ export function kisalt(metin: string, uzunluk: number): string {
   return `${(bosluk > uzunluk * 0.6 ? kesik.slice(0, bosluk) : kesik).replace(/[\s,;:·-]+$/, "")}…`;
 }
 
-/** Takvimde görünen başlık: günün dersleri ve konusu (konu adı kısaltılmış). */
+/**
+ * Takvimde görünen başlık: günün dersleri ve konusu (konu adı kısaltılmış).
+ * Tekrar ve sınav günlerine yeni konu da eklenebiliyor (11 Kasım, kural 11):
+ * önce yeni konular, sonra tekrar. Sınav günü yalnız öğleden sonrası.
+ */
 export function etkinlikBasligi(gun: PlanGunu, dersler: SchoolCourse[]): string {
-  if (gun.tur === "tekrar") {
-    return `🔁 Tekrar · ${gun.dersler.map((d) => kisaAd(d.ders_kodu, dersler)).join(" + ")}`;
-  }
+  const konular = gun.dersler.filter((d) => d.tur !== "tekrar");
+  const tekrarlar = gun.dersler.filter((d) => d.tur === "tekrar");
   const parca = (d: PlanDersi) => {
     const ilk = d.parcalar[0];
     if (!ilk) return kisaAd(d.ders_kodu, dersler);
     const ek = d.parcalar.length > 1 ? ` +${d.parcalar.length - 1}` : ilk.devam ? " (devam)" : "";
     return `${kisaAd(d.ders_kodu, dersler)} · ${kisalt(ilk.baslik, d.parcalar.length > 1 || gun.dersler.length === 1 ? 40 : 34)}${ek}`;
   };
-  return `📘 ${gun.dersler.map(parca).join("  +  ")}`;
+  const tekrar = tekrarlar.length ? `🔁 Tekrar · ${tekrarlar.map((d) => kisaAd(d.ders_kodu, dersler)).join(" + ")}` : "";
+  const konu = konular.length ? `📘 ${konular.map(parca).join("  +  ")}` : "";
+  const govde = [konu, tekrar].filter(Boolean).join("  +  ");
+  return gun.tur === "sinav" ? `Öğleden sonra · ${govde}` : govde;
 }
 
 /** Bölünmüş konu için kısa not; konu bütünse boş. */
@@ -83,7 +89,7 @@ export function parcaNotu(p: { devam: boolean; bitiyor: boolean }): string {
 
 /** Etkinlik açıklaması: bütün konular. Süre yazılmaz (26 Ekim kararı). */
 export function etkinlikAciklamasi(gun: PlanGunu, dersler: SchoolCourse[]): string {
-  const satirlar: string[] = [];
+  const satirlar: string[] = gun.tur === "sinav" ? ["Sınavdan sonra, öğleden sonra:"] : [];
   for (const d of gun.dersler) {
     satirlar.push(`${kisaAd(d.ders_kodu, dersler)}${d.tur === "tekrar" ? " — tekrar" : ""}`);
     if (d.tur === "tekrar") {
@@ -253,7 +259,8 @@ export async function planiKurVeYaz(
     //    yeniden planlanınca aynı etkinlik güncellenir, çoğalmaz.
     const zaman = new Date().toISOString();
     const etkinlikler = plan.gunler
-      .filter((g) => g.dersler.length && (g.tur === "calisma" || g.tur === "tekrar"))
+      // Sınav günü de: öğleden sonra ertesi günün tekrarı ve eklenen konular (kurtarma).
+      .filter((g) => g.dersler.length && (g.tur === "calisma" || g.tur === "tekrar" || g.tur === "sinav"))
       .map((g) => ({
         id: planEtkinlikId(g.tarih),
         user_id: userId,
