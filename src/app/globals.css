@@ -637,3 +637,11 @@
   display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none;
 }
 .textLayer.selecting .endOfContent { top: 0; }
+
+/* Telefonda sidebar'ın sunucu HTML'inde bir an açık görünmesini önler.
+   page.tsx, sidebar ilk kez kapandığında <html data-hazir> koyar. */
+@media (max-width: 1023px) {
+  html:not([data-hazir]) .mobil-ilk-gizle {
+    display: none !important;
+  }
+}

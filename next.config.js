@@ -56,6 +56,9 @@ const withPWA = require("next-pwa")({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Kendi sunucuda (Vercel dışı) çalıştırmak için: EPOCHE_STANDALONE=1 npm run build
+  // .next/standalone altında node ile başlayan tek klasör üretir. Vercel'i etkilemez.
+  ...(process.env.EPOCHE_STANDALONE ? { output: "standalone" } : {}),
   env: {
     // Derleme kimliği — istemci, /api/version ile karşılaştırıp
     // yeni sürüm çıktığında kullanıcıya "Güncelle" gösterir.

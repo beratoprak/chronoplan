@@ -1,22 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { CalendarDays, GraduationCap, Columns3, FileText, Plus, X, CheckSquare, CalendarPlus, PenLine } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, X, CheckSquare, CalendarPlus, PenLine, Menu } from "lucide-react";
 import { format } from "date-fns";
 import { useAppStore } from "@/lib/store";
+import { VIEW_ITEMS } from "@/components/sidebar/Sidebar";
+import { altCubuguOku, ALT_CUBUK_DEGISTI, VARSAYILAN_ALT_CUBUK } from "@/lib/alt-cubuk";
 import type { ViewType } from "@/types";
-
-const NAV_ITEMS: { id: ViewType; label: string; icon: React.ElementType }[] = [
-  { id: "daily", label: "Bugün", icon: CalendarDays },
-  { id: "school", label: "Okul", icon: GraduationCap },
-  { id: "kanban", label: "Görevler", icon: Columns3 },
-  { id: "notes", label: "Notlar", icon: FileText },
-];
 
 /** Telefonda not-odaklı beşli gezinme ve bağlama duyarlı hızlı yakalama. */
 export function MobileNav() {
   const [captureOpen, setCaptureOpen] = useState(false);
-  const { currentView, selectedDate, setSelectedDate, setView, openTaskModal, openEventModal } = useAppStore();
+  const { currentView, selectedDate, setSelectedDate, setView, openTaskModal, openEventModal, sidebarOpen } = useAppStore();
+  // Çubukta duran ekranlar: kullanıcı "Daha fazla" sayfasından seçer (lib/alt-cubuk).
+  const [secim, setSecim] = useState<ViewType[]>(VARSAYILAN_ALT_CUBUK);
+  useEffect(() => {
+    const tazele = () => setSecim(altCubuguOku());
+    tazele();
+    window.addEventListener(ALT_CUBUK_DEGISTI, tazele);
+    return () => window.removeEventListener(ALT_CUBUK_DEGISTI, tazele);
+  }, []);
+  const cubuk = secim
+    .map((id) => VIEW_ITEMS.find((v) => v.id === id))
+    .filter((v): v is (typeof VIEW_ITEMS)[number] => Boolean(v));
   const today = format(new Date(), "yyyy-MM-dd");
 
   const actions = [
@@ -51,7 +57,8 @@ export function MobileNav() {
     },
   ];
 
-  const renderItem = (item: (typeof NAV_ITEMS)[number]) => {
+  const renderItem = (item: (typeof VIEW_ITEMS)[number] | undefined) => {
+    if (!item) return <span className="flex-1" />;
     const Icon = item.icon;
     const isActive = currentView === item.id;
     return (
@@ -64,7 +71,7 @@ export function MobileNav() {
         aria-current={isActive ? "page" : undefined}
       >
         <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
-        <span className="text-[10px] font-medium">{item.label}</span>
+        <span className="text-[10px] font-medium max-w-full truncate px-1">{item.label}</span>
       </button>
     );
   };
@@ -126,8 +133,8 @@ export function MobileNav() {
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        {renderItem(NAV_ITEMS[0])}
-        {renderItem(NAV_ITEMS[1])}
+        {renderItem(cubuk[0])}
+        {renderItem(cubuk[1])}
         <button
           onClick={() => setCaptureOpen(true)}
           className="flex-1 min-h-[58px] flex items-center justify-center"
@@ -141,8 +148,18 @@ export function MobileNav() {
             <Plus size={23} strokeWidth={2.2} />
           </span>
         </button>
-        {renderItem(NAV_ITEMS[2])}
-        {renderItem(NAV_ITEMS[3])}
+        {renderItem(cubuk[2])}
+        {/* Menü her zaman en sağda: üstteki menü düğmesi başparmakla zor yetişiyordu. */}
+        <button
+          onClick={() => useAppStore.getState().toggleSidebar()}
+          className="flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[58px] transition-colors"
+          style={{ color: sidebarOpen ? "var(--brand-gold-hover)" : "var(--text-tertiary)" }}
+          aria-label="Menü"
+          aria-expanded={sidebarOpen}
+        >
+          <Menu size={20} strokeWidth={sidebarOpen ? 2.2 : 1.8} />
+          <span className="text-[10px] font-medium">Menü</span>
+        </button>
       </nav>
     </>
   );

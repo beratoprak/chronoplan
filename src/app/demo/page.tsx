@@ -32,6 +32,11 @@ export default function DemoPage() {
     return () => setDemoMode(false);
   }, [setDemoMode]);
 
+  // Ana sayfadaki gibi: sidebar ilk kez kapanınca telefondaki ilk-boya gizlemesini kaldır.
+  useEffect(() => {
+    if (!sidebarOpen) document.documentElement.setAttribute("data-hazir", "");
+  }, [sidebarOpen]);
+
   // Dark mode
   useEffect(() => {
     if (theme === "system") {
@@ -81,7 +86,7 @@ export default function DemoPage() {
           {/* Mobile sidebar overlay */}
           {sidebarOpen && (
             <div
-              className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+              className="mobil-ilk-gizle fixed inset-0 z-30 bg-black/30 lg:hidden"
               onClick={() => useAppStore.getState().toggleSidebar()}
             />
           )}

@@ -335,11 +335,12 @@ export function NotesView() {
           {/* Tag filter */}
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-1">
+              {/* min-h-0: dokunmatikteki 44px kuralı (globals.css) küçük etiketleri balona çeviriyordu. */}
               {allTags.map((tag) => (
                 <button
                   key={tag}
                   onClick={() => setFilterTag(filterTag === tag ? null : tag)}
-                  className="text-[10px] px-1.5 py-0.5 rounded-full transition-opacity"
+                  className="min-h-0 text-[10px] px-1.5 py-0.5 rounded-full transition-opacity"
                   style={{
                     background: filterTag === tag ? generateTagColor(tag) : "var(--surface-raised)",
                     color: filterTag === tag ? "#fff" : "var(--text-secondary)",
@@ -535,7 +536,7 @@ export function NotesView() {
                           key={bag.text}
                           onClick={() => hedef && openNote(hedef)}
                           disabled={!hedef}
-                          className="rounded-full px-2.5 py-1 text-[11px] disabled:opacity-50 disabled:cursor-default"
+                          className="min-h-0 rounded-full px-2.5 py-1 text-[11px] disabled:opacity-50 disabled:cursor-default"
                           style={{
                             background: hedef ? "var(--surface-sunken)" : "transparent",
                             border: hedef ? "none" : "0.5px dashed var(--border-default)",
@@ -563,7 +564,7 @@ export function NotesView() {
                           const tam = richNotes.find((x) => x.id === n.id);
                           if (tam) openNote(tam);
                         }}
-                        className="rounded-full px-2.5 py-1 text-[11px]"
+                        className="min-h-0 rounded-full px-2.5 py-1 text-[11px]"
                         style={{ background: "var(--surface-sunken)", color: "var(--text-primary)" }}
                       >
                         {n.title || "Başlıksız"}

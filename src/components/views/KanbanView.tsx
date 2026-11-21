@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Plus, Filter } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { TaskCard } from "@/components/shared/TaskCard";
@@ -27,6 +27,29 @@ export function KanbanView() {
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  // Telefon: sütunlar yan yana kayar; üstteki düğmeler ilgili sütuna götürür.
+  const kolonlarRef = useRef<HTMLDivElement>(null);
+  const [gorunenKolon, setGorunenKolon] = useState(0);
+  const kolonKaydi = () => {
+    const kap = kolonlarRef.current;
+    if (!kap || !kap.children.length) return;
+    // Son sütun başa hizalanamaz (sağda yer kalmaz): sona gelindiyse sonuncusu.
+    if (kap.scrollLeft >= kap.scrollWidth - kap.clientWidth - 4) return setGorunenKolon(kap.children.length - 1);
+    const kolonlar = Array.from(kap.children) as HTMLElement[];
+    const sol = kap.scrollLeft + kap.offsetLeft + 12;
+    let en = 0;
+    kolonlar.forEach((k, i) => { if (Math.abs(k.offsetLeft - sol) < Math.abs(kolonlar[en].offsetLeft - sol)) en = i; });
+    setGorunenKolon(en);
+  };
+  const kolonaGit = (i: number) => {
+    const kap = kolonlarRef.current;
+    const hedef = kap?.children[i] as HTMLElement | undefined;
+    if (!kap || !hedef) return;
+    const left = Math.min(hedef.offsetLeft - kap.offsetLeft - 12, kap.scrollWidth - kap.clientWidth);
+    kap.scrollTo({ left, behavior: "smooth" });
+    // Yumuşak kaydırma başlamazsa (arka plandaki sekme, azaltılmış hareket) doğrudan git.
+    window.setTimeout(() => { if (Math.abs(kap.scrollLeft - left) > 2) kap.scrollTo({ left }); kolonKaydi(); }, 450);
+  };
 
   // Filtre uygula
   const filteredTasks = useMemo(() => {
@@ -202,9 +225,25 @@ export function KanbanView() {
         )}
       </div>
 
+      {/* Telefon: sütunlara hızlı geçiş (üst çubuktaki Gün/Hafta/Ay sekmeleriyle aynı stil) */}
+      <div className="cp-view-tabs md:hidden shrink-0 self-stretch" aria-label="Görev sütunları">
+        {COLUMNS.map(({ status }, i) => (
+          <button
+            key={status}
+            onClick={() => kolonaGit(i)}
+            className={cn("cp-view-tab flex-1 !px-1.5 whitespace-nowrap", gorunenKolon === i && "active")}
+          >
+            {getStatusLabel(status)} · {grouped[status].length}
+          </button>
+        ))}
+      </div>
+
       {/* ── Kanban Kolonları ──────────────────────────────────── */}
+      {/* Telefonda üst üste değil yan yana: yatay kaydırma, her sütun ekranın çoğunu kaplar. */}
       <div
-        className="grid gap-4 flex-1 min-h-0 grid-cols-1 md:grid-cols-3"
+        ref={kolonlarRef}
+        onScroll={kolonKaydi}
+        className="flex md:grid gap-3 md:gap-4 flex-1 min-h-0 md:grid-cols-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:-mx-3 max-md:px-3 max-md:scroll-px-3"
       >
         {COLUMNS.map(({ status, accent }) => {
           const isDropTarget = dragOverColumn === status;
@@ -212,7 +251,7 @@ export function KanbanView() {
           return (
             <div
               key={status}
-              className="flex flex-col rounded-xl p-3 transition-all duration-200 overflow-hidden"
+              className="flex flex-col rounded-xl p-3 transition-all duration-200 overflow-hidden max-md:w-[86%] max-md:shrink-0 max-md:snap-start"
               style={{
                 background: isDropTarget
                   ? `color-mix(in srgb, var(--surface-sunken) 70%, var(--brand-gold-light) 30%)`

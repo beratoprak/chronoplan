@@ -804,7 +804,8 @@ export function TaskModal() {
                 )}
               </>
             ) : (
-              "⌘ Enter ile kaydet"
+              // Klavye kısayolu telefonda yok; ipucu yalnız geniş ekranda.
+              <span className="hidden md:inline">⌘ Enter ile kaydet</span>
             )}
           </span>
           <div className="flex items-center gap-2">

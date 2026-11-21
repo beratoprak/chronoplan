@@ -78,13 +78,14 @@ export function WeeklyView() {
 
   return (
     <div className="animate-fade-in min-w-0">
-      <div className="md:hidden grid gap-3">
+      {/* grid-cols-1 (minmax(0,1fr)): uzun başlıklı kayıt kartı telefonda ekrandan taşırıp hizayı bozuyordu. */}
+      <div className="md:hidden grid grid-cols-1 gap-3">
         {weekDays.map((day) => {
           const date = format(day, DATE_FORMAT);
           const dayEvents = (byDate.get(date) ?? []).sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
           const dayTasks = getTasksForDate(tasks, date);
           return (
-            <section key={date} className="rounded-2xl p-3.5" style={{ background: isTodayDate(day) ? "var(--brand-gold-light)" : "var(--surface-base)", border: `1px solid ${isTodayDate(day) ? "var(--brand-gold)" : "var(--border-default)"}` }}>
+            <section key={date} className="rounded-2xl p-3.5 min-w-0" style={{ background: isTodayDate(day) ? "var(--brand-gold-light)" : "var(--surface-base)", border: `1px solid ${isTodayDate(day) ? "var(--brand-gold)" : "var(--border-default)"}` }}>
               <button onClick={() => { setSelectedDate(date); setView("daily"); }} className="w-full flex items-center justify-between text-left min-h-11">
                 <span>
                   <span className="text-[18px] font-semibold" style={{ color: "var(--text-primary)" }}>{day.getDate()}</span>
@@ -92,7 +93,7 @@ export function WeeklyView() {
                 </span>
                 <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>{dayEvents.length + dayTasks.length} kayıt</span>
               </button>
-              <div className="grid gap-1.5 mt-1">
+              <div className="grid grid-cols-1 gap-1.5 mt-1">
                 {dayEvents.map((item) => <AgendaEvent key={item.id} event={item} onClick={() => openEvent(item)} />)}
                 {dayTasks.map((task) => <AgendaTask key={task.id} task={task} onClick={() => openTaskModal(task)} />)}
                 {!dayEvents.length && !dayTasks.length && (
