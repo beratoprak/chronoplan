@@ -44,6 +44,21 @@ export default function Home() {
     }
   }, [theme]);
 
+  // Mobilde sidebar kapalı başlasın: sunucu HTML'i açık çiziyor, ekranı kaplamasın.
+  // (Demo sayfasındaki ile aynı; hidrasyondan sonra çalıştığı için uyuşmazlık yok.)
+  useEffect(() => {
+    if (window.innerWidth < 1024 && useAppStore.getState().sidebarOpen) {
+      useAppStore.setState({ sidebarOpen: false });
+    }
+  }, []);
+
+  // Sunucu HTML'i sidebar'ı açık çizdiği için telefonda bir an görünüyordu.
+  // CSS onu `data-hazir` gelene kadar gizliyor; işaret, sidebar ilk kez
+  // kapandıktan sonra konur, böylece kullanıcı açınca normal görünür.
+  useEffect(() => {
+    if (!sidebarOpen) document.documentElement.setAttribute("data-hazir", "");
+  }, [sidebarOpen]);
+
   // Auth durumunu başlat (Supabase yapılandırılmışsa)
   useEffect(() => {
     if (isSupabaseConfigured) {
@@ -84,7 +99,7 @@ export default function Home() {
       {/* Sidebar — Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+          className="mobil-ilk-gizle fixed inset-0 z-30 bg-black/30 lg:hidden"
           onClick={() => useAppStore.getState().toggleSidebar()}
         />
       )}

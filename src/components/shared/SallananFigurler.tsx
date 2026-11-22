@@ -34,9 +34,12 @@ export function SallananFigurler() {
 
   return (
     // İçerik alanının üst kenarına yapışık sıfır yükseklikli şerit: ipler başlığın
-    // altından sarkar, sayfa kaysa da figürler köşede kalır.
-    <div aria-hidden className="sticky top-0 h-0 z-30 pointer-events-none">
-    <div className="absolute -top-3 sm:-top-5 right-0 flex gap-1.5 sm:gap-3">
+    // altından sarkar, sayfa kaysa da figürler köşede kalır. Telefonda (md altı)
+    // köşede kalınca yazıların üstüne biniyordu; orada sayfayla birlikte kayar.
+    <div aria-hidden className="relative md:sticky top-0 h-0 z-30 pointer-events-none">
+    {/* Telefonda figürler sağdan içeride: gün kartının sağ üstündeki "+" düğmesinin
+        üstüne düşmesinler (ipi kısaltmak tek başına yetmedi, telefonda denendi). */}
+    <div className="absolute -top-3 sm:-top-5 right-[4.75rem] sm:right-0 flex gap-1.5 sm:gap-3">
       <style>{`
         @keyframes epoche-sallan { 0%,100% { transform: rotate(-7deg) } 50% { transform: rotate(7deg) } }
         @keyframes epoche-sevin { 0%,100% { transform: translateY(0) rotate(0) } 25% { transform: translateY(-18px) rotate(-12deg) scale(1.15) } 50% { transform: translateY(0) rotate(0) } 75% { transform: translateY(-10px) rotate(12deg) } }
@@ -45,7 +48,12 @@ export function SallananFigurler() {
       `}</style>
       {liste.map((f, i) => (
         <div key={f.id} className="epoche-ip flex flex-col items-center" style={{ ["--sure" as string]: `${2.6 + i * 0.45}s`, ["--gecikme" as string]: `${-i * 0.7}s` }}>
-          <div style={{ width: 1.5, height: IPLER[i % IPLER.length], background: "var(--border-strong)" }} />
+          {/* Telefonda ipler kısa: uzun ipte figürler gün kartının sağ üstündeki
+              düğmenin üstüne iniyordu. sm ve üstünde tam boy. */}
+          <div
+            className="h-[calc(var(--ip)*0.35px)] sm:h-[calc(var(--ip)*1px)]"
+            style={{ width: 1.5, ["--ip" as string]: IPLER[i % IPLER.length], background: "var(--border-strong)" }}
+          />
           <div className="-mt-0.5">
             <img
               key={kutla}

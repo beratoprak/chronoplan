@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { parseISO, format, addDays, addWeeks, addMonths } from "date-fns";
+import { parseISO, format } from "date-fns";
 import { Menu, Plus, Search, CalendarPlus, LogOut, Loader2, Sun, Moon, Clock, CloudOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { MONTH_NAMES_TR, DAY_NAMES_TR, DATE_FORMAT } from "@/lib/dates";
 import type { ViewType } from "@/types";
+import { donemKaydir, kisaDonemEtiketi, TAKVIM_GORUNUMLERI } from "@/lib/donem";
 
 /** Canlı saat — dakikada bir güncellenir. */
 function LiveClock() {
@@ -44,6 +45,14 @@ function LiveClock() {
   );
 }
 
+/** Telefonda üst çubukta tarih yerine ekranın adı gösterilen görünümler. */
+const EKRAN_ADLARI: Partial<Record<ViewType, string>> = {
+  kanban: "Görevler",
+  notes: "Notlar",
+  pomodoro: "Odak",
+  media: "Arşiv",
+};
+
 const VIEW_TABS: { id: ViewType; label: string }[] = [
   { id: "daily", label: "Gün" },
   { id: "weekly", label: "Hafta" },
@@ -57,14 +66,8 @@ export function Topbar() {
   const isSchoolView = currentView === "school" || currentView === "okul-notlari";
 
   const isDark = theme === "dark" || (theme === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const moveDate = (direction: -1 | 1) => {
-    const next = currentView === "monthly"
-      ? addMonths(date, direction)
-      : currentView === "weekly"
-        ? addWeeks(date, direction)
-        : addDays(date, direction);
-    setSelectedDate(format(next, DATE_FORMAT));
-  };
+  const moveDate = donemKaydir;
+  const takvimde = TAKVIM_GORUNUMLERI.includes(currentView);
 
   return (
     <header
@@ -79,7 +82,8 @@ export function Topbar() {
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={toggleSidebar}
-          className="cp-icon-button shrink-0"
+          // Telefonda menü alt çubukta (MobileNav); burada yalnız tablet ve masaüstü.
+          className="cp-icon-button shrink-0 max-md:hidden"
           style={{ color: "var(--text-tertiary)" }}
           aria-label="Menüyü aç veya kapat"
         >
@@ -87,23 +91,44 @@ export function Topbar() {
         </button>
         {isSchoolView ? (
           <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{currentView === "okul-notlari" ? "Okul notları" : "Okul ajandası"}</span>
-        ) : <div className="flex items-center gap-1 min-w-0">
-          <button onClick={() => moveDate(-1)} className="cp-icon-button hidden sm:flex" aria-label="Önceki dönem"><ChevronLeft size={16} /></button>
+        ) : <>
+        {EKRAN_ADLARI[currentView] && (
+          <span className="md:hidden text-base font-medium truncate" style={{ color: "var(--text-primary)" }}>
+            {EKRAN_ADLARI[currentView]}
+          </span>
+        )}
+        <div className={cn("flex items-center gap-1 min-w-0", EKRAN_ADLARI[currentView] && "max-md:hidden")}>
+          <button onClick={() => moveDate(-1)} className={cn("cp-icon-button sm:flex", takvimde ? "flex" : "hidden")} aria-label="Önceki dönem"><ChevronLeft size={16} /></button>
           <button
             onClick={() => setSelectedDate(format(new Date(), DATE_FORMAT))}
             className="text-sm sm:text-base font-medium truncate text-left hover:opacity-75 transition-opacity"
             style={{ color: "var(--text-primary)" }}
             title="Bugüne dön"
           >
-            {date.getDate()} {MONTH_NAMES_TR[date.getMonth()]} {date.getFullYear()}
+            <span className="sm:hidden">{kisaDonemEtiketi(selectedDate, currentView)}</span>
+            <span className="hidden sm:inline">{date.getDate()} {MONTH_NAMES_TR[date.getMonth()]} {date.getFullYear()}</span>
           </button>
           <span className="text-xs sm:text-sm hidden sm:inline" style={{ color: "var(--text-tertiary)" }}>
             {dayOfWeek}
           </span>
           <LiveClock />
-          <button onClick={() => moveDate(1)} className="cp-icon-button hidden sm:flex" aria-label="Sonraki dönem"><ChevronRight size={16} /></button>
-        </div>}
+          <button onClick={() => moveDate(1)} className={cn("cp-icon-button sm:flex", takvimde ? "flex" : "hidden")} aria-label="Sonraki dönem"><ChevronRight size={16} /></button>
+        </div>
+        </>}
       </div>
+
+      {/* Telefon: Gün/Hafta/Ay geçişi (masaüstündeki sekmelerin küçüğü) */}
+      {takvimde && <div className="cp-view-tabs md:hidden shrink-0 !p-0.5" aria-label="Takvim görünümü">
+        {VIEW_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setView(tab.id)}
+            className={cn("cp-view-tab !px-2.5 !py-1 !min-h-0 text-[11px]", currentView === tab.id && "active")}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>}
 
       {/* Center: view tabs — hidden on mobile */}
       {!isSchoolView && <div className="cp-view-tabs hidden md:flex" aria-label="Takvim görünümü">
@@ -137,10 +162,10 @@ export function Topbar() {
             aria-label="Bulut eşitleme hatası — Ayarlar'dan Şimdi Eşitle deneyin"
           />
         )}
-        {/* Dark mode toggle (Faz 7) */}
+        {/* Dark mode toggle (Faz 7) — telefonda Ayarlar > Tema'da */}
         <button
           onClick={() => setTheme(isDark ? "light" : "dark")}
-          className="p-1.5 rounded-lg hover:bg-cream-200 transition-colors"
+          className="hidden md:block p-1.5 rounded-lg hover:bg-cream-200 transition-colors"
           style={{ color: "var(--text-tertiary)" }}
           title={isDark ? "Açık tema" : "Koyu tema"}
         >

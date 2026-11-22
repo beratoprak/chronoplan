@@ -64,7 +64,9 @@ export function DailyView() {
   };
 
   return (
-    <div className="grid gap-5 h-full animate-fade-in grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px]">
+    // h-full yalnız geniş ekranda: telefonda içerik kutudan taşıyor, alt boşluk kutunun
+    // bitimine eklendiği için "Bugünün akışı"nın sonu alt çubuğun arkasında kalıyordu.
+    <div className="grid gap-5 xl:h-full animate-fade-in grid-cols-1 xl:grid-cols-[minmax(0,1fr)_330px]">
       <section className="flex flex-col gap-3 min-w-0 order-1">
         <div className="rounded-2xl p-4 sm:p-5" style={{ background: "linear-gradient(135deg, var(--brand-gold-light), var(--surface-raised))", border: "1px solid var(--border-default)" }}>
           <div className="flex items-start justify-between gap-3">

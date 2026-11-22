@@ -790,6 +790,11 @@ export const useAppStore = create<AppState>()(
         settingsUpdatedAt: state.settingsUpdatedAt,
       }),
       onRehydrateStorage: () => () => {
+        // localStorage eşzamanlı okunduğu için bu geri çağrı create() daha dönmeden,
+        // yani `useAppStore` henüz tanımlanmamışken çalışıyor; içerideki setState'ler
+        // sessizce düşüyordu (mobilde sidebar açık kalıyor, gün değişimi kurulmuyordu).
+        // Gövdeyi bir sonraki tura erteleyince mağaza hazır oluyor.
+        setTimeout(() => {
         useAppStore.setState({ selectedDate: format(new Date(), "yyyy-MM-dd") });
 
         // Mobilde sidebar kapalı başlasın (ekranı kaplamasın)
@@ -814,6 +819,7 @@ export const useAppStore = create<AppState>()(
 
         // Her dakika kontrol et (gece yarısı geçişi için)
         setInterval(checkDateChange, 60000);
+        }, 0);
       },
     }
   )
