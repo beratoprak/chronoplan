@@ -39,9 +39,62 @@ const C = {
 const AYLAR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 const GUNLER = ["PAZAR", "PAZARTESİ", "SALI", "ÇARŞAMBA", "PERŞEMBE", "CUMA", "CUMARTESİ"];
 
+// ── Çevrimdışı önbellek ─────────────────────────────────────
+// Son başarılı yanıt telefonda saklanır; ağ yoksa widget ondan çizilir.
+// FileManager.local(): iCloud dosyası çevrimdışıyken inmemiş olabilir.
+const fm = FileManager.local();
+const CACHE_PATH = fm.joinPath(fm.documentsDirectory(), "epoche-widget-cache.json");
+
+function localISODate(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function readCache() {
+  try {
+    if (!fm.fileExists(CACHE_PATH)) return null;
+    return JSON.parse(fm.readString(CACHE_PATH));
+  } catch (e) {
+    return null;
+  }
+}
+
+// Önbellek dünden kaldıysa bugünü "yaklaşan" listesinden kur.
+function fromCache(cached, today) {
+  if (cached.today === today) return cached;
+  const up = cached.upcoming ?? [];
+  return {
+    ...cached,
+    today,
+    todayEvents: up
+      .filter((u) => u.date === today && u.type === "event")
+      .map((u) => ({ title: u.title, startTime: u.time, endTime: null, tagColor: null, isAllDay: !u.time })),
+    todayTasks: up
+      .filter((u) => u.date === today && u.type === "task")
+      .map((u) => ({ title: u.title, priority: null })),
+    upcoming: up.filter((u) => u.date > today),
+  };
+}
+
 async function fetchData() {
   const req = new Request(`${BASE_URL}/api/widget?token=${TOKEN}`);
-  return await req.loadJSON();
+  // Varsayılan 60 sn; iOS widget'ı ondan önce öldürür ve widget boş kalır.
+  req.timeoutInterval = 8;
+  const json = await req.loadJSON();
+  if (!json || json.error) throw new Error(json?.error ?? "boş yanıt");
+  try {
+    fm.writeString(CACHE_PATH, JSON.stringify(json));
+  } catch (e) {}
+  return json;
+}
+
+function addOfflineNote(stack, data) {
+  if (!data?.offline) return;
+  const t = new Date(data.generatedAt);
+  const p = (n) => String(n).padStart(2, "0");
+  const note = stack.addText(`Çevrimdışı · ${t.getDate()} ${AYLAR[t.getMonth()]} ${p(t.getHours())}:${p(t.getMinutes())}`);
+  note.font = Font.systemFont(10);
+  note.textColor = C.muted;
 }
 
 // Apple Takvim tarzı satır: renk şeridi + saat + başlık (sistem fontu, büyük)
@@ -82,9 +135,11 @@ async function buildWidget() {
   let data = null;
   try {
     data = await fetchData();
-    if (data.error) data = null;
   } catch (e) {
-    data = null;
+    const cached = readCache();
+    data = cached ? { ...fromCache(cached, localISODate(now)), offline: true } : null;
+    // Ağ yokken daha sık dene; bağlantı gelince güncel veri gelsin.
+    widget.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
   }
 
   const items = [];
@@ -137,7 +192,7 @@ async function buildWidget() {
 
     if (!data) {
       right.addSpacer(8);
-      const err = right.addText("Bağlantı yok — token'ı kontrol edin");
+      const err = right.addText("Bağlantı yok — internet ya da token");
       err.font = Font.systemFont(13);
       err.textColor = C.muted;
     } else if (items.length === 0) {
@@ -166,6 +221,7 @@ async function buildWidget() {
       }
     }
     right.addSpacer();
+    addOfflineNote(right, data);
   } else if (size === "small") {
     // ── Küçük: gün + rakam + ilk 2 kayıt ───────────────────────
     const dayName = widget.addText(GUNLER[now.getDay()]);
@@ -193,6 +249,7 @@ async function buildWidget() {
       }
     }
     widget.addSpacer();
+    addOfflineNote(widget, data);
   } else {
     // ── Büyük: tarih başlık + uzun liste ───────────────────────
     const header = widget.addStack();
@@ -217,7 +274,7 @@ async function buildWidget() {
     widget.addSpacer(12);
 
     if (items.length === 0) {
-      const empty = widget.addText(data ? "Bugün plan yok ✨" : "Bağlantı yok — token'ı kontrol edin");
+      const empty = widget.addText(data ? "Bugün plan yok ✨" : "Bağlantı yok — internet ya da token");
       empty.font = Font.mediumSystemFont(15);
       empty.textColor = C.text2;
     } else {
@@ -247,6 +304,7 @@ async function buildWidget() {
       }
     }
     widget.addSpacer();
+    addOfflineNote(widget, data);
   }
 
   return widget;
