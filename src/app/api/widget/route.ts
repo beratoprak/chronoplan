@@ -1,7 +1,9 @@
 // ============================================================
 // Epoche — Widget Veri Ucu
-// Scriptable iPhone widget'ı bu JSON'u çekerek Epoche tasarımında
-// bugünün programını ve görevlerini çizer.
+// Epoche iOS uygulamasının widget'ı (WidgetKit) bu JSON'u çekerek bugünün
+// programını ve görevlerini çizer. Son yanıtı saklar ve internet yokken ondan
+// çizer; gece ağsız kalınca ertesi günleri "upcoming" listesinden kurar. Bu
+// yüzden upcoming önümüzdeki 7 günün tamamını, bugün listesiyle aynı alanlarla verir.
 //
 // GET /api/widget?token=<kullanıcı-id>
 // ============================================================
@@ -110,13 +112,30 @@ export async function GET(request: Request): Promise<Response> {
   const upcoming = [
     ...expanded
       .filter((e) => e.date > today)
-      .map((e) => ({ date: e.date, title: e.title, type: "event" as const, time: e.isAllDay ? null : e.startTime ?? null })),
+      .map((e) => ({
+        date: e.date,
+        title: e.title,
+        type: "event" as const,
+        time: e.isAllDay ? null : e.startTime ?? null,
+        endTime: e.isAllDay ? null : e.endTime ?? null,
+        tagColor: e.tagColor,
+        priority: null,
+      })),
     ...allTasks
       .filter((t) => t.date && t.date > today && t.date <= weekEnd)
-      .map((t) => ({ date: t.date!, title: t.title, type: "task" as const, time: null })),
+      .map((t) => ({
+        date: t.date!,
+        title: t.title,
+        type: "task" as const,
+        time: null,
+        endTime: null,
+        tagColor: null,
+        priority: t.priority,
+      })),
   ]
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? ""))
-    .slice(0, 6);
+    // 7 günün tamamı; aşırı uç durumda yanıt şişmesin diye üst sınır.
+    .slice(0, 60);
 
   return Response.json(
     {
