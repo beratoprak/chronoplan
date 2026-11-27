@@ -14,6 +14,9 @@
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+// Next 14 sunucu fetch'lerini (supabase-js de fetch kullanır) varsayılan olarak veri önbelleğine
+// alır; force-dynamic bunu kapatmıyor. Kapatılmazsa uç, süreç açık kaldıkça ilk okuduğu veriyi döner.
+export const fetchCache = "force-no-store";
 
 interface TaskRow {
   id: string;

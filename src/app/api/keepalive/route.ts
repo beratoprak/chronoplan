@@ -16,6 +16,9 @@
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+// Next 14 sunucu fetch'lerini (supabase-js de fetch kullanır) varsayılan olarak veri önbelleğine
+// alır; force-dynamic bunu kapatmıyor. Kapatılmazsa uç, süreç açık kaldıkça ilk okuduğu veriyi döner.
+export const fetchCache = "force-no-store";
 
 export async function GET(request: Request): Promise<Response> {
   // CRON_SECRET tanımlıysa Vercel cron'u bunu Authorization başlığında
